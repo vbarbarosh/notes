@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+    <link href="https://unpkg.com/@vbarbarosh/smcss@1.2.0/dist/reset.css" rel="stylesheet">
+    <link href="css/theme.css" rel="stylesheet">
+    <link id="smcss" href="https://unpkg.com/@vbarbarosh/smcss@1.2.0/dist/sm.css" rel="stylesheet">
+    <title>notes</title>
+    <style>
+        .max-w600 { max-width: 600px; }
+        .gap5 { gap: 5px; }
+        .gap10 { gap: 10px; }
+        .gap15 { gap: 15px; }
+        .gap20 { gap: 20px; }
+        .gap25 { gap: 25px; }
+        .bucket { font-size: 50px; line-height: 1em; }
+    </style>
+</head>
+<body>
+
+<div id="app"></div>
+
+<script src="https://unpkg.com/axios@1.10.0/dist/axios.min.js"></script>
+<script src="https://unpkg.com/@vbarbarosh/dd@1.9.0/dist/dd.js"></script>
+<script src="https://unpkg.com/jquery@3.7.1/dist/jquery.js"></script>
+<script src="https://unpkg.com/bluebird@3.7.2/js/browser/bluebird.js"></script>
+<script src="https://unpkg.com/vue@3.5.12/dist/vue.global.js"></script>
+<script src="js/utils.js"></script>
+<script src="js/apis.js"></script>
+<script>
+const app = Vue.createApp({
+    template: `
+<!--        <div class="fix-br m15 bucket">🗑️</div>-->
+
+        <notes-overview v-on:select="select_notes_overview"
+                        v-bind:notes="notes"
+                        v-bind:active-uid="active_note?.uid" />
+
+        <div class="ma max-w600">
+
+            <notes-new v-on:refresh="refresh" />
+
+<!--
+            <div class="note-input-card">
+                <h1 class="note-title">📝 Notes</h1>
+                <textarea v-autosize v-model="new_body" v-on:paste="paste" rows="10" placeholder="Write your note here..."></textarea>
+                <div class="flex-row flex-align-center gap10 mb10">
+                    <input v-on:change="change_files" type="file" id="file-input" multiple webkitdirectory>
+                    <label for="file-input" class="file-label">Choose Files</label>
+                </div>
+                <button v-on:click="click_submit" class="submit-btn">Submit</button>
+            </div>
+-->
+
+            <div v-for="note in notes"
+                 v-bind:ref="elem => note_refs[note.uid] = elem"
+                 v-on:paste="paste_note($event, note)"
+                 v-on:mouseover="mouseover_note($event, note)"
+                 v-on:mouseleave="mouseleave_note($event, note)"
+                 v-on:dragover="dragover_note($event, note)"
+                 v-on:dragleave="dragleave_note($event, note)"
+                 v-on:drop="drop_note($event, note)"
+                 v-bind:class="{dropping: dropping_note_uid === note.uid, active: (active_note?.uid === note.uid)}"
+                 class="note-card">
+                <h2 class="flex-row-center gap5">
+                    {{ note.uid }} | {{ note.name }}
+                    <button v-on:click="click_h2_copy($event, note)" class="mla">📋️</button>
+                    <button v-on:click="click_h2_paste(note)">📥</button>
+                    <button v-on:click="click_h2_edit(note)">✏️</button>
+                    <button v-on:click="click_h2_remove(note)">🗑️</button>
+                </h2>
+
+                <div v-if="editing_note?.uid === note.uid" class="mb20">
+                    <textarea v-autosize v-autofocus v-model="editing_note.body" class="note-input-card-textarea"></textarea>
+                    <div class="flex-row gap10 mt5">
+                        <button v-on:click="click_editing_save">💾 Save</button>
+                        <button v-on:click="click_editing_cancel">🚫 Cancel</button>
+                    </div>
+                </div>
+                <markdown v-else v-bind:value="note.body" v-bind:prefix="note.prefix" />
+
+                <fancybox>
+                    <div class="flex-row flex-align-center flex-wrap gap10">
+                        <a v-for="file in note.files.filter(v => v.thumbnail_url)" v-bind:href="(file.url)" target="_blank">
+                            <img
+                                v-on:mouseover="mouseover_note_image($event, note, file)"
+                                v-on:mouseleave="mouseleave_note_image($event, note, file)"
+                                v-bind:src="file.thumbnail_url"
+                                v-bind:class="{highlight: (mouseover_note_uid === note.uid && mouseover_file_path === file.path)}"
+                                alt=""
+                                class="flex-static max-ww checkerboard">
+                        </a>
+                    </div>
+                </fancybox>
+
+                <table v-if="note.files.length"  class="notes-table">
+                <thead>
+                <tr>
+                    <th>path</th>
+                    <th class="r">size</th>
+                    <th></th>
+                </tr>
+                </thead>
+                <tbody>
+                <tr v-for="file in note.files"
+                        v-on:mouseover="mouseover_note_table_row($event, note, file)"
+                        v-on:mouseleave="mouseleave_note_table_row($event, note, file)"
+                        v-bind:class="{highlight: (mouseover_note_uid === note.uid && mouseover_file_path === file.path)}">
+                    <td>{{ file.path }}</td>
+                    <td class="w0 r">
+                        {{ format_bytes(file.size) }}
+                    </td>
+                    <td class="w0">
+                        <div class="flex-row gap5">
+                            <button v-on:click="click_file_save(note, file)">💾</button>
+                            <button v-on:click="click_file_remove(note, file)">❌</button>
+                        </div>
+                    </td>
+                </tr>
+                </tbody>
+                </table>
+            </div>
+        </div>
+    `,
+    data: function () {
+        return {
+            note_refs: {},
+            new_body: '',
+            active_note: null,
+            editing_note: null,
+            dropping_note_uid: null,
+            mouseover_note_uid: null,
+            mouseover_file_path: null,
+            notes: [],
+        };
+    },
+    methods: {
+        refresh: async function () {
+            this.notes = await api_notes_list().then(v => v.items);
+        },
+        reset: function () {
+            this.new_body = '';
+            this.editing_note = null;
+        },
+        select_notes_overview: function (note_uid) {
+            this.note_refs[note_uid].scrollIntoView({behavior: 'smooth', block: 'center'});
+            this.active_note = this.notes.find(v => v.uid === note_uid);
+        },
+        change_files: async function (event) {
+            const tmp = await api_notes_create({body: this.new_body});
+            const note_uid = tmp.uid;
+            const files = await get_event_files(event);
+            await Promise.all(files.map(file => api_notes_upload_file({note_uid, file})));
+            this.reset();
+            await this.refresh();
+        },
+        paste: async function (event) {
+            const items = event.clipboardData && event.clipboardData.items;
+            if (!items) {
+                return;
+            }
+            let note_uid;
+            for (let i = 0; i < items.length; ++i) {
+                const item = items[i];
+                if (item.kind === 'file') {
+                    const file = item.getAsFile();
+                    if (file) {
+                        if (!note_uid) {
+                            const tmp = await api_notes_create({body: this.new_body});
+                            note_uid = tmp.uid;
+                        }
+                        await api_notes_upload_file({note_uid, file});
+                    }
+                }
+            }
+            await this.refresh();
+        },
+        paste_note: async function (event, note) {
+            const items = event.clipboardData && event.clipboardData.items;
+            if (!items) {
+                return;
+            }
+            let note_uid = note.uid;
+            for (let i = 0; i < items.length; ++i) {
+                const item = items[i];
+                if (item.kind === 'file') {
+                    const file = item.getAsFile();
+                    if (file) {
+                        await api_notes_upload_file({note_uid, file});
+                    }
+                }
+            }
+            await this.refresh();
+        },
+        click_submit: async function () {
+            await api_notes_create({body: this.new_body});
+            await this.reset();
+            await this.refresh();
+        },
+        click_h2_copy: async function (event, note) {
+            const elem = event.currentTarget;
+            await navigator.clipboard.writeText(note.body);
+            elem.classList.add('copied');
+            await Promise.delay(900);
+            elem.classList.remove('copied');
+        },
+        click_h2_paste: async function (note) {
+            const note_uid = note.uid;
+            const items = await navigator.clipboard.read();
+            for (const item of items) {
+                const blob = await item.getType('image/png');
+                await api_notes_upload_file({note_uid, file: new File([blob], 'image.png')});
+            }
+            await this.refresh();
+        },
+        click_h2_edit: async function (note) {
+            this.editing_note = JSON.parse(JSON.stringify(note));
+        },
+        click_h2_remove: async function (note) {
+            await api_notes_remove({note_uid: note.uid});
+            await this.refresh();
+        },
+        click_editing_save: async function () {
+            await api_notes_update({note_uid: this.editing_note.uid, body: this.editing_note.body});
+            this.reset();
+            await this.refresh();
+        },
+        click_editing_cancel: async function () {
+            this.editing_note = null;
+        },
+        click_file_save: function (note, file) {
+            window.open(file.url, '_blank');
+        },
+        click_file_remove: async function (note, file) {
+            await api_notes_remove_file({note_uid: note.uid, filename: file.path});
+            await this.refresh();
+        },
+        mouseover_note: function (event, note) {
+            this.active_note = note;
+        },
+        mouseleave_note: function (event, note) {
+            if (this.active_note === note) {
+                this.active_note = null;
+            }
+        },
+        dragover_note: function (event, note) {
+            event.preventDefault();
+            this.dropping_note_uid = note.uid;
+        },
+        dragleave_note: function (event, note) {
+            if (this.dropping_note_uid === note.uid) {
+                this.dropping_note_uid = null;
+            }
+        },
+        drop_note: async function (event, note) {
+            event.preventDefault();
+            this.dropping_note_uid = null;
+            const files = await get_event_files(event);
+            if (files.length) {
+                await Promise.all(files.map(file => api_notes_upload_file({note_uid: note.uid, file})));
+                await this.refresh();
+            }
+        },
+        mouseover_note_image: function (event, note, file) {
+            this.mouseover_note_uid = note.uid;
+            this.mouseover_file_path = file.path;
+        },
+        mouseleave_note_image: function (event, note, file) {
+            if (this.mouseover_note_uid === note.uid && this.mouseover_file_path === file.path) {
+                this.mouseover_note_uid = null;
+                this.mouseover_file_path = null;
+            }
+        },
+        mouseover_note_table_row: function ($event, note, file) {
+            this.mouseover_note_uid = note.uid;
+            this.mouseover_file_path = file.path;
+        },
+        mouseleave_note_table_row: function ($event, note, file) {
+            if (this.mouseover_note_uid === note.uid && this.mouseover_file_path === file.path) {
+                this.mouseover_note_uid = null;
+                this.mouseover_file_path = null;
+            }
+        },
+    },
+    created: async function () {
+        await this.refresh();
+    },
+});
+app.mixin({
+    methods: {
+        px,
+        pc,
+        format_bytes,
+    },
+});
+</script>
+
+<script src="js/components/notes-new.js"></script>
+<script src="js/components/notes-overview.js"></script>
+<script src="js/components/vendor/fancybox.js"></script>
+<script src="js/components/vendor/markdown.js"></script>
+<script src="js/directives/autofocus.js"></script>
+<script src="js/directives/autosize.js"></script>
+
+<script>
+    app.mount('#app');
+</script>
+
+</body>
+</html>

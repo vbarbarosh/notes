@@ -1,0 +1,15 @@
+services:
+  authwall:
+    image: vbarbarosh/authwall
+    environment:
+      AUTHWALL_TARGET_URL: http://notes:3000
+    ports:
+      - '3000:3000'
+    volumes:
+      - ./data/authwall:/app/data
+
+  notes:
+    image: vbarbarosh/notes
+    restart: always
+    volumes:
+      - ./data/notes:/app/data

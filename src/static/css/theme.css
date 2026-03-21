@@ -1,0 +1,225 @@
+body {
+    background: #e3e6ee;
+    font-family: system-ui, sans-serif;
+    color: #232634;
+}
+
+.note-card {
+    background: #f7f8fb;
+    border-radius: 10px;
+    box-shadow: 0 2px 10px #bbb3;
+    padding: 18px 22px 12px 22px;
+    margin-bottom: 20px;
+    border: 1px solid #c7cde2;
+    transition: box-shadow 0.15s, border-color 0.15s;
+}
+
+.note-card:hover,
+.note-card.active {
+    box-shadow: 0 4px 18px #abb9ee6e;
+    border-color: #9da9db;
+}
+
+.note-card.dropping {
+    outline: 2px dashed #2486fd;
+    background: #d8f9d8;
+}
+
+.note-card.dropping * {
+    pointer-events: none;
+}
+
+.note-card h2 {
+    font-size: 1.13rem;
+    font-weight: 700;
+    color: #3b4273;
+    margin-bottom: 6px;
+}
+
+textarea {
+    border-radius: 7px;
+    border: 1px solid #b6b7c9;
+    padding: 10px;
+    font-size: 1rem;
+    background: #f1f3fa;
+    color: #232634;
+    resize: vertical;
+    margin-bottom: 6px;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+button {
+    background: #dde2f3;
+    border: none;
+    border-radius: 5px;
+    padding: 3px 11px;
+    font-size: 1rem;
+    color: #27336a;
+    cursor: pointer;
+    transition: background 0.14s, color 0.14s;
+}
+
+button:hover {
+    background: #b8c7ee;
+    color: #222c52;
+}
+
+img.checkerboard {
+    border-radius: 7px;
+    border: 1px solid #c7cde2;
+    box-shadow: 0 1px 7px #bfc2db60;
+    background: repeating-conic-gradient(#e6eafd 0% 25%, #f6f7fb 0% 50%) 50% / 20px 20px;
+    object-fit: contain;
+}
+
+.notes-table {
+    width: 100%;
+    margin-top: 10px;
+    border-collapse: collapse;
+    font-size: 0.97em;
+    background: #f4f6fb;
+    border-radius: 6px;
+    overflow: hidden;
+}
+
+.notes-table th,
+.notes-table td {
+    padding: 3px 8px;
+}
+
+.notes-table th {
+    color: #465097;
+    font-weight: 600;
+    background: #e3e6ee;
+    border-bottom: 1px solid #c7cde2;
+}
+
+.notes-table td {
+    border-bottom: 1px solid #e3e6ee;
+}
+
+.notes-table tr:last-child td {
+    border-bottom: none;
+}
+
+.note-input-card {
+    background: #f3f4fa;
+    border-radius: 14px;
+    box-shadow: 0 2px 12px #bbb3;
+    padding: 24px 30px 18px 30px;
+    max-width: 640px;
+    margin: 36px auto 32px auto;
+    border: 1.5px solid #ccd2e3;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.note-title {
+    font-size: 1.4rem;
+    font-weight: 700;
+    color: #35416b;
+    margin-bottom: 6px;
+    letter-spacing: 0.02em;
+}
+
+.note-input-card textarea,
+.note-input-card-textarea {
+    border-radius: 8px;
+    border: 1.5px solid #b6b7c9;
+    padding: 14px;
+    background: #f7f8fd;
+    font-size: 1.07rem;
+    color: #2b2f3a;
+    resize: vertical;
+    width: 100%;
+    box-sizing: border-box;
+    min-height: 120px;
+    transition: border 0.15s;
+}
+
+.note-input-card textarea:focus,
+.note-input-card-textarea:focus {
+    outline: none;
+    border-color: #9da9db;
+    background: #f4f7ff;
+}
+
+.file-label {
+    background: #dde2f3;
+    color: #27336a;
+    padding: 4px 12px;
+    border-radius: 5px;
+    cursor: pointer;
+    border: 1px solid #b6b7c9;
+    font-size: 1rem;
+    margin-right: 8px;
+    transition: background 0.15s;
+}
+
+.file-label:hover {
+    background: #b8c7ee;
+}
+
+input[type="file"] {
+    display: none;
+}
+
+.file-chosen {
+    color: #7a7f99;
+    font-size: 0.97em;
+}
+
+.submit-btn {
+    margin-top: 10px;
+    background: #6a7de0;
+    color: #fff;
+    font-size: 1.09rem;
+    border-radius: 7px;
+    border: none;
+    padding: 10px 0;
+    width: 100%;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    box-shadow: 0 1px 6px #bfc2db50;
+    transition: background 0.17s, color 0.17s;
+}
+
+.submit-btn:hover {
+    background: #384b92;
+    color: #fff;
+}
+
+.highlight {
+    outline: 2px solid #2aa34a !important;
+    background: #f3ffe7 !important;
+}
+
+.copied {
+    position: relative;
+    animation: copied-pulse 0.3s;
+}
+.copied::after {
+    content: "✔";
+    position: absolute;
+    left: 50%; top: 50%;
+    transform: translate(-50%, -50%) scale(1.3);
+    font-size: 1.3em;
+    color: #4caf50;
+    pointer-events: none;
+    opacity: 1;
+    animation: copied-check 0.9s cubic-bezier(.4,1.8,.7,1.2) forwards;
+    filter: drop-shadow(3px 3px 0px rgba(0, 0, 0, 0.1));
+}
+@keyframes copied-pulse {
+    0% { transform: scale(1);}
+    50% { transform: scale(1.15);}
+    100% { transform: scale(1);}
+}
+@keyframes copied-check {
+    0%   { opacity: 0; transform: translate(-50%, -50%) scale(0.7);}
+    30%  { opacity: 1; transform: translate(-50%, -60%) scale(1.3);}
+    90%  { opacity: 1; transform: translate(-50%, -80%) scale(1);}
+    100% { opacity: 0; transform: translate(-50%, -120%) scale(0.7);}
+}
