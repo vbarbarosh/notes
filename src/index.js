@@ -48,7 +48,8 @@ async function main()
     app.use(body_parser.json());
 
     app.use(function (req, res, next) {
-        req.user_uid = req.headers['x-auth-user'] ?? 'anon';
+        // req.user_uid = req.headers['x-auth-user'] ?? 'anon';
+        req.user_uid = req.headers['x-auth-user'] ?? '.';
         next();
         // next(new Error('No user provided'));
     });
