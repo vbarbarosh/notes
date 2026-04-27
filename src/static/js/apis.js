@@ -35,3 +35,18 @@ async function api_notes_remove_file({note_uid, filename})
 {
     return http_delete(`/api/v1/notes/${note_uid}/files/${filename}`);
 }
+
+async function api_jobs_list()
+{
+    return http_get_json('/api/v1/jobs');
+}
+
+async function api_jobs_create({job_name, note_uid})
+{
+    return http_post_json(`/api/v1/jobs/${job_name}`, {note_uid});
+}
+
+async function api_jobs_confirm({job_uid})
+{
+    return http_post_json(`/api/v1/jobs/${job_uid}/confirm`, {});
+}

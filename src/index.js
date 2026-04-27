@@ -60,6 +60,7 @@ async function main()
         {req: 'GET /', fn: echo},
         {req: 'GET /r/*', fn: data_fetch},
         {req: 'GET /t/:size/*', fn: thumbnail},
+        ...require('./routes/jobs'),
         {req: 'GET /api/v1/notes.json', fn: notes_list},
         {req: 'GET /api/v1/notes/:note_uid', fn: notes_fetch},
         {req: 'POST /api/v1/notes', fn: notes_create},

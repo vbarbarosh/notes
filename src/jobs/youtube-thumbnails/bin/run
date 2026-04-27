@@ -1,0 +1,197 @@
+#!/usr/bin/env node
+
+const fs = require('fs');
+const https = require('https');
+const path = require('path');
+const sharp = require('sharp');
+
+const URL_PATTERN = /https?:\/\/[^\s<>"'`]+/g;
+
+main().catch(async function (error) {
+    await write_status({
+        status: 'failed',
+        user_friendly_status: 'Failed',
+        finished_at: new Date().toJSON(),
+    }).catch(() => {});
+    await fs.promises.writeFile(path.resolve(process.cwd(), 'error.txt'), error.stack || error.message || String(error));
+    process.exitCode = 1;
+});
+
+async function main()
+{
+    const note_arg = process.argv[2];
+    if (!note_arg) {
+        throw new Error('Usage: run <note_path>');
+    }
+
+    const app_root = path.resolve(__dirname, '../../../..');
+    const note_root = path.isAbsolute(note_arg) ? note_arg : path.resolve(app_root, note_arg);
+    const tmp_root = path.resolve(process.cwd(), 'tmp');
+    const files_root = path.resolve(note_root, 'files', 'youtube');
+
+    await fs.promises.mkdir(tmp_root, {recursive: true});
+    await fs.promises.mkdir(files_root, {recursive: true});
+
+    await write_status({status: 'running', user_friendly_status: 'Reading note'});
+
+    const body = await fs.promises.readFile(path.resolve(note_root, 'README.md'), 'utf8');
+    const ids = extract_youtube_ids(body);
+    const created = [];
+    const skipped = [];
+    const errors = [];
+
+    for (let i = 0; i < ids.length; ++i) {
+        const id = ids[i];
+        const rel = `files/youtube/${id}.jpg`;
+        const final_file = path.resolve(files_root, `${id}.jpg`);
+        const tmp_file = path.resolve(tmp_root, `${id}.jpg`);
+
+        await write_status({status: 'running', user_friendly_status: `Processing ${i + 1}/${ids.length}`});
+
+        if (await exists(final_file)) {
+            skipped.push(rel);
+            continue;
+        }
+
+        try {
+            await download(`https://img.youtube.com/vi/${id}/hqdefault.jpg`, tmp_file);
+            await sharp(tmp_file).metadata();
+            await fs.promises.copyFile(tmp_file, final_file, fs.constants.COPYFILE_EXCL);
+            created.push(rel);
+        }
+        catch (error) {
+            errors.push({
+                id,
+                message: error.message,
+            });
+        }
+    }
+
+    await fs.promises.writeFile(path.resolve(process.cwd(), 'output.json'), JSON.stringify({
+        created,
+        skipped,
+        errors,
+    }, null, 4));
+
+    await write_status({
+        status: 'finished',
+        user_friendly_status: `Created ${created.length}, skipped ${skipped.length}, errors ${errors.length}`,
+        finished_at: new Date().toJSON(),
+    });
+
+    if (errors.length && !created.length && !skipped.length) {
+        throw new Error(errors.map(error => `${error.id}: ${error.message}`).join('\n'));
+    }
+}
+
+function extract_youtube_ids(body)
+{
+    const urls = String(body || '').match(URL_PATTERN) || [];
+    const seen = new Set();
+    const out = [];
+
+    urls.forEach(function (raw_url) {
+        const url = raw_url.replace(/[)\].,!?;:]+$/g, '');
+        const id = parse_youtube_id(url);
+        if (!id || seen.has(id)) {
+            return;
+        }
+        seen.add(id);
+        out.push(id);
+    });
+
+    return out;
+}
+
+function parse_youtube_id(url)
+{
+    try {
+        const parsed = new URL(url);
+        const host = parsed.hostname.replace(/^www\./, '');
+
+        if (host === 'youtu.be') {
+            return clean_youtube_id(parsed.pathname.split('/').filter(Boolean)[0]);
+        }
+
+        const is_youtube = host === 'youtube.com' || host.endsWith('.youtube.com');
+        const is_youtube_nocookie = host === 'youtube-nocookie.com' || host.endsWith('.youtube-nocookie.com');
+        if (!is_youtube && !is_youtube_nocookie) {
+            return null;
+        }
+
+        if (parsed.pathname === '/watch') {
+            return clean_youtube_id(parsed.searchParams.get('v'));
+        }
+
+        const parts = parsed.pathname.split('/').filter(Boolean);
+        if (['embed', 'shorts', 'live'].includes(parts[0])) {
+            return clean_youtube_id(parts[1]);
+        }
+    }
+    catch (error) {
+    }
+
+    return null;
+}
+
+function clean_youtube_id(value)
+{
+    const id = String(value || '').trim();
+    return /^[A-Za-z0-9_-]{6,}$/.test(id) ? id : null;
+}
+
+function download(url, file)
+{
+    return new Promise(function (resolve, reject) {
+        const req = https.get(url, function (res) {
+            if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
+                res.resume();
+                download(res.headers.location, file).then(resolve, reject);
+                return;
+            }
+
+            if (res.statusCode !== 200) {
+                res.resume();
+                reject(new Error(`Download failed with HTTP ${res.statusCode}`));
+                return;
+            }
+
+            const stream = fs.createWriteStream(file);
+            stream.on('error', reject);
+            stream.on('finish', resolve);
+            res.pipe(stream);
+        });
+
+        req.setTimeout(30000, function () {
+            req.destroy(new Error('Download timed out'));
+        });
+        req.on('error', reject);
+    });
+}
+
+async function write_status(patch)
+{
+    const file = path.resolve(process.cwd(), 'status.json');
+    let current = {};
+    for (let i = 0; i < 5; ++i) {
+        try {
+            current = JSON.parse(await fs.promises.readFile(file, 'utf8'));
+            break;
+        }
+        catch (error) {
+            await new Promise(resolve => setTimeout(resolve, 20));
+        }
+    }
+    await fs.promises.writeFile(file, JSON.stringify({...current, ...patch}, null, 4));
+}
+
+async function exists(file)
+{
+    try {
+        await fs.promises.access(file);
+        return true;
+    }
+    catch (error) {
+        return false;
+    }
+}

@@ -279,11 +279,38 @@ const app = Vue.createApp({
                         title="Play YouTube">
                         ▶️
                     </button>
+                    <button
+                        v-if="note.youtube_items.length"
+                        v-on:click.stop="click_youtube_thumbnails(note)"
+                        v-bind:disabled="!!note_active_job(note, 'youtube-thumbnails')"
+                        title="Extract YouTube thumbnails">
+                        🖼️
+                    </button>
+                    <button
+                        v-if="note.youtube_items.length"
+                        v-on:click.stop="click_youtube_mp3(note)"
+                        v-bind:disabled="!!note_active_job(note, 'youtube-mp3')"
+                        title="Extract YouTube MP3">
+                        🎵
+                    </button>
                     <button v-on:click="click_h2_copy($event, note)" class="mla">📋️</button>
                     <button v-on:click="click_h2_paste(note)">📥</button>
                     <button v-on:click="click_h2_edit(note)">✏️</button>
                     <button v-on:click="click_h2_remove(note)">🗑️</button>
                 </h2>
+
+                <div v-if="note_jobs(note).length" class="job-list">
+                    <div v-for="job in note_jobs(note)" v-bind:key="job.uid" class="job-row">
+                        <span v-bind:class="['job-status', job.bucket]">{{ job_label(job) }}</span>
+                        <button
+                            v-if="job.bucket === 'finished' || job.bucket === 'failed'"
+                            type="button"
+                            v-on:click="click_job_confirm(job)"
+                            title="Confirm job">
+                            OK
+                        </button>
+                    </div>
+                </div>
 
                 <div v-if="note.display_tags.length" class="note-tags">
                     <button
@@ -390,6 +417,10 @@ const app = Vue.createApp({
             tag_sort: 'count',
             note_query: '',
             youtube_player: null,
+            jobs: [],
+            jobs_loaded: false,
+            jobs_poll_timer: null,
+            seen_terminal_job_uids: [],
         };
     },
     computed: {
@@ -484,9 +515,43 @@ const app = Vue.createApp({
             this.notes = await api_notes_list().then(v => v.items);
             this.prune_selected_tags();
         },
+        refresh_jobs: async function () {
+            const data = await api_jobs_list();
+            const items = data.items || [];
+            const has_new_terminal_job = this.jobs_loaded && items.some(job => {
+                if (!['finished', 'failed'].includes(job.bucket)) {
+                    return false;
+                }
+                return !this.seen_terminal_job_uids.includes(job.uid);
+            });
+
+            this.jobs = items;
+            this.jobs_loaded = true;
+            this.seen_terminal_job_uids = Array.from(new Set([
+                ...this.seen_terminal_job_uids,
+                ...items.filter(job => ['finished', 'failed', 'confirmed'].includes(job.bucket)).map(job => job.uid),
+            ]));
+
+            if (has_new_terminal_job) {
+                await this.refresh();
+            }
+        },
         reset: function () {
             this.new_body = '';
             this.editing_note = null;
+        },
+        note_jobs: function (note) {
+            return this.jobs.filter(job => job.note_uid === note.uid || String(job.note_uid || '').startsWith(note.uid + '-'));
+        },
+        note_active_job: function (note, job_name) {
+            return this.note_jobs(note).find(job => job.job_name === job_name && job.bucket === 'active');
+        },
+        job_label: function (job) {
+            return [
+                job.job_name,
+                job.user_friendly_status || job.status,
+                job.bucket,
+            ].filter(Boolean).join(' · ');
         },
         select_notes_overview: function (note_uid) {
             this.note_refs[note_uid]?.scrollIntoView({behavior: 'smooth', block: 'center'});
@@ -650,6 +715,18 @@ const app = Vue.createApp({
                 window.open(this.youtube_player.url, '_blank');
             }
         },
+        click_youtube_thumbnails: async function (note) {
+            await api_jobs_create({job_name: 'youtube-thumbnails', note_uid: note.uid});
+            await this.refresh_jobs();
+        },
+        click_youtube_mp3: async function (note) {
+            await api_jobs_create({job_name: 'youtube-mp3', note_uid: note.uid});
+            await this.refresh_jobs();
+        },
+        click_job_confirm: async function (job) {
+            await api_jobs_confirm({job_uid: job.uid});
+            await this.refresh_jobs();
+        },
         mouseover_note: function (event, note) {
             this.active_note = note;
         },
@@ -699,12 +776,15 @@ const app = Vue.createApp({
     },
     created: async function () {
         await this.refresh();
+        await this.refresh_jobs();
     },
     mounted: function () {
         document.addEventListener('click', this.close_tag_picker_on_outside_click);
+        this.jobs_poll_timer = setInterval(this.refresh_jobs, 2500);
     },
     unmounted: function () {
         document.removeEventListener('click', this.close_tag_picker_on_outside_click);
+        clearInterval(this.jobs_poll_timer);
     },
 });
 app.mixin({
