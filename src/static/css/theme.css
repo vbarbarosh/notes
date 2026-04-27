@@ -36,6 +36,92 @@ body {
     margin-bottom: 6px;
 }
 
+.tags-panel {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+    margin: -16px auto 26px;
+    max-width: 680px;
+}
+
+.tag-chip,
+.note-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    max-width: 100%;
+    border: 1px solid #c5cce4;
+    background: #f7f8fd;
+    color: #374071;
+    border-radius: 999px;
+    font-size: 0.9rem;
+    font-weight: 650;
+    line-height: 1.2;
+    white-space: nowrap;
+}
+
+.tag-chip {
+    min-height: 32px;
+    padding: 5px 10px;
+    box-shadow: 0 1px 5px #bfc2db28;
+}
+
+.tag-chip span {
+    min-width: 20px;
+    padding: 2px 6px;
+    border-radius: 999px;
+    background: #e5e9f5;
+    color: #636b8f;
+    font-size: 0.78rem;
+    text-align: center;
+}
+
+.tag-chip:hover,
+.note-tag:hover {
+    background: #edf3ff;
+    border-color: #91a6e6;
+    color: #27336a;
+}
+
+.tag-chip.active,
+.note-tag.active {
+    background: #31416f;
+    border-color: #31416f;
+    color: #fff;
+}
+
+.tag-chip.active span {
+    background: #f2f5ff;
+    color: #31416f;
+}
+
+.tag-chip-all {
+    color: #556077;
+}
+
+.note-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 7px;
+    margin: 10px 0 12px;
+}
+
+.note-tag {
+    padding: 4px 9px;
+    font-size: 0.84rem;
+}
+
+.notes-empty {
+    margin: -8px 0 24px;
+    padding: 14px 16px;
+    border: 1px dashed #b9c1dc;
+    border-radius: 8px;
+    color: #586079;
+    background: #f4f6fb;
+    text-align: center;
+}
+
 textarea {
     border-radius: 7px;
     border: 1px solid #b6b7c9;

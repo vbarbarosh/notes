@@ -29,17 +29,73 @@
 <script src="js/utils.js"></script>
 <script src="js/apis.js"></script>
 <script>
+const TAG_FILTER_STORAGE_KEY = 'notes.selected_tags';
+const TAG_PATTERN = /#[A-Za-z0-9][A-Za-z0-9_-]*/g;
+
+function parse_note_tags(body)
+{
+    const value = String(body || '');
+    const lines = value.split(/\r?\n/);
+    const first_line = lines[0] || '';
+    const matches = first_line.match(TAG_PATTERN) || [];
+    if (!matches.length) {
+        return {tags: [], display_body: value};
+    }
+
+    const non_tag_text = first_line.replace(TAG_PATTERN, '').trim();
+    if (/[A-Za-z0-9]/.test(non_tag_text)) {
+        return {tags: [], display_body: value};
+    }
+
+    const tags = Array.from(new Set(matches.map(tag => tag.toLowerCase())));
+    return {tags, display_body: lines.slice(1).join('\n').trimStart()};
+}
+
+function load_selected_tags()
+{
+    try {
+        const tags = JSON.parse(localStorage.getItem(TAG_FILTER_STORAGE_KEY) || '[]');
+        return Array.isArray(tags) ? tags.filter(tag => typeof tag === 'string') : [];
+    }
+    catch (error) {
+        return [];
+    }
+}
+
 const app = Vue.createApp({
     template: `
 <!--        <div class="fix-br m15 bucket">🗑️</div>-->
 
         <notes-overview v-on:select="select_notes_overview"
-                        v-bind:notes="notes"
+                        v-bind:notes="filtered_notes"
                         v-bind:active-uid="active_note?.uid" />
 
         <div class="ma max-w600">
 
             <notes-new v-on:refresh="refresh" />
+
+            <div v-if="all_tags.length" class="tags-panel">
+                <button
+                    type="button"
+                    v-on:click="clear_tag_filter"
+                    v-bind:class="['tag-chip', 'tag-chip-all', {active: selected_tags.length === 0}]"
+                    title="Show all notes">
+                    All <span>{{ notes.length }}</span>
+                </button>
+                <button
+                    v-for="tag in all_tags"
+                    v-bind:key="tag.name"
+                    type="button"
+                    v-on:click="toggle_tag(tag.name)"
+                    v-bind:class="['tag-chip', {active: selected_tags.includes(tag.name)}]"
+                    v-bind:title="tag.name">
+                    {{ tag.name }} <span>{{ tag.count }}</span>
+                </button>
+            </div>
+
+            <div v-if="selected_tags.length && !filtered_notes.length" class="notes-empty">
+                No notes match {{ selected_tags.join(' ') }}
+            </div>
 
 <!--
             <div class="note-input-card">
@@ -53,7 +109,7 @@ const app = Vue.createApp({
             </div>
 -->
 
-            <div v-for="note in notes"
+            <div v-for="note in filtered_notes"
                  v-bind:ref="elem => note_refs[note.uid] = elem"
                  v-on:paste="paste_note($event, note)"
                  v-on:mouseover="mouseover_note($event, note)"
@@ -71,6 +127,18 @@ const app = Vue.createApp({
                     <button v-on:click="click_h2_remove(note)">🗑️</button>
                 </h2>
 
+                <div v-if="note.display_tags.length" class="note-tags">
+                    <button
+                        v-for="tag in note.display_tags"
+                        v-bind:key="tag"
+                        type="button"
+                        v-on:click.stop="toggle_tag(tag)"
+                        v-bind:class="['note-tag', {active: selected_tags.includes(tag)}]"
+                        v-bind:title="tag">
+                        {{ tag }}
+                    </button>
+                </div>
+
                 <div v-if="editing_note?.uid === note.uid" class="mb20">
                     <textarea v-autosize v-autofocus v-model="editing_note.body" class="note-input-card-textarea"></textarea>
                     <div class="flex-row gap10 mt5">
@@ -78,7 +146,7 @@ const app = Vue.createApp({
                         <button v-on:click="click_editing_cancel">🚫 Cancel</button>
                     </div>
                 </div>
-                <markdown v-else v-bind:value="note.body" v-bind:prefix="note.prefix" />
+                <markdown v-else-if="note.display_body" v-bind:value="note.display_body" v-bind:prefix="note.prefix" />
 
                 <fancybox>
                     <div class="flex-row flex-align-center flex-wrap gap10">
@@ -133,19 +201,75 @@ const app = Vue.createApp({
             mouseover_note_uid: null,
             mouseover_file_path: null,
             notes: [],
+            selected_tags: load_selected_tags(),
         };
+    },
+    computed: {
+        decorated_notes: function () {
+            return this.notes.map(function (note) {
+                const parsed = parse_note_tags(note.body);
+                return {
+                    ...note,
+                    display_tags: parsed.tags,
+                    display_body: parsed.display_body,
+                };
+            });
+        },
+        all_tags: function () {
+            const counts = new Map();
+            this.decorated_notes.forEach(function (note) {
+                note.display_tags.forEach(function (tag) {
+                    counts.set(tag, (counts.get(tag) || 0) + 1);
+                });
+            });
+            return Array.from(counts.entries())
+                .map(([name, count]) => ({name, count}))
+                .sort((a, b) => a.name.localeCompare(b.name));
+        },
+        filtered_notes: function () {
+            if (!this.selected_tags.length) {
+                return this.decorated_notes;
+            }
+            return this.decorated_notes.filter(note => this.selected_tags.every(tag => note.display_tags.includes(tag)));
+        },
+    },
+    watch: {
+        selected_tags: {
+            deep: true,
+            handler: function () {
+                localStorage.setItem(TAG_FILTER_STORAGE_KEY, JSON.stringify(this.selected_tags));
+            },
+        },
     },
     methods: {
         refresh: async function () {
             this.notes = await api_notes_list().then(v => v.items);
+            this.prune_selected_tags();
         },
         reset: function () {
             this.new_body = '';
             this.editing_note = null;
         },
         select_notes_overview: function (note_uid) {
-            this.note_refs[note_uid].scrollIntoView({behavior: 'smooth', block: 'center'});
+            this.note_refs[note_uid]?.scrollIntoView({behavior: 'smooth', block: 'center'});
             this.active_note = this.notes.find(v => v.uid === note_uid);
+        },
+        toggle_tag: function (tag) {
+            if (this.selected_tags.includes(tag)) {
+                this.selected_tags = this.selected_tags.filter(value => value !== tag);
+                return;
+            }
+            this.selected_tags = [...this.selected_tags, tag].sort((a, b) => a.localeCompare(b));
+        },
+        clear_tag_filter: function () {
+            this.selected_tags = [];
+        },
+        prune_selected_tags: function () {
+            const found = new Set(this.all_tags.map(tag => tag.name));
+            const selected_tags = this.selected_tags.filter(tag => found.has(tag));
+            if (selected_tags.length !== this.selected_tags.length) {
+                this.selected_tags = selected_tags;
+            }
         },
         change_files: async function (event) {
             const tmp = await api_notes_create({body: this.new_body});
@@ -240,7 +364,7 @@ const app = Vue.createApp({
             this.active_note = note;
         },
         mouseleave_note: function (event, note) {
-            if (this.active_note === note) {
+            if (this.active_note?.uid === note.uid) {
                 this.active_note = null;
             }
         },

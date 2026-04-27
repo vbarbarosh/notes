@@ -11,7 +11,10 @@ app.component('notes-overview', {
                 :class="['overview-item', {active: note.uid === activeUid}]"
                 @click="$emit('select', note.uid)">
                 <div class="overview-date">{{ formatDate(note.created_at || note.date) }}</div>
-                <div class="overview-title">{{ note.name || truncate(note.body) }}</div>
+                <div class="overview-title">{{ note.name || truncate(note.display_body ?? note.body) || 'Untitled' }}</div>
+                <div v-if="note.display_tags?.length" class="overview-tags">
+                    <span v-for="tag in note.display_tags" :key="tag" class="overview-tag">{{ tag }}</span>
+                </div>
             </div>
         </aside>
     `,
@@ -101,6 +104,35 @@ css`
         text-overflow: ellipsis;
         font-weight: 500;
         line-height: 1.15;
+    }
+
+    .overview-tags {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 4px;
+        margin-top: 7px;
+        min-height: 17px;
+    }
+
+    .overview-tag {
+        display: inline-flex;
+        align-items: center;
+        max-width: 88px;
+        padding: 2px 6px;
+        border-radius: 999px;
+        background: #eef2fb;
+        color: #465097;
+        font-size: 11px;
+        font-weight: 600;
+        line-height: 1.2;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .overview-item.active .overview-tag {
+        background: #d5e2ff;
+        color: #234c9d;
     }
 
     @media (max-width: 700px) {
