@@ -13,4 +13,4 @@ services:
     image: vbarbarosh/notes
     restart: unless-stopped
     volumes:
-      - ./data/notes:/app/data
+      - ./data-notes:/app/data
