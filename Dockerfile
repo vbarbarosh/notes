@@ -3,6 +3,11 @@ FROM node:24.14.0
 # https://github.com/Yelp/dumb-init
 ADD --chmod=755 https://github.com/Yelp/dumb-init/releases/download/v1.2.5/dumb-init_1.2.5_x86_64 /usr/bin/dumb-init
 
+RUN echo 'Intalling yt-dlp + ffmpeg (for best compatibility)...' \
+    && apt-get update \
+    && apt-get install -y --no-install-recommends yt-dlp ffmpeg \
+    && rm -rf /var/lib/apt/lists/*
+
 # Leverage Docker's cache system.
 # package.json will be changed less often than other files, so copy it first
 # and install all dependencies.
