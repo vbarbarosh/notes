@@ -32,6 +32,7 @@
 const TAG_FILTER_STORAGE_KEY = 'notes.selected_tags';
 const TAG_EXCLUDE_STORAGE_KEY = 'notes.excluded_tags';
 const TAG_PATTERN = /#[A-Za-z0-9][A-Za-z0-9_-]*/g;
+const URL_PATTERN = /https?:\/\/[^\s<>"'`]+/g;
 
 function parse_note_tags(body)
 {
@@ -71,6 +72,67 @@ function load_tag_list(key)
     catch (error) {
         return [];
     }
+}
+
+function extract_youtube_items(body)
+{
+    const urls = String(body || '').match(URL_PATTERN) || [];
+    const seen = new Set();
+    const out = [];
+
+    urls.forEach(function (raw_url) {
+        const url = raw_url.replace(/[)\].,!?;:]+$/g, '');
+        const id = parse_youtube_id(url);
+        if (!id || seen.has(id)) {
+            return;
+        }
+        seen.add(id);
+        out.push({
+            id,
+            url,
+            label: `YouTube ${out.length + 1}`,
+            embed_url: `https://www.youtube.com/embed/${id}?autoplay=1&rel=0`,
+        });
+    });
+
+    return out;
+}
+
+function parse_youtube_id(url)
+{
+    try {
+        const parsed = new URL(url);
+        const host = parsed.hostname.replace(/^www\./, '');
+
+        if (host === 'youtu.be') {
+            return clean_youtube_id(parsed.pathname.split('/').filter(Boolean)[0]);
+        }
+
+        const is_youtube = host === 'youtube.com' || host.endsWith('.youtube.com');
+        const is_youtube_nocookie = host === 'youtube-nocookie.com' || host.endsWith('.youtube-nocookie.com');
+        if (!is_youtube && !is_youtube_nocookie) {
+            return null;
+        }
+
+        if (parsed.pathname === '/watch') {
+            return clean_youtube_id(parsed.searchParams.get('v'));
+        }
+
+        const parts = parsed.pathname.split('/').filter(Boolean);
+        if (['embed', 'shorts', 'live'].includes(parts[0])) {
+            return clean_youtube_id(parts[1]);
+        }
+    }
+    catch (error) {
+    }
+
+    return null;
+}
+
+function clean_youtube_id(value)
+{
+    const id = String(value || '').trim();
+    return /^[A-Za-z0-9_-]{6,}$/.test(id) ? id : null;
 }
 
 const app = Vue.createApp({
@@ -210,6 +272,13 @@ const app = Vue.createApp({
                  class="note-card">
                 <h2 class="flex-row-center gap5">
                     {{ note.uid }} | {{ note.name }}
+                    <button
+                        v-if="note.youtube_items.length"
+                        v-on:click.stop="play_youtube(note, note.youtube_items[0])"
+                        class="note-play-button"
+                        title="Play YouTube">
+                        ▶️
+                    </button>
                     <button v-on:click="click_h2_copy($event, note)" class="mla">📋️</button>
                     <button v-on:click="click_h2_paste(note)">📥</button>
                     <button v-on:click="click_h2_edit(note)">✏️</button>
@@ -236,6 +305,17 @@ const app = Vue.createApp({
                     </div>
                 </div>
                 <markdown v-else-if="note.display_body" v-bind:value="note.display_body" v-bind:prefix="note.prefix" />
+
+                <div v-if="note.youtube_items.length > 1" class="youtube-links">
+                    <button
+                        v-for="item in note.youtube_items"
+                        v-bind:key="item.id"
+                        type="button"
+                        v-on:click="play_youtube(note, item)"
+                        v-bind:class="['youtube-link', {active: youtube_player?.id === item.id}]">
+                        ▶ {{ item.label }}
+                    </button>
+                </div>
 
                 <fancybox>
                     <div class="flex-row flex-align-center flex-wrap gap10">
@@ -279,6 +359,19 @@ const app = Vue.createApp({
                 </table>
             </div>
         </div>
+
+        <div v-if="youtube_player" class="youtube-player">
+            <div class="youtube-player-head">
+                <div class="youtube-player-title">{{ youtube_player.title }}</div>
+                <button type="button" v-on:click="open_youtube_source" title="Open on YouTube">↗</button>
+                <button type="button" v-on:click="youtube_player = null" title="Close">×</button>
+            </div>
+            <iframe
+                v-bind:src="youtube_player.embed_url"
+                title="YouTube player"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                allowfullscreen></iframe>
+        </div>
     `,
     data: function () {
         return {
@@ -296,6 +389,7 @@ const app = Vue.createApp({
             tag_query: '',
             tag_sort: 'count',
             note_query: '',
+            youtube_player: null,
         };
     },
     computed: {
@@ -306,6 +400,7 @@ const app = Vue.createApp({
                     ...note,
                     display_tags: parsed.tags,
                     display_body: parsed.display_body,
+                    youtube_items: extract_youtube_items(note.body),
                 };
             });
         },
@@ -538,6 +633,17 @@ const app = Vue.createApp({
         click_file_remove: async function (note, file) {
             await api_notes_remove_file({note_uid: note.uid, filename: file.path});
             await this.refresh();
+        },
+        play_youtube: function (note, item) {
+            this.youtube_player = {
+                ...item,
+                title: note.name || note.uid,
+            };
+        },
+        open_youtube_source: function () {
+            if (this.youtube_player?.url) {
+                window.open(this.youtube_player.url, '_blank');
+            }
         },
         mouseover_note: function (event, note) {
             this.active_note = note;
