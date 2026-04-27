@@ -396,11 +396,16 @@ const app = Vue.createApp({
         decorated_notes: function () {
             return this.notes.map(function (note) {
                 const parsed = parse_note_tags(note.body);
+                const youtube_items = extract_youtube_items(note.body);
+                const system_tags = [];
+                if (youtube_items.length) {
+                    system_tags.push('#youtube');
+                }
                 return {
                     ...note,
-                    display_tags: parsed.tags,
+                    display_tags: Array.from(new Set([...parsed.tags, ...system_tags])),
                     display_body: parsed.display_body,
-                    youtube_items: extract_youtube_items(note.body),
+                    youtube_items,
                 };
             });
         },
