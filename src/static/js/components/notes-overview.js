@@ -102,4 +102,52 @@ css`
         font-weight: 500;
         line-height: 1.15;
     }
+
+    @media (max-width: 700px) {
+        .notes-overview {
+            position: sticky;
+            top: 0;
+            left: auto;
+            right: auto;
+            bottom: auto;
+            width: auto;
+            display: flex;
+            gap: 6px;
+            overflow-x: auto;
+            overflow-y: hidden;
+            padding: 6px;
+            border-right: 0;
+            border-bottom: 1px solid #e0e0e0;
+        }
+
+        .overview-item {
+            flex: 0 0 142px;
+            min-height: 48px;
+            margin: 0;
+            padding: 7px 9px;
+            border-left: 0;
+            border-bottom: 3px solid transparent;
+            background: #fff;
+        }
+
+        .overview-item.active,
+        .overview-item:hover,
+        .overview-item:focus,
+        .overview-item.active:hover {
+            border-left-color: transparent;
+        }
+
+        .overview-item.active {
+            border-bottom-color: #2486fd;
+        }
+
+        .overview-item:hover,
+        .overview-item:focus {
+            border-bottom-color: #81bfff;
+        }
+
+        .overview-item.active:hover {
+            border-bottom-color: #1569ce;
+        }
+    }
 `;
