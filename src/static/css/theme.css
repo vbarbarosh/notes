@@ -46,7 +46,8 @@ body {
 }
 
 .tag-chip,
-.note-tag {
+.note-tag,
+.tag-exclude {
     display: inline-flex;
     align-items: center;
     gap: 6px;
@@ -61,9 +62,30 @@ body {
     white-space: nowrap;
 }
 
+.tag-filter {
+    display: inline-flex;
+    align-items: stretch;
+}
+
+.tag-filter .tag-chip {
+    border-radius: 999px 0 0 999px;
+}
+
 .tag-chip {
     min-height: 32px;
     padding: 5px 10px;
+    box-shadow: 0 1px 5px #bfc2db28;
+}
+
+.tag-exclude {
+    justify-content: center;
+    min-width: 30px;
+    min-height: 32px;
+    padding: 5px 9px;
+    border-left: none;
+    border-radius: 0 999px 999px 0;
+    color: #7d5661;
+    font-weight: 800;
     box-shadow: 0 1px 5px #bfc2db28;
 }
 
@@ -78,7 +100,8 @@ body {
 }
 
 .tag-chip:hover,
-.note-tag:hover {
+.note-tag:hover,
+.tag-exclude:hover {
     background: #edf3ff;
     border-color: #91a6e6;
     color: #27336a;
@@ -96,8 +119,22 @@ body {
     color: #31416f;
 }
 
+.tag-chip.excluded,
+.note-tag.excluded,
+.tag-exclude.active {
+    background: #7b3746;
+    border-color: #7b3746;
+    color: #fff;
+}
+
+.tag-chip.excluded span {
+    background: #fff3f5;
+    color: #7b3746;
+}
+
 .tag-chip-all {
     color: #556077;
+    border-radius: 999px;
 }
 
 .note-tags {

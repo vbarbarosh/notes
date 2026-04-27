@@ -30,6 +30,7 @@
 <script src="js/apis.js"></script>
 <script>
 const TAG_FILTER_STORAGE_KEY = 'notes.selected_tags';
+const TAG_EXCLUDE_STORAGE_KEY = 'notes.excluded_tags';
 const TAG_PATTERN = /#[A-Za-z0-9][A-Za-z0-9_-]*/g;
 
 function parse_note_tags(body)
@@ -53,8 +54,18 @@ function parse_note_tags(body)
 
 function load_selected_tags()
 {
+    return load_tag_list(TAG_FILTER_STORAGE_KEY);
+}
+
+function load_excluded_tags()
+{
+    return load_tag_list(TAG_EXCLUDE_STORAGE_KEY);
+}
+
+function load_tag_list(key)
+{
     try {
-        const tags = JSON.parse(localStorage.getItem(TAG_FILTER_STORAGE_KEY) || '[]');
+        const tags = JSON.parse(localStorage.getItem(key) || '[]');
         return Array.isArray(tags) ? tags.filter(tag => typeof tag === 'string') : [];
     }
     catch (error) {
@@ -78,23 +89,33 @@ const app = Vue.createApp({
                 <button
                     type="button"
                     v-on:click="clear_tag_filter"
-                    v-bind:class="['tag-chip', 'tag-chip-all', {active: selected_tags.length === 0}]"
+                    v-bind:class="['tag-chip', 'tag-chip-all', {active: !has_tag_filter}]"
                     title="Show all notes">
                     All <span>{{ notes.length }}</span>
                 </button>
-                <button
+                <div
                     v-for="tag in all_tags"
                     v-bind:key="tag.name"
-                    type="button"
-                    v-on:click="toggle_tag(tag.name)"
-                    v-bind:class="['tag-chip', {active: selected_tags.includes(tag.name)}]"
-                    v-bind:title="tag.name">
-                    {{ tag.name }} <span>{{ tag.count }}</span>
-                </button>
+                    class="tag-filter">
+                    <button
+                        type="button"
+                        v-on:click="toggle_include_tag(tag.name)"
+                        v-bind:class="['tag-chip', {active: selected_tags.includes(tag.name), excluded: excluded_tags.includes(tag.name)}]"
+                        v-bind:title="'Show notes tagged ' + tag.name">
+                        {{ tag.name }} <span>{{ tag.count }}</span>
+                    </button>
+                    <button
+                        type="button"
+                        v-on:click="toggle_exclude_tag(tag.name)"
+                        v-bind:class="['tag-exclude', {active: excluded_tags.includes(tag.name)}]"
+                        v-bind:title="'Hide notes tagged ' + tag.name">
+                        -
+                    </button>
+                </div>
             </div>
 
-            <div v-if="selected_tags.length && !filtered_notes.length" class="notes-empty">
-                No notes match {{ selected_tags.join(' ') }}
+            <div v-if="has_tag_filter && !filtered_notes.length" class="notes-empty">
+                No notes match {{ tag_filter_label }}
             </div>
 
 <!--
@@ -132,8 +153,8 @@ const app = Vue.createApp({
                         v-for="tag in note.display_tags"
                         v-bind:key="tag"
                         type="button"
-                        v-on:click.stop="toggle_tag(tag)"
-                        v-bind:class="['note-tag', {active: selected_tags.includes(tag)}]"
+                        v-on:click.stop="toggle_include_tag(tag)"
+                        v-bind:class="['note-tag', {active: selected_tags.includes(tag), excluded: excluded_tags.includes(tag)}]"
                         v-bind:title="tag">
                         {{ tag }}
                     </button>
@@ -202,6 +223,7 @@ const app = Vue.createApp({
             mouseover_file_path: null,
             notes: [],
             selected_tags: load_selected_tags(),
+            excluded_tags: load_excluded_tags(),
         };
     },
     computed: {
@@ -227,10 +249,22 @@ const app = Vue.createApp({
                 .sort((a, b) => a.name.localeCompare(b.name));
         },
         filtered_notes: function () {
-            if (!this.selected_tags.length) {
+            if (!this.has_tag_filter) {
                 return this.decorated_notes;
             }
-            return this.decorated_notes.filter(note => this.selected_tags.every(tag => note.display_tags.includes(tag)));
+            return this.decorated_notes.filter(note => {
+                return this.selected_tags.every(tag => note.display_tags.includes(tag))
+                    && this.excluded_tags.every(tag => !note.display_tags.includes(tag));
+            });
+        },
+        has_tag_filter: function () {
+            return !!(this.selected_tags.length || this.excluded_tags.length);
+        },
+        tag_filter_label: function () {
+            return [
+                ...this.selected_tags,
+                ...this.excluded_tags.map(tag => `without ${tag}`),
+            ].join(' ');
         },
     },
     watch: {
@@ -238,6 +272,12 @@ const app = Vue.createApp({
             deep: true,
             handler: function () {
                 localStorage.setItem(TAG_FILTER_STORAGE_KEY, JSON.stringify(this.selected_tags));
+            },
+        },
+        excluded_tags: {
+            deep: true,
+            handler: function () {
+                localStorage.setItem(TAG_EXCLUDE_STORAGE_KEY, JSON.stringify(this.excluded_tags));
             },
         },
     },
@@ -254,21 +294,35 @@ const app = Vue.createApp({
             this.note_refs[note_uid]?.scrollIntoView({behavior: 'smooth', block: 'center'});
             this.active_note = this.notes.find(v => v.uid === note_uid);
         },
-        toggle_tag: function (tag) {
+        toggle_include_tag: function (tag) {
             if (this.selected_tags.includes(tag)) {
                 this.selected_tags = this.selected_tags.filter(value => value !== tag);
                 return;
             }
             this.selected_tags = [...this.selected_tags, tag].sort((a, b) => a.localeCompare(b));
+            this.excluded_tags = this.excluded_tags.filter(value => value !== tag);
+        },
+        toggle_exclude_tag: function (tag) {
+            if (this.excluded_tags.includes(tag)) {
+                this.excluded_tags = this.excluded_tags.filter(value => value !== tag);
+                return;
+            }
+            this.excluded_tags = [...this.excluded_tags, tag].sort((a, b) => a.localeCompare(b));
+            this.selected_tags = this.selected_tags.filter(value => value !== tag);
         },
         clear_tag_filter: function () {
             this.selected_tags = [];
+            this.excluded_tags = [];
         },
         prune_selected_tags: function () {
             const found = new Set(this.all_tags.map(tag => tag.name));
             const selected_tags = this.selected_tags.filter(tag => found.has(tag));
+            const excluded_tags = this.excluded_tags.filter(tag => found.has(tag));
             if (selected_tags.length !== this.selected_tags.length) {
                 this.selected_tags = selected_tags;
+            }
+            if (excluded_tags.length !== this.excluded_tags.length) {
+                this.excluded_tags = excluded_tags;
             }
         },
         change_files: async function (event) {
