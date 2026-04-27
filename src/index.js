@@ -12,7 +12,6 @@ const express_run = require('@vbarbarosh/express-helpers/src/express_run');
 const fs_exists = require('@vbarbarosh/node-helpers/src/fs_exists');
 const fs_lstat = require('@vbarbarosh/node-helpers/src/fs_lstat');
 const fs_mkdirp = require('@vbarbarosh/node-helpers/src/fs_mkdirp');
-const fs_path_basename = require('@vbarbarosh/node-helpers/src/fs_path_basename');
 const fs_path_dirname = require('@vbarbarosh/node-helpers/src/fs_path_dirname');
 const fs_path_resolve = require('@vbarbarosh/node-helpers/src/fs_path_resolve');
 const fs_path_safe_relative = require('./helpers/fs_path_safe_relative');
@@ -21,6 +20,7 @@ const fs_read_utf8 = require('@vbarbarosh/node-helpers/src/fs_read_utf8');
 const fs_readdir = require('@vbarbarosh/node-helpers/src/fs_readdir');
 const fs_rename = require('@vbarbarosh/node-helpers/src/fs_rename');
 const fs_write = require('@vbarbarosh/node-helpers/src/fs_write');
+const fs_write_unique_file = require('./helpers/fs_write_unique_file');
 const make = require('@vbarbarosh/type-helpers');
 const multer = require('multer');
 const sharp = require('sharp');
@@ -342,23 +342,15 @@ async function notes_upload_file(req, res)
         return;
     }
 
-    const file_path = fs_path_safe_resolve(fs_path_resolve(d, 'files'), file.originalname);
-
-    if (await fs_exists(file_path)) {
-        res.status(409).send('File Already Exists');
-        return;
-    }
-
-    await fs_mkdirp(fs_path_dirname(file_path));
-    await fs_write(file_path, file.buffer);
+    const files_root = fs_path_resolve(d, 'files');
+    const file_path = await fs_write_unique_file(files_root, file.originalname, file.buffer);
 
     const lstat = await fs_lstat(file_path);
-    const name = fs_path_basename(file_path);
-    const url = `/r/${note_uid}/files/${name}`;
-    const thumbnail_url = await is_image(file.buffer)
-        ? `/t/1024/${note_uid}/files/${name}` : null ;
+    const path = fs_path_safe_relative(files_root, file_path);
+    const url = `/r/${note_uid}/files/${path}`;
+    const thumbnail_url = await is_image(file.buffer) ? `/t/1024/${note_uid}/files/${path}` : null ;
     res.send({
-        name,
+        path,
         url,
         thumbnail_url,
         size: lstat.size,
