@@ -85,37 +85,105 @@ const app = Vue.createApp({
 
             <notes-new v-on:refresh="refresh" />
 
-            <div v-if="all_tags.length" class="tags-panel">
-                <button
-                    type="button"
-                    v-on:click="clear_tag_filter"
-                    v-bind:class="['tag-chip', 'tag-chip-all', {active: !has_tag_filter}]"
-                    title="Show all notes">
-                    All <span>{{ notes.length }}</span>
-                </button>
-                <div
-                    v-for="tag in all_tags"
-                    v-bind:key="tag.name"
-                    class="tag-filter">
+            <div class="filters-bar">
+                <div v-if="all_tags.length" ref="tag_picker_wrap" class="tag-picker-wrap">
                     <button
                         type="button"
-                        v-on:click="toggle_include_tag(tag.name)"
-                        v-bind:class="['tag-chip', {active: selected_tags.includes(tag.name), excluded: excluded_tags.includes(tag.name)}]"
-                        v-bind:title="'Show notes tagged ' + tag.name">
-                        {{ tag.name }} <span>{{ tag.count }}</span>
+                        v-on:click="toggle_tag_picker"
+                        v-bind:class="['filter-button', {active: has_tag_filter}]"
+                        title="Choose tag filters">
+                        Tags <span>{{ all_tags.length }}</span>
                     </button>
-                    <button
-                        type="button"
-                        v-on:click="toggle_exclude_tag(tag.name)"
-                        v-bind:class="['tag-exclude', {active: excluded_tags.includes(tag.name)}]"
-                        v-bind:title="'Hide notes tagged ' + tag.name">
-                        -
-                    </button>
+                    <div v-if="tag_picker_open" class="tag-popover">
+                        <div class="tag-popover-head">
+                            <input
+                                v-model="tag_query"
+                                ref="tag_search"
+                                type="search"
+                                class="tag-search"
+                                v-on:keydown.enter.prevent="select_first_visible_tag"
+                                placeholder="Filter tags">
+                            <button type="button" class="tag-sort" v-on:click="toggle_tag_sort">
+                                {{ tag_sort === 'count' ? 'Count' : 'Name' }}
+                            </button>
+                        </div>
+                        <div v-if="visible_tags.length" class="tag-list">
+                            <div v-for="tag in visible_tags" v-bind:key="tag.name" class="tag-row">
+                                <button
+                                    type="button"
+                                    v-on:click="toggle_include_tag(tag.name)"
+                                    v-bind:class="['tag-name', {active: selected_tags.includes(tag.name), excluded: excluded_tags.includes(tag.name)}]"
+                                    v-bind:title="'Require ' + tag.name">
+                                    {{ tag.name }} <span>{{ tag.count }}</span>
+                                </button>
+                                <button
+                                    type="button"
+                                    v-on:click="toggle_include_tag(tag.name)"
+                                    v-bind:class="['tag-state', 'include', {active: selected_tags.includes(tag.name)}]"
+                                    v-bind:title="'Require ' + tag.name">
+                                    +
+                                </button>
+                                <button
+                                    type="button"
+                                    v-on:click="toggle_exclude_tag(tag.name)"
+                                    v-bind:class="['tag-state', 'exclude', {active: excluded_tags.includes(tag.name)}]"
+                                    v-bind:title="'Hide ' + tag.name">
+                                    -
+                                </button>
+                            </div>
+                        </div>
+                        <div v-else class="tag-empty">No tags match</div>
+                    </div>
                 </div>
+
+                <input
+                    v-model="note_query"
+                    type="search"
+                    class="note-search"
+                    placeholder="Search notes">
+
+                <button
+                    v-if="has_any_filter"
+                    type="button"
+                    class="filter-clear"
+                    v-on:click="clear_filters">
+                    Clear
+                </button>
+
+                <div class="filter-count">{{ filtered_notes.length }} / {{ notes.length }}</div>
             </div>
 
-            <div v-if="has_tag_filter && !filtered_notes.length" class="notes-empty">
-                No notes match {{ tag_filter_label }}
+            <div v-if="has_any_filter" class="active-filters">
+                <button
+                    v-for="tag in selected_tags"
+                    v-bind:key="'include:' + tag"
+                    type="button"
+                    class="active-filter include"
+                    v-on:click="toggle_include_tag(tag)"
+                    v-bind:title="'Remove required tag ' + tag">
+                    + {{ tag }}
+                </button>
+                <button
+                    v-for="tag in excluded_tags"
+                    v-bind:key="'exclude:' + tag"
+                    type="button"
+                    class="active-filter exclude"
+                    v-on:click="toggle_exclude_tag(tag)"
+                    v-bind:title="'Remove hidden tag ' + tag">
+                    - {{ tag }}
+                </button>
+                <button
+                    v-if="note_query.trim()"
+                    type="button"
+                    class="active-filter search"
+                    v-on:click="note_query = ''"
+                    title="Clear note search">
+                    "{{ note_query.trim() }}"
+                </button>
+            </div>
+
+            <div v-if="has_any_filter && !filtered_notes.length" class="notes-empty">
+                No notes match {{ filter_label }}
             </div>
 
 <!--
@@ -224,6 +292,10 @@ const app = Vue.createApp({
             notes: [],
             selected_tags: load_selected_tags(),
             excluded_tags: load_excluded_tags(),
+            tag_picker_open: false,
+            tag_query: '',
+            tag_sort: 'count',
+            note_query: '',
         };
     },
     computed: {
@@ -248,22 +320,48 @@ const app = Vue.createApp({
                 .map(([name, count]) => ({name, count}))
                 .sort((a, b) => a.name.localeCompare(b.name));
         },
+        visible_tags: function () {
+            const query = this.tag_query.trim().toLowerCase();
+            return this.all_tags
+                .filter(tag => !query || tag.name.toLowerCase().includes(query))
+                .sort((a, b) => {
+                    if (this.tag_sort === 'count') {
+                        return (b.count - a.count) || a.name.localeCompare(b.name);
+                    }
+                    return a.name.localeCompare(b.name);
+                });
+        },
         filtered_notes: function () {
-            if (!this.has_tag_filter) {
-                return this.decorated_notes;
-            }
+            const query = this.note_query.trim().toLowerCase();
             return this.decorated_notes.filter(note => {
-                return this.selected_tags.every(tag => note.display_tags.includes(tag))
-                    && this.excluded_tags.every(tag => !note.display_tags.includes(tag));
+                if (!this.selected_tags.every(tag => note.display_tags.includes(tag))) {
+                    return false;
+                }
+                if (!this.excluded_tags.every(tag => !note.display_tags.includes(tag))) {
+                    return false;
+                }
+                if (!query) {
+                    return true;
+                }
+                return [
+                    note.uid,
+                    note.name,
+                    note.body,
+                    note.display_tags.join(' '),
+                ].join(' ').toLowerCase().includes(query);
             });
         },
         has_tag_filter: function () {
             return !!(this.selected_tags.length || this.excluded_tags.length);
         },
-        tag_filter_label: function () {
+        has_any_filter: function () {
+            return !!(this.has_tag_filter || this.note_query.trim());
+        },
+        filter_label: function () {
             return [
                 ...this.selected_tags,
                 ...this.excluded_tags.map(tag => `without ${tag}`),
+                ...(this.note_query.trim() ? [`matching "${this.note_query.trim()}"`] : []),
             ].join(' ');
         },
     },
@@ -294,6 +392,29 @@ const app = Vue.createApp({
             this.note_refs[note_uid]?.scrollIntoView({behavior: 'smooth', block: 'center'});
             this.active_note = this.notes.find(v => v.uid === note_uid);
         },
+        toggle_tag_picker: async function () {
+            this.tag_picker_open = !this.tag_picker_open;
+            if (this.tag_picker_open) {
+                await this.$nextTick();
+                this.$refs.tag_search?.focus();
+                this.$refs.tag_search?.select();
+            }
+        },
+        close_tag_picker_on_outside_click: function (event) {
+            if (!this.tag_picker_open) {
+                return;
+            }
+            if (this.$refs.tag_picker_wrap?.contains(event.target)) {
+                return;
+            }
+            this.tag_picker_open = false;
+        },
+        select_first_visible_tag: function () {
+            const tag = this.visible_tags[0];
+            if (tag) {
+                this.toggle_include_tag(tag.name);
+            }
+        },
         toggle_include_tag: function (tag) {
             if (this.selected_tags.includes(tag)) {
                 this.selected_tags = this.selected_tags.filter(value => value !== tag);
@@ -310,9 +431,13 @@ const app = Vue.createApp({
             this.excluded_tags = [...this.excluded_tags, tag].sort((a, b) => a.localeCompare(b));
             this.selected_tags = this.selected_tags.filter(value => value !== tag);
         },
-        clear_tag_filter: function () {
+        clear_filters: function () {
             this.selected_tags = [];
             this.excluded_tags = [];
+            this.note_query = '';
+        },
+        toggle_tag_sort: function () {
+            this.tag_sort = this.tag_sort === 'count' ? 'name' : 'count';
         },
         prune_selected_tags: function () {
             const found = new Set(this.all_tags.map(tag => tag.name));
@@ -463,6 +588,12 @@ const app = Vue.createApp({
     },
     created: async function () {
         await this.refresh();
+    },
+    mounted: function () {
+        document.addEventListener('click', this.close_tag_picker_on_outside_click);
+    },
+    unmounted: function () {
+        document.removeEventListener('click', this.close_tag_picker_on_outside_click);
     },
 });
 app.mixin({
