@@ -6,7 +6,11 @@ app.component('markdown', {
         <div class="markdown"><component ref="component" v-bind:is="spec" v-bind:key="html" /></div>
     `,
     data: function () {
-        const md = Vue.markRaw(markdownit({html: true, linkify: true}));
+        const md = Vue.markRaw(markdownit({
+            html: true,
+            linkify: true,
+            highlight: highlight_markdown_code,
+        }));
 
         md.use(function (md) {
             const defaultImage = md.renderer.rules.image || function(tokens, idx, options, env, self) {
@@ -64,8 +68,48 @@ app.component('markdown', {
     },
 });
 
+function highlight_markdown_code(str, lang)
+{
+    const highlighter = window.hljs;
+    if (highlighter && lang && highlighter.getLanguage(lang)) {
+        try {
+            const out = highlighter.highlight(str, {language: lang, ignoreIllegals: true}).value;
+            return `<pre><code class="hljs language-${escape_attr(lang)}">${out}</code></pre>`;
+        }
+        catch (error) {
+        }
+    }
+
+    if (highlighter) {
+        try {
+            const out = highlighter.highlightAuto(str).value;
+            return `<pre><code class="hljs">${out}</code></pre>`;
+        }
+        catch (error) {
+        }
+    }
+
+    return `<pre><code>${escape_html(str)}</code></pre>`;
+}
+
+function escape_attr(value)
+{
+    return String(value).replace(/[^a-z0-9_-]/gi, '');
+}
+
+function escape_html(value)
+{
+    return String(value)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+}
+
 html`
     <script src="https://cdn.jsdelivr.net/npm/markdown-it@14.1.0/dist/markdown-it.min.js"></script>
+    <link href="https://cdn.jsdelivr.net/npm/@highlightjs/cdn-assets@11.11.1/styles/github-dark.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/@highlightjs/cdn-assets@11.11.1/highlight.min.js"></script>
 `;
 
 css`
@@ -163,6 +207,7 @@ css`
     }
 
     .markdown code {
+        margin: 0;
         background: #e9edf7;
         color: #202842;
         border: 1px solid #d7ddeb;
@@ -176,19 +221,28 @@ css`
         background: #202638;
         color: #edf2ff;
         border-radius: 7px;
-        padding: 12px 14px;
+        padding: 8px 10px;
         overflow-x: auto;
         box-shadow: inset 0 0 0 1px #111827;
     }
 
     .markdown pre code {
         display: block;
+        margin: 0;
         background: transparent;
         color: inherit;
         border: 0;
         padding: 0;
         font-size: 0.9em;
         line-height: 1.55;
+    }
+
+    .markdown pre code.hljs {
+        padding: 0;
+    }
+
+    .markdown kbd {
+        margin: 0;
     }
 
     .markdown table {
