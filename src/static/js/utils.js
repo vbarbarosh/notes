@@ -491,7 +491,7 @@ async function get_event_files(event, options = {})
         });
     }
     const out = [];
-    const buf = Array.from(event.dataTransfer.items).map(v => v.webkitGetAsEntry());
+    const buf = Array.from(event.dataTransfer.items).map(v => v.webkitGetAsEntry()).filter(Boolean);
     while (buf.length) {
         const entry = buf.pop();
         if (entry.isFile) {
