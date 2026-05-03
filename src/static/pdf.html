@@ -437,6 +437,9 @@
     line-height: 1;
     -webkit-font-smoothing: antialiased;
     user-select: text;
+    /* PDF.js v3 uses this CSS variable to scale text spans.
+       Default 1 keeps the property defined; we override per-page in JS. */
+    --scale-factor: 1;
   }
   .textLayer span, .textLayer br {
     color: transparent;
@@ -1072,6 +1075,10 @@
       textLayer.className = 'textLayer';
       textLayer.style.width = ref.viewport.width + 'px';
       textLayer.style.height = ref.viewport.height + 'px';
+      // PDF.js text layer uses --scale-factor to size and position spans.
+      // Without this, text spans render at scale 1 even when canvas is zoomed,
+      // and text selection becomes misaligned.
+      textLayer.style.setProperty('--scale-factor', ref.viewport.scale);
       ref.wrap.appendChild(textLayer);
       ref.textLayer = textLayer;
 
