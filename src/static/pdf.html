@@ -883,13 +883,24 @@
     return div.innerHTML;
   }
 
+  // Natural-language collator: handles numbers in filenames sensibly,
+  // case-insensitive. "page 2.pdf" sorts before "page 10.pdf".
+  const naturalCollator = new Intl.Collator(undefined, {
+    numeric: true,
+    sensitivity: 'base'
+  });
+
   function renderCollection() {
     counter.textContent = String(files.length).padStart(2, '0');
     clearBtn.style.display = files.length ? 'block' : 'none';
     emptyState.style.display = files.length ? 'none' : 'block';
     collection.querySelectorAll('.file-item').forEach(el => el.remove());
 
-    files.forEach((file, i) => {
+    // Sort by name. We don't mutate `files` order (some logic relies on
+    // insertion order, e.g. auto-selecting first), so build a sorted view.
+    const sorted = [...files].sort((a, b) => naturalCollator.compare(a.name, b.name));
+
+    sorted.forEach((file, i) => {
       const item = document.createElement('div');
       item.className = 'file-item' + (file.id === activeId ? ' active' : '');
       const bmTag = file.bookmarks.length ? ` · ${file.bookmarks.length} ✦` : '';
@@ -917,9 +928,27 @@
   async function selectFile(id) {
     const file = files.find(f => f.id === id);
     if (!file) return;
+    if (id === activeId) return; // already active, no-op
+
+    // Capture & flush the outgoing PDF's view so its position is preserved
+    // both in memory (for fast re-open) and on the server.
+    if (activeId && activeId !== id) {
+      const outgoing = files.find(f => f.id === activeId);
+      if (outgoing) {
+        const view = computeCurrentView();
+        if (view) outgoing.savedView = view;
+        flushSave(activeId);
+      }
+    }
+
     activeId = id;
     renderCollection();
     renderBookmarks();
+
+    // Remember which PDF is open for this note (fire-and-forget)
+    if (file.source && file.source.kind === 'note') {
+      saveSession(file.source.noteUid, file.source.path);
+    }
 
     placeholder.style.display = 'none';
     toolbar.style.display = 'flex';
@@ -1783,13 +1812,29 @@
         size: f.size || 0,
         url: f.url,
         bookmarks,
-        savedView: view, // { page, scale } | null — applied on first selectFile
+        savedView: view,
         source: { kind: 'note', noteUid, path: f.path }
       });
     }));
 
+    // Look up last-opened PDF for this note (if a session file exists)
+    let lastPdfId = null;
+    if (existingPaths.has(sessionPathFor())) {
+      const session = await fetchSession(noteUid);
+      if (session && session.lastPdf) {
+        const match = files.find(f =>
+          f.source && f.source.kind === 'note'
+          && f.source.noteUid === noteUid
+          && f.source.path === session.lastPdf
+        );
+        if (match) lastPdfId = match.id;
+      }
+    }
+
     renderCollection();
-    if (!activeId && files.length) selectFile(files[0].id);
+    if (!activeId && files.length) {
+      selectFile(lastPdfId || files[0].id);
+    }
   }
 
   // ───── Bookmark persistence (notes API) ─────
@@ -1797,6 +1842,39 @@
 
   function bookmarksPathFor(pdfPath) {
     return `apps/pdf/${pdfPath}.bookmarks.json`;
+  }
+
+  // Per-note session file: which PDF was last opened in this note's viewer.
+  // Stored at: <note>/files/apps/pdf/_session.json
+  function sessionPathFor() {
+    return `apps/pdf/_session.json`;
+  }
+
+  async function fetchSession(noteUid) {
+    const url = `/r/${encodeURIComponent(noteUid)}/files/${sessionPathFor().split('/').map(encodeURIComponent).join('/')}`;
+    try {
+      const res = await fetch(url);
+      if (!res.ok) return null;
+      return await res.json();
+    } catch (e) {
+      console.warn('Could not fetch session for note', noteUid, e);
+      return null;
+    }
+  }
+
+  async function saveSession(noteUid, lastPdf) {
+    const payload = { version: 1, lastPdf };
+    const blob = new Blob([JSON.stringify(payload)], { type: 'application/json' });
+    const fd = new FormData();
+    fd.append('file', blob, sessionPathFor());
+    try {
+      await fetch(`/api/v1/notes/${encodeURIComponent(noteUid)}/files?overwrite=1`, {
+        method: 'POST',
+        body: fd
+      });
+    } catch (e) {
+      console.warn('Session save error:', e);
+    }
   }
 
   async function fetchBookmarks(noteUid, pdfPath) {
@@ -1856,11 +1934,12 @@
     if (!file || !file.source || file.source.kind !== 'note') return;
     const { noteUid, path } = file.source;
 
-    const isActive = file.id === activeId;
-    const currentView = isActive ? computeCurrentView() : null;
+    // savedView is kept fresh by captureCurrentView() on every mutation,
+    // so we just read it here. Falls back to a sane default if never set.
+    const view = file.savedView || { page: 1, offset: 0, scale: currentScale };
     const payload = {
       version: 1,
-      view: currentView || file.savedView || { page: 1, offset: 0, scale: currentScale },
+      view,
       bookmarks: file.bookmarks.map(bm => ({
         id: bm.id,
         kind: bm.kind || 'text',
@@ -1899,9 +1978,32 @@
     saveTimers.set(fileId, t);
   }
 
-  // Public hook called by the existing bookmark mutation paths
+  // Force any pending save for a file to fire NOW (cancels its timer first).
+  // Called when switching away from a PDF so the server stays in sync.
+  function flushSave(fileId) {
+    if (!saveTimers.has(fileId)) return;
+    clearTimeout(saveTimers.get(fileId));
+    saveTimers.delete(fileId);
+    const file = files.find(f => f.id === fileId);
+    if (file) saveBookmarks(file);
+  }
+
+  // Capture the current view into file.savedView synchronously.
+  // This must happen on every change so when the user switches files, the
+  // outgoing file already has its current position recorded — even if the
+  // debounced server-save hasn't fired yet.
+  function captureCurrentView() {
+    if (!activeId) return;
+    const file = files.find(f => f.id === activeId);
+    if (!file) return;
+    const view = computeCurrentView();
+    if (view) file.savedView = view;
+  }
+
+  // Public hook called by every mutation path (bookmark change, scroll, zoom).
   window.__pdfvault_bookmarksChanged = function () {
     if (!activeId) return;
+    captureCurrentView();
     scheduleSave(activeId);
   };
 
