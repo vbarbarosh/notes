@@ -374,6 +374,11 @@ const app = Vue.createApp({
                         title="Extract YouTube MP3">
                         🎵
                     </button>
+                    <a
+                        v-if="note_has_pdf(note)"
+                        v-bind:href="'/pdf.html?note=' + note.uid"
+                        target="_blank"
+                        class="note-pdf-link">PDF</a>
                     <button v-on:click="click_h2_copy($event, note)" class="mla">📋️</button>
                     <button v-on:click="click_h2_paste(note)">📥</button>
                     <button v-on:click="click_h2_edit(note)">✏️</button>
@@ -638,6 +643,9 @@ const app = Vue.createApp({
         },
         note_active_job: function (note, job_name) {
             return this.note_jobs(note).find(job => job.job_name === job_name && job.bucket === 'active');
+        },
+        note_has_pdf: function (note) {
+            return note.files.some(f => f.path.toLowerCase().endsWith('.pdf'));
         },
         job_label: function (job) {
             return [

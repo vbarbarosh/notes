@@ -14,6 +14,17 @@ body {
     transition: box-shadow 0.15s, border-color 0.15s;
 }
 
+.note-pdf-link {
+    background: #c62828;
+    color: #fff;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.6px;
+    padding: 2px 7px;
+    border-radius: 4px;
+    text-decoration: none;
+}
+
 .note-card:hover,
 .note-card.active {
     box-shadow: 0 4px 18px #abb9ee6e;
