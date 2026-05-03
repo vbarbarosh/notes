@@ -330,15 +330,18 @@
   .ctrl-btn.toggled:hover { background: var(--ink); }
 
   /* Rect-drawing mode */
-  .canvas-area.rect-mode .page-wrap { cursor: crosshair; }
-  .canvas-area.rect-mode .textLayer { pointer-events: none; user-select: none; }
+  .canvas-area.rect-mode .page-wrap,
+  .canvas-area.shot-mode .page-wrap { cursor: crosshair; }
+  .canvas-area.rect-mode .textLayer,
+  .canvas-area.shot-mode .textLayer { pointer-events: none; user-select: none; }
   .rect-draw-layer {
     position: absolute;
     inset: 0;
     z-index: 2;
     display: none;
   }
-  .canvas-area.rect-mode .rect-draw-layer { display: block; }
+  .canvas-area.rect-mode .rect-draw-layer,
+  .canvas-area.shot-mode .rect-draw-layer { display: block; }
   .rect-draft {
     position: absolute;
     background: rgba(200, 71, 43, 0.18);
@@ -477,6 +480,8 @@
     background: rgba(200, 71, 43, 0.22);
     outline: 1.5px solid var(--accent);
   }
+  /* In shot mode, don't let highlights intercept drag events */
+  .canvas-area.shot-mode .hl-rect { pointer-events: none; }
   /* Cursor changes on edge proximity are set inline by JS */
 
   .sel-popup {
@@ -616,6 +621,13 @@
     transition: all 0.15s ease;
   }
   .bookmark-item:hover { transform: translate(-2px, -2px); box-shadow: 4px 4px 0 var(--ink); }
+  /* Cross-hover state: when hovering the document highlight, the matching card flashes */
+  .bookmark-item.preview {
+    border-color: var(--accent);
+    box-shadow: 4px 4px 0 var(--accent);
+    transform: translate(-2px, -2px);
+  }
+  .bookmark-item.preview::before { background: var(--accent); }
   .bookmark-item::before {
     content: '';
     position: absolute;
@@ -674,6 +686,31 @@
     color: var(--ink);
     margin-bottom: 8px;
     font-weight: 700;
+  }
+
+  /* Transient toast for screenshot feedback */
+  .shot-toast {
+    position: fixed;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%) translateY(8px);
+    background: var(--ink);
+    color: var(--paper);
+    padding: 10px 18px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.18em;
+    border: 1px solid var(--ink);
+    box-shadow: 3px 3px 0 var(--accent);
+    z-index: 200;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.18s ease, transform 0.18s ease;
+  }
+  .shot-toast.visible {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
   }
 
   .drag-overlay {
@@ -759,6 +796,7 @@
           Page <input type="text" id="pageInput" value="1" /> / <span id="pageCount">1</span>
         </div>
         <button class="ctrl-btn" id="rectMode" title="Draw rectangle highlight">▢ Box</button>
+        <button class="ctrl-btn" id="shotMode" title="Drag a region, save as PNG">⌖ Shot</button>
         <button class="ctrl-btn" id="zoomOut">−</button>
         <button class="ctrl-btn" id="zoomIn">+</button>
       </div>
@@ -1293,13 +1331,34 @@
 
   // ───── Rect highlight mode (for scanned PDFs / no text) ─────
   let rectModeOn = false;
+  let shotModeOn = false;
   const rectBtn = $('rectMode');
+  const shotBtn = $('shotMode');
 
   rectBtn.addEventListener('click', () => {
     rectModeOn = !rectModeOn;
+    if (rectModeOn && shotModeOn) {
+      // Modes are mutually exclusive
+      shotModeOn = false;
+      canvasArea.classList.remove('shot-mode');
+      shotBtn.classList.remove('toggled');
+    }
     canvasArea.classList.toggle('rect-mode', rectModeOn);
     rectBtn.classList.toggle('toggled', rectModeOn);
     if (rectModeOn) window.getSelection().removeAllRanges();
+    hidePopup();
+  });
+
+  shotBtn.addEventListener('click', () => {
+    shotModeOn = !shotModeOn;
+    if (shotModeOn && rectModeOn) {
+      rectModeOn = false;
+      canvasArea.classList.remove('rect-mode');
+      rectBtn.classList.remove('toggled');
+    }
+    canvasArea.classList.toggle('shot-mode', shotModeOn);
+    shotBtn.classList.toggle('toggled', shotModeOn);
+    if (shotModeOn) window.getSelection().removeAllRanges();
     hidePopup();
   });
 
@@ -1307,9 +1366,12 @@
     let dragging = false;
     let startX = 0, startY = 0;
     let draftEl = null;
+    let dragMode = null; // 'rect' or 'shot' — captured at mousedown
 
     ref.rectLayer.addEventListener('mousedown', (e) => {
-      if (!rectModeOn || e.button !== 0) return;
+      if (e.button !== 0) return;
+      if (!rectModeOn && !shotModeOn) return;
+      dragMode = rectModeOn ? 'rect' : 'shot';
       e.preventDefault();
       const wr = ref.wrap.getBoundingClientRect();
       startX = e.clientX - wr.left;
@@ -1349,16 +1411,105 @@
       draftEl = null;
       // Ignore tiny drags (likely accidental clicks)
       if (w < 8 || h < 8) return;
-      createRectBookmark(ref, {
+      const rel = {
         x: x / wr.width,
         y: y / wr.height,
         w: w / wr.width,
         h: h / wr.height
-      });
+      };
+      if (dragMode === 'shot') {
+        downloadShot(ref, rel);
+      } else {
+        createRectBookmark(ref, rel);
+      }
+      dragMode = null;
     }
 
     document.addEventListener('mousemove', onMove);
     document.addEventListener('mouseup', onUp);
+  }
+
+  // Capture the given fractional region of a page's rendered canvas and
+  // trigger a PNG download.
+  function downloadShot(ref, rel) {
+    if (!ref || !ref.canvas) return;
+    try {
+      const srcW = ref.canvas.width;
+      const srcH = ref.canvas.height;
+      const sx = Math.max(0, Math.round(rel.x * srcW));
+      const sy = Math.max(0, Math.round(rel.y * srcH));
+      const sw = Math.max(1, Math.round(rel.w * srcW));
+      const sh = Math.max(1, Math.round(rel.h * srcH));
+
+      const out = document.createElement('canvas');
+      out.width = sw;
+      out.height = sh;
+      const octx = out.getContext('2d');
+      octx.drawImage(ref.canvas, sx, sy, sw, sh, 0, 0, sw, sh);
+
+      const file = files.find(f => f.id === activeId);
+      const baseName = (file && file.name)
+        ? file.name.replace(/\.pdf$/i, '')
+        : 'screenshot';
+      const now = new Date();
+      const stamp = String(now.getHours()).padStart(2, '0')
+        + String(now.getMinutes()).padStart(2, '0')
+        + String(now.getSeconds()).padStart(2, '0');
+      const filename = `${baseName}-p${ref.pageNum}-${stamp}.png`;
+
+      out.toBlob((blob) => {
+        if (!blob) return;
+
+        // 1. Copy to clipboard (best-effort — requires Clipboard API + secure context)
+        if (navigator.clipboard && window.ClipboardItem) {
+          try {
+            navigator.clipboard.write([
+              new ClipboardItem({ 'image/png': blob })
+            ]).then(
+              () => showToast('Screenshot saved & copied'),
+              (err) => {
+                console.warn('Clipboard write failed:', err);
+                showToast('Screenshot saved');
+              }
+            );
+          } catch (e) {
+            console.warn('Clipboard not available:', e);
+            showToast('Screenshot saved');
+          }
+        } else {
+          showToast('Screenshot saved');
+        }
+
+        // 2. Trigger download
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+      }, 'image/png');
+    } catch (e) {
+      console.warn('Screenshot failed:', e);
+    }
+  }
+
+  // Lightweight transient toast for screenshot feedback. Created on demand.
+  let toastEl = null;
+  let toastTimer = null;
+  function showToast(message) {
+    if (!toastEl) {
+      toastEl = document.createElement('div');
+      toastEl.className = 'shot-toast';
+      document.body.appendChild(toastEl);
+    }
+    toastEl.textContent = message;
+    toastEl.classList.add('visible');
+    if (toastTimer) clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => {
+      toastEl.classList.remove('visible');
+    }, 1800);
   }
 
   function createRectBookmark(ref, rel) {
@@ -1423,7 +1574,7 @@
   }
 
   function captureSelection() {
-    if (rectModeOn) { hidePopup(); return; }
+    if (rectModeOn || shotModeOn) { hidePopup(); return; }
     const sel = window.getSelection();
     if (!sel || sel.isCollapsed || sel.rangeCount === 0) {
       hidePopup();
@@ -1519,6 +1670,10 @@
       div.style.height = (rel.h * 100) + '%';
       div.title = bm.text || '';
 
+      // Hover the highlight → highlight the bookmark card and scroll it into view
+      div.addEventListener('mouseenter', () => previewBookmark(bm.id));
+      div.addEventListener('mouseleave', () => clearBookmarkPreview(bm.id));
+
       if (bm.kind === 'rect') {
         // Always-on direct manipulation: cursor reflects mode, mousedown drags
         attachRectManipulation(div, bm, ref);
@@ -1531,6 +1686,28 @@
       }
       ref.hlLayer.appendChild(div);
     });
+  }
+
+  // Cross-highlight helpers: visually link bookmark cards <-> document highlights.
+  function previewBookmark(bmId) {
+    // Highlight all rects of this bookmark on the page
+    document.querySelectorAll(`.hl-rect[data-bm-id="${bmId}"]`).forEach(r => {
+      r.classList.add('active');
+    });
+    // Highlight the matching card in the bookmarks panel and scroll it into view
+    const card = bookmarksList.querySelector(`.bookmark-item[data-bm-id="${bmId}"]`);
+    if (card) {
+      card.classList.add('preview');
+      card.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    }
+  }
+
+  function clearBookmarkPreview(bmId) {
+    document.querySelectorAll(`.hl-rect[data-bm-id="${bmId}"]`).forEach(r => {
+      r.classList.remove('active');
+    });
+    const card = bookmarksList.querySelector(`.bookmark-item[data-bm-id="${bmId}"]`);
+    if (card) card.classList.remove('preview');
   }
 
   function updateRectThumb(bm, ref, rel) {
@@ -1750,6 +1927,7 @@
     sorted.forEach(bm => {
       const item = document.createElement('div');
       item.className = 'bookmark-item';
+      item.dataset.bmId = bm.id;
       const isRect = bm.kind === 'rect';
       const body = isRect && bm.thumb
         ? `<img class="bm-thumb" src="${bm.thumb}" alt="Region from page ${bm.page}">`
@@ -1770,6 +1948,20 @@
       item.querySelector('.bm-remove').addEventListener('click', (e) => {
         e.stopPropagation();
         removeBookmark(bm.id);
+      });
+      // Hover the card → highlight matching rect(s) on the page
+      // (Don't scroll the page; user can click to jump)
+      item.addEventListener('mouseenter', () => {
+        document.querySelectorAll(`.hl-rect[data-bm-id="${bm.id}"]`).forEach(r => {
+          r.classList.add('active');
+        });
+        item.classList.add('preview');
+      });
+      item.addEventListener('mouseleave', () => {
+        document.querySelectorAll(`.hl-rect[data-bm-id="${bm.id}"]`).forEach(r => {
+          r.classList.remove('active');
+        });
+        item.classList.remove('preview');
       });
       bookmarksList.appendChild(item);
     });
