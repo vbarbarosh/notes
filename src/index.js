@@ -429,9 +429,9 @@ async function error_handler(error, req, res, next)
     }
 
     if (error instanceof UserFriendlyError) {
-        res.send({error: error.message});
+        res.status(500).send({error: error.message});
     }
     else {
-        res.send({error: `An error occurred [${req.uid}]`})
+        res.status(500).send({error: 'An error occurred'})
     }
 }
