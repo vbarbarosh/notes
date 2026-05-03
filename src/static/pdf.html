@@ -830,6 +830,33 @@
   let renderToken = 0;
   let pageObserver = null;
 
+  // LRU cache of parsed PDFDocumentProxy objects. Skips the parse/structure
+  // step when re-opening a recently-viewed PDF. Canvases & text layers are
+  // not cached (too memory-heavy); they re-render lazily as before.
+  const PDF_CACHE_LIMIT = 5;
+  const pdfDocCache = new Map(); // url → PDFDocumentProxy (insertion-order = LRU)
+
+  function pdfCacheGet(url) {
+    if (!pdfDocCache.has(url)) return null;
+    const pdf = pdfDocCache.get(url);
+    // Touch: move to end so it's most-recently-used
+    pdfDocCache.delete(url);
+    pdfDocCache.set(url, pdf);
+    return pdf;
+  }
+
+  function pdfCachePut(url, pdf) {
+    if (pdfDocCache.has(url)) pdfDocCache.delete(url);
+    pdfDocCache.set(url, pdf);
+    while (pdfDocCache.size > PDF_CACHE_LIMIT) {
+      // Evict oldest (first inserted)
+      const oldestUrl = pdfDocCache.keys().next().value;
+      const oldestPdf = pdfDocCache.get(oldestUrl);
+      pdfDocCache.delete(oldestUrl);
+      try { oldestPdf.destroy(); } catch (e) { /* ignore */ }
+    }
+  }
+
   // ───── File handling ─────
   function addFiles(fileList) {
     const pdfs = Array.from(fileList).filter(f => f.type === 'application/pdf' || f.name.toLowerCase().endsWith('.pdf'));
@@ -850,7 +877,12 @@
   function removeFile(id) {
     const idx = files.findIndex(f => f.id === id);
     if (idx === -1) return;
-    URL.revokeObjectURL(files[idx].url);
+    const removed = files[idx];
+    URL.revokeObjectURL(removed.url);
+    if (pdfDocCache.has(removed.url)) {
+      try { pdfDocCache.get(removed.url).destroy(); } catch (e) {}
+      pdfDocCache.delete(removed.url);
+    }
     files.splice(idx, 1);
     if (activeId === id) {
       activeId = null;
@@ -863,6 +895,10 @@
 
   function clearAll() {
     files.forEach(f => URL.revokeObjectURL(f.url));
+    for (const pdf of pdfDocCache.values()) {
+      try { pdf.destroy(); } catch (e) {}
+    }
+    pdfDocCache.clear();
     files = [];
     activeId = null;
     currentPdf = null;
@@ -965,9 +1001,13 @@
     suppressViewSave = true;
 
     try {
-      const loadingTask = pdfjsLib.getDocument(file.url);
-      const pdf = await loadingTask.promise;
-      if (myToken !== renderToken) return; // user switched files
+      let pdf = pdfCacheGet(file.url);
+      if (!pdf) {
+        const loadingTask = pdfjsLib.getDocument(file.url);
+        pdf = await loadingTask.promise;
+        if (myToken !== renderToken) return; // user switched files
+        pdfCachePut(file.url, pdf);
+      }
       currentPdf = pdf;
       pageCountEl.textContent = pdf.numPages;
 
@@ -1684,6 +1724,16 @@
     if (window.__pdfvault_bookmarksChanged) window.__pdfvault_bookmarksChanged();
   }
 
+  // Top y-coordinate of a bookmark on its primary page (0..1 fraction).
+  // Used for ordering: bookmarks that appear higher on the page come first.
+  function bookmarkTopY(bm) {
+    const rects = bm.rects && bm.rects[bm.page];
+    if (!rects || !rects.length) return 0;
+    let top = Infinity;
+    for (const r of rects) if (r.y < top) top = r.y;
+    return top === Infinity ? 0 : top;
+  }
+
   function renderBookmarks() {
     bookmarksList.querySelectorAll('.bookmark-item').forEach(el => el.remove());
     const file = files.find(f => f.id === activeId);
@@ -1691,7 +1741,13 @@
     bmCount.textContent = String(bms.length).padStart(2, '0');
     emptyBm.style.display = bms.length ? 'none' : 'block';
 
-    bms.forEach(bm => {
+    // Sort by (page, top y within page) — document order
+    const sorted = [...bms].sort((a, b) => {
+      if (a.page !== b.page) return a.page - b.page;
+      return bookmarkTopY(a) - bookmarkTopY(b);
+    });
+
+    sorted.forEach(bm => {
       const item = document.createElement('div');
       item.className = 'bookmark-item';
       const isRect = bm.kind === 'rect';
