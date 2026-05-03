@@ -23,12 +23,14 @@ async function api_notes_update({note_uid, body})
     return http_patch_json(`/api/v1/notes/${note_uid}`, {body});
 }
 
-async function api_notes_upload_file({note_uid, file})
+async function api_notes_upload_file({note_uid, file, onProgress})
 {
     const items = [];
 
     items.push({name: 'file', body: file, options: file.fullPath});
-    return http_post_multipart(`/api/v1/notes/${note_uid}/files`, items);
+    return http_post_multipart(`/api/v1/notes/${note_uid}/files`, items, {
+        onUploadProgress: onProgress,
+    });
 }
 
 async function api_notes_remove_file({note_uid, filename})

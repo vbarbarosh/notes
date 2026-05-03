@@ -20,6 +20,7 @@ const fs_read_utf8 = require('@vbarbarosh/node-helpers/src/fs_read_utf8');
 const fs_readdir = require('@vbarbarosh/node-helpers/src/fs_readdir');
 const fs_rename = require('@vbarbarosh/node-helpers/src/fs_rename');
 const fs_write = require('@vbarbarosh/node-helpers/src/fs_write');
+const fs_write_over_file = require('./helpers/fs_write_over_file');
 const fs_write_unique_file = require('./helpers/fs_write_unique_file');
 const make = require('@vbarbarosh/type-helpers');
 const multer = require('multer');
@@ -326,7 +327,7 @@ async function notes_remove_file(req, res)
 }
 
 // POST /api/v1/notes/:note_uid/files | file=@/path/to/file
-// POST /api/v1/notes/:note_uid/files?nonunique | file=@/path/to/file
+// POST /api/v1/notes/:note_uid/files?overwrite=1 | file=@/path/to/file
 async function notes_upload_file(req, res)
 {
     const note_uid = req.params.note_uid;
@@ -344,7 +345,10 @@ async function notes_upload_file(req, res)
     }
 
     const files_root = fs_path_resolve(d, 'files');
-    const file_path = await fs_write_unique_file(files_root, file.originalname, file.buffer);
+    const overwrite = request_overwrite(req);
+    const file_path = overwrite
+        ? await fs_write_over_file(files_root, file.originalname, file.buffer)
+        : await fs_write_unique_file(files_root, file.originalname, file.buffer);
 
     const lstat = await fs_lstat(file_path);
     const path = fs_path_safe_relative(files_root, file_path);
@@ -356,6 +360,11 @@ async function notes_upload_file(req, res)
         thumbnail_url,
         size: lstat.size,
     });
+}
+
+function request_overwrite(req)
+{
+    return req.query?.overwrite === '1' || req.body?.overwrite === '1' || req.body?.overwrite === 1;
 }
 
 function now_fs()

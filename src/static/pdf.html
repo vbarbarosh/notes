@@ -1,0 +1,1913 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PDF Vault</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,400;9..144,500;9..144,700;9..144,900&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<style>
+  :root {
+    --bg: #f4f1ea;
+    --bg-alt: #ebe6db;
+    --ink: #1a1814;
+    --ink-soft: #4a443c;
+    --ink-muted: #8a8377;
+    --accent: #c8472b;
+    --accent-soft: #e8b8a8;
+    --highlight: rgba(255, 215, 0, 0.42);
+    --highlight-active: rgba(255, 165, 0, 0.55);
+    --line: #1a1814;
+    --paper: #fbf9f4;
+    --shadow: 0 1px 0 rgba(26, 24, 20, 0.08), 0 8px 24px -12px rgba(26, 24, 20, 0.25);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; overflow: hidden; }
+
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: 'Fraunces', Georgia, serif;
+    font-feature-settings: "ss01", "ss02";
+    background-image:
+      radial-gradient(circle at 20% 10%, rgba(200, 71, 43, 0.04), transparent 40%),
+      radial-gradient(circle at 80% 90%, rgba(26, 24, 20, 0.03), transparent 40%);
+    display: flex;
+    flex-direction: column;
+  }
+
+  header {
+    padding: 20px 32px 14px;
+    border-bottom: 1px solid var(--line);
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    align-items: end;
+    gap: 32px;
+    flex-shrink: 0;
+  }
+  .brand { display: flex; align-items: baseline; gap: 12px; }
+  .brand-mark {
+    width: 32px; height: 32px;
+    border: 1.5px solid var(--ink);
+    background: var(--accent);
+    transform: rotate(-4deg);
+    position: relative;
+    align-self: center;
+  }
+  .brand-mark::after { content: ''; position: absolute; inset: 4px; border: 1px solid var(--paper); }
+  .brand h1 {
+    font-weight: 900;
+    font-size: 32px;
+    letter-spacing: -0.04em;
+    line-height: 1;
+    font-variation-settings: "opsz" 144;
+  }
+  .brand h1 em { font-style: italic; font-weight: 400; color: var(--accent); }
+
+  .meta {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.18em;
+    color: var(--ink-muted);
+    text-align: center;
+    line-height: 1.6;
+  }
+  .meta .divider {
+    display: inline-block;
+    width: 24px; height: 1px;
+    background: var(--ink-muted);
+    vertical-align: middle;
+    margin: 0 8px;
+  }
+
+  .counter {
+    text-align: right;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.18em;
+    color: var(--ink-soft);
+  }
+  .counter .num {
+    font-family: 'Fraunces', serif;
+    font-weight: 900;
+    font-size: 28px;
+    color: var(--ink);
+    display: block;
+    line-height: 1;
+    font-variation-settings: "opsz" 144;
+  }
+
+  main {
+    flex: 1;
+    display: grid;
+    grid-template-columns: 300px 1fr 280px;
+    overflow: hidden;
+  }
+
+  aside {
+    border-right: 1px solid var(--line);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .dropzone {
+    margin: 18px;
+    padding: 20px 16px;
+    border: 2px dashed var(--ink);
+    background: var(--bg-alt);
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    position: relative;
+    flex-shrink: 0;
+  }
+  .dropzone::before {
+    content: '';
+    position: absolute;
+    inset: 4px;
+    border: 1px solid var(--ink);
+    pointer-events: none;
+    opacity: 0.3;
+  }
+  .dropzone:hover {
+    background: var(--paper);
+    transform: translate(-1px, -1px);
+    box-shadow: 3px 3px 0 var(--ink);
+  }
+  .dropzone.drag-active {
+    background: var(--accent);
+    color: var(--paper);
+    transform: scale(1.01);
+  }
+  .dropzone.drag-active .dz-icon { color: var(--paper); }
+
+  .dz-icon { font-size: 28px; color: var(--accent); font-weight: 900; line-height: 1; margin-bottom: 6px; transition: color 0.2s; }
+  .dz-title { font-size: 17px; font-weight: 700; letter-spacing: -0.02em; margin-bottom: 4px; }
+  .dz-title em { font-style: italic; font-weight: 400; }
+  .dz-sub {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px;
+    text-transform: uppercase;
+    letter-spacing: 0.18em;
+    color: var(--ink-muted);
+  }
+
+  .section-header {
+    padding: 0 18px 10px;
+    margin: 0 18px;
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    border-bottom: 1px solid var(--ink);
+    flex-shrink: 0;
+  }
+  .section-header h2 {
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    font-family: 'JetBrains Mono', monospace;
+  }
+  .clear-btn {
+    background: none; border: none;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px;
+    text-transform: uppercase;
+    letter-spacing: 0.18em;
+    color: var(--ink-muted);
+    cursor: pointer;
+    padding: 2px 0;
+    border-bottom: 1px dotted var(--ink-muted);
+  }
+  .clear-btn:hover { color: var(--accent); border-color: var(--accent); }
+
+  .collection { flex: 1; overflow-y: auto; padding: 8px 18px 18px; }
+  .collection::-webkit-scrollbar, .bookmarks::-webkit-scrollbar { width: 6px; }
+  .collection::-webkit-scrollbar-thumb, .bookmarks::-webkit-scrollbar-thumb { background: var(--ink-muted); border-radius: 3px; }
+
+  .empty-state { text-align: center; padding: 32px 16px; color: var(--ink-muted); font-style: italic; font-size: 14px; }
+
+  .file-item {
+    display: grid;
+    grid-template-columns: 36px 1fr;
+    gap: 12px;
+    align-items: center;
+    padding: 12px 10px;
+    margin-top: 8px;
+    background: var(--paper);
+    border: 1px solid var(--ink);
+    cursor: pointer;
+    transition: all 0.15s ease;
+    position: relative;
+  }
+  .file-item:hover { transform: translate(-2px, -2px); box-shadow: 4px 4px 0 var(--ink); }
+  .file-item.active {
+    background: var(--ink);
+    color: var(--paper);
+    transform: translate(-2px, -2px);
+    box-shadow: 4px 4px 0 var(--accent);
+  }
+  .file-item.active .file-meta { color: var(--accent-soft); }
+  .file-item.active .file-icon { background: var(--accent); color: var(--paper); border-color: var(--paper); }
+
+  .file-icon {
+    width: 36px; height: 46px;
+    background: var(--accent);
+    color: var(--paper);
+    border: 1px solid var(--ink);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 700;
+    font-size: 8px;
+    letter-spacing: 0.05em;
+    position: relative;
+    flex-shrink: 0;
+  }
+  .file-icon::before {
+    content: '';
+    position: absolute;
+    top: 0; right: 0;
+    width: 8px; height: 8px;
+    background: var(--paper);
+    border-left: 1px solid var(--ink);
+    border-bottom: 1px solid var(--ink);
+  }
+
+  .file-info { min-width: 0; }
+  .file-name {
+    font-size: 14px;
+    font-weight: 500;
+    line-height: 1.2;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    margin-bottom: 3px;
+    letter-spacing: -0.01em;
+  }
+  .file-meta {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--ink-muted);
+  }
+
+  .remove-btn {
+    background: none; border: none;
+    color: inherit;
+    opacity: 0;
+    cursor: pointer;
+    font-size: 16px;
+    line-height: 1;
+    padding: 4px 6px;
+    transition: opacity 0.15s;
+    position: absolute;
+    top: 2px; right: 2px;
+  }
+  .file-item:hover .remove-btn { opacity: 0.6; }
+  .remove-btn:hover { opacity: 1 !important; color: var(--accent); }
+
+  .preview {
+    background: var(--bg-alt);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+  }
+
+  .preview-toolbar {
+    padding: 12px 24px;
+    border-bottom: 1px solid var(--ink);
+    background: var(--bg);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-shrink: 0;
+    gap: 16px;
+  }
+
+  .preview-title {
+    font-size: 15px;
+    font-weight: 500;
+    letter-spacing: -0.01em;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    flex: 1;
+    min-width: 0;
+  }
+  .preview-title em { font-style: italic; color: var(--ink-muted); font-weight: 400; }
+
+  .controls { display: flex; gap: 6px; align-items: center; flex-shrink: 0; }
+  .ctrl-btn {
+    background: var(--paper);
+    border: 1px solid var(--ink);
+    padding: 6px 10px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    cursor: pointer;
+    transition: all 0.12s;
+    color: var(--ink);
+    font-weight: 500;
+  }
+  .ctrl-btn:hover:not(:disabled) { background: var(--ink); color: var(--paper); }
+  .ctrl-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+  .ctrl-btn.toggled {
+    background: var(--accent);
+    color: var(--paper);
+    border-color: var(--ink);
+  }
+  .ctrl-btn.toggled:hover { background: var(--ink); }
+
+  /* Rect-drawing mode */
+  .canvas-area.rect-mode .page-wrap { cursor: crosshair; }
+  .canvas-area.rect-mode .textLayer { pointer-events: none; user-select: none; }
+  .rect-draw-layer {
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    display: none;
+  }
+  .canvas-area.rect-mode .rect-draw-layer { display: block; }
+  .rect-draft {
+    position: absolute;
+    background: rgba(200, 71, 43, 0.18);
+    border: 1.5px dashed var(--accent);
+    pointer-events: none;
+  }
+
+  /* Bookmark thumbnail (for rect bookmarks) */
+  .bm-thumb {
+    width: 100%;
+    max-height: 110px;
+    object-fit: contain;
+    object-position: left center;
+    background: var(--bg-alt);
+    border: 1px solid var(--ink);
+    margin-bottom: 8px;
+    display: block;
+  }
+
+  .page-indicator {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    padding: 0 6px;
+    min-width: 90px;
+    text-align: center;
+    color: var(--ink-soft);
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    justify-content: center;
+  }
+  .page-indicator span { color: var(--ink); font-weight: 500; }
+  .page-indicator input {
+    width: 36px;
+    text-align: center;
+    background: var(--paper);
+    border: 1px solid var(--ink);
+    color: var(--ink);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    font-weight: 500;
+    padding: 3px 4px;
+    outline: none;
+    -moz-appearance: textfield;
+  }
+  .page-indicator input::-webkit-outer-spin-button,
+  .page-indicator input::-webkit-inner-spin-button {
+    -webkit-appearance: none; margin: 0;
+  }
+  .page-indicator input:focus {
+    background: var(--bg);
+    box-shadow: 0 0 0 2px var(--accent);
+  }
+
+  .canvas-area {
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: auto;
+    padding: 24px 16px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+  }
+  .canvas-area::-webkit-scrollbar { width: 8px; height: 8px; }
+  .canvas-area::-webkit-scrollbar-track { background: var(--bg-alt); }
+  .canvas-area::-webkit-scrollbar-thumb { background: var(--ink-muted); }
+
+  .page-wrap {
+    position: relative;
+    background: white;
+    box-shadow: var(--shadow);
+    user-select: text;
+    flex-shrink: 0;
+  }
+  .page-wrap canvas { display: block; }
+
+  .page-label {
+    position: absolute;
+    top: 6px; right: 8px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px;
+    color: var(--ink-muted);
+    letter-spacing: 0.1em;
+    background: rgba(251, 249, 244, 0.85);
+    padding: 2px 6px;
+    pointer-events: none;
+    z-index: 5;
+  }
+
+  .textLayer {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+    opacity: 1;
+    line-height: 1;
+    -webkit-font-smoothing: antialiased;
+    user-select: text;
+  }
+  .textLayer span, .textLayer br {
+    color: transparent;
+    position: absolute;
+    white-space: pre;
+    cursor: text;
+    transform-origin: 0% 0%;
+  }
+  .textLayer ::selection { background: var(--highlight); color: transparent; }
+
+  .highlight-layer {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    z-index: 3; /* above text layer (default) and rect-draw-layer (2) */
+  }
+  .hl-rect {
+    position: absolute;
+    background: var(--highlight);
+    pointer-events: auto;
+    cursor: pointer;
+    mix-blend-mode: multiply;
+    transition: background 0.12s;
+  }
+  .hl-rect:hover { background: var(--highlight-active); }
+  .hl-rect.active { background: var(--highlight-active); outline: 1.5px solid var(--accent); }
+
+  /* Rect bookmarks (kind='rect') — always directly manipulable */
+  .hl-rect.rect-kind {
+    background: rgba(200, 71, 43, 0.14);
+    outline: 1px solid rgba(200, 71, 43, 0.5);
+    mix-blend-mode: normal;
+  }
+  .hl-rect.rect-kind:hover {
+    background: rgba(200, 71, 43, 0.22);
+    outline: 1.5px solid var(--accent);
+  }
+  /* Cursor changes on edge proximity are set inline by JS */
+
+  .sel-popup {
+    position: fixed;
+    background: var(--ink);
+    color: var(--paper);
+    padding: 7px 12px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+    cursor: pointer;
+    z-index: 200;
+    display: none;
+    box-shadow: 2px 2px 0 var(--accent);
+    user-select: none;
+    border: 1px solid var(--ink);
+  }
+  .sel-popup.active { display: block; }
+  .sel-popup:hover { background: var(--accent); }
+  .sel-popup::before { content: '✦'; margin-right: 6px; color: var(--accent); }
+  .sel-popup:hover::before { color: var(--paper); }
+
+  .placeholder {
+    text-align: center;
+    color: var(--ink-muted);
+    padding: 40px 32px;
+    margin: auto;
+    max-width: 480px;
+  }
+  .placeholder-art {
+    width: 100px; height: 130px;
+    margin: 0 auto 20px;
+    background: var(--paper);
+    border: 1.5px solid var(--ink);
+    position: relative;
+    transform: rotate(-3deg);
+    box-shadow: 6px 6px 0 var(--ink);
+  }
+  .placeholder-art::before {
+    content: '';
+    position: absolute;
+    top: 0; right: 0;
+    width: 26px; height: 26px;
+    background: var(--bg-alt);
+    border-left: 1.5px solid var(--ink);
+    border-bottom: 1.5px solid var(--ink);
+  }
+  .placeholder-art::after {
+    content: 'PDF';
+    position: absolute;
+    bottom: 20px; left: 0; right: 0;
+    text-align: center;
+    font-family: 'Fraunces', serif;
+    font-weight: 900;
+    font-size: 24px;
+    color: var(--accent);
+    letter-spacing: 0.05em;
+  }
+  .placeholder h3 {
+    font-size: 24px;
+    font-weight: 400;
+    font-style: italic;
+    letter-spacing: -0.02em;
+    margin-bottom: 8px;
+    color: var(--ink);
+  }
+  .placeholder p {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.18em;
+  }
+
+  .loading-overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(244, 241, 234, 0.92);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 20;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.18em;
+    color: var(--ink);
+  }
+  .loading-overlay.active { display: flex; }
+  .loading-overlay::before {
+    content: '';
+    width: 16px; height: 16px;
+    border: 2px solid var(--ink);
+    border-right-color: transparent;
+    border-radius: 50%;
+    margin-right: 12px;
+    animation: spin 0.8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .bookmarks-panel {
+    border-left: 1px solid var(--line);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    background: var(--bg);
+  }
+  .bm-header {
+    padding: 18px 18px 10px;
+    border-bottom: 1px solid var(--line);
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    flex-shrink: 0;
+  }
+  .bm-header h2 {
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    font-family: 'JetBrains Mono', monospace;
+  }
+  .bm-header .num {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: var(--ink-muted);
+  }
+  .bookmarks { flex: 1; overflow-y: auto; padding: 12px 18px 18px; }
+
+  .bookmark-item {
+    margin-top: 10px;
+    padding: 12px 12px 12px 16px;
+    background: var(--paper);
+    border: 1px solid var(--ink);
+    cursor: pointer;
+    position: relative;
+    transition: all 0.15s ease;
+  }
+  .bookmark-item:hover { transform: translate(-2px, -2px); box-shadow: 4px 4px 0 var(--ink); }
+  .bookmark-item::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0;
+    width: 4px; height: 100%;
+    background: var(--highlight);
+  }
+  .bm-quote {
+    font-size: 13px;
+    font-style: italic;
+    line-height: 1.4;
+    color: var(--ink);
+    display: -webkit-box;
+    -webkit-line-clamp: 4;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    margin-bottom: 8px;
+  }
+  .bm-quote::before { content: '“'; color: var(--accent); font-size: 18px; vertical-align: -4px; margin-right: 1px; }
+  .bm-quote::after { content: '”'; color: var(--accent); font-size: 18px; vertical-align: -4px; margin-left: 1px; }
+  .bm-meta {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--ink-muted);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .bm-remove {
+    background: none; border: none;
+    cursor: pointer;
+    color: var(--ink-muted);
+    font-size: 14px;
+    padding: 0 4px;
+    line-height: 1;
+  }
+  .bm-remove:hover { color: var(--accent); }
+
+  .empty-bm {
+    text-align: center;
+    padding: 28px 12px;
+    color: var(--ink-muted);
+    font-size: 13px;
+    font-style: italic;
+    line-height: 1.5;
+  }
+  .empty-bm strong {
+    display: block;
+    font-style: normal;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px;
+    text-transform: uppercase;
+    letter-spacing: 0.18em;
+    color: var(--ink);
+    margin-bottom: 8px;
+    font-weight: 700;
+  }
+
+  .drag-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(200, 71, 43, 0.92);
+    z-index: 100;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+    color: var(--paper);
+  }
+  .drag-overlay.active { display: flex; }
+  .drag-overlay-inner {
+    text-align: center;
+    border: 3px dashed var(--paper);
+    padding: 50px 80px;
+  }
+  .drag-overlay h2 { font-size: 56px; font-weight: 900; letter-spacing: -0.04em; line-height: 1; }
+  .drag-overlay h2 em { font-style: italic; font-weight: 400; }
+  .drag-overlay p {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.3em;
+    margin-top: 12px;
+  }
+
+  @media (max-width: 1100px) {
+    main { grid-template-columns: 280px 1fr; }
+    .bookmarks-panel { display: none; }
+  }
+  @media (max-width: 800px) {
+    main { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
+    aside { max-height: 40vh; border-right: none; border-bottom: 1px solid var(--line); }
+    header { grid-template-columns: 1fr; gap: 8px; padding: 14px 18px; }
+    .meta, .counter { text-align: left; }
+    .counter .num { font-size: 22px; display: inline-block; margin-right: 8px; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">
+    <div class="brand-mark"></div>
+    <h1>PDF <em>Vault</em></h1>
+  </div>
+  <div class="meta">
+    EST. MMXXVI<span class="divider"></span>DROP<span class="divider"></span>READ<span class="divider"></span>HIGHLIGHT
+  </div>
+  <div class="counter">
+    <span class="num" id="counter">00</span>
+    Documents
+  </div>
+</header>
+
+<main>
+  <aside>
+    <div class="dropzone" id="dropzone">
+      <div class="dz-icon">↓</div>
+      <div class="dz-title">Drop PDFs <em>here</em></div>
+      <div class="dz-sub">or click to browse</div>
+      <input type="file" id="fileInput" accept="application/pdf" multiple hidden>
+    </div>
+
+    <div class="section-header">
+      <h2>Collection</h2>
+      <button class="clear-btn" id="clearBtn" style="display:none">Clear all</button>
+    </div>
+
+    <div class="collection" id="collection">
+      <div class="empty-state" id="emptyState">No documents yet.</div>
+    </div>
+  </aside>
+
+  <section class="preview">
+    <div class="preview-toolbar" id="toolbar" style="display:none">
+      <div class="preview-title" id="previewTitle"></div>
+      <div class="controls">
+        <div class="page-indicator">
+          Page <input type="text" id="pageInput" value="1" /> / <span id="pageCount">1</span>
+        </div>
+        <button class="ctrl-btn" id="rectMode" title="Draw rectangle highlight">▢ Box</button>
+        <button class="ctrl-btn" id="zoomOut">−</button>
+        <button class="ctrl-btn" id="zoomIn">+</button>
+      </div>
+    </div>
+
+    <div class="canvas-area" id="canvasArea">
+      <div class="placeholder" id="placeholder">
+        <div class="placeholder-art"></div>
+        <h3>Select a document</h3>
+        <p>Drop or pick a file to begin</p>
+      </div>
+    </div>
+
+    <div class="loading-overlay" id="loadingOverlay">Rendering pages</div>
+  </section>
+
+  <section class="bookmarks-panel">
+    <div class="bm-header">
+      <h2>Bookmarks</h2>
+      <span class="num" id="bmCount">00</span>
+    </div>
+    <div class="bookmarks" id="bookmarksList">
+      <div class="empty-bm" id="emptyBm">
+        <strong>Two ways to highlight</strong>
+        Select text and click the “Highlight” pill — or toggle <em>▢ Box</em> in the toolbar to draw a rectangle on a scanned page.
+      </div>
+    </div>
+  </section>
+</main>
+
+<div class="sel-popup" id="selPopup">Highlight</div>
+
+<div class="drag-overlay" id="dragOverlay">
+  <div class="drag-overlay-inner">
+    <h2>Release to <em>add</em></h2>
+    <p>PDF files only</p>
+  </div>
+</div>
+
+<script>
+  pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+  const $ = (id) => document.getElementById(id);
+  const dropzone = $('dropzone');
+  const fileInput = $('fileInput');
+  const collection = $('collection');
+  const emptyState = $('emptyState');
+  const counter = $('counter');
+  const clearBtn = $('clearBtn');
+  const dragOverlay = $('dragOverlay');
+  const placeholder = $('placeholder');
+  const canvasArea = $('canvasArea');
+  const toolbar = $('toolbar');
+  const previewTitle = $('previewTitle');
+  const pageInputEl = $('pageInput');
+  const pageCountEl = $('pageCount');
+  const loadingOverlay = $('loadingOverlay');
+  const selPopup = $('selPopup');
+  const bookmarksList = $('bookmarksList');
+  const emptyBm = $('emptyBm');
+  const bmCount = $('bmCount');
+
+  let files = [];
+  let activeId = null;
+  let currentPdf = null;
+  let currentScale = 1.3;
+  let pageRefs = []; // { wrap, hlLayer, pageNum, page, viewport, rendered, ... }
+  let pendingSelection = null;
+  let renderToken = 0;
+  let pageObserver = null;
+
+  // ───── File handling ─────
+  function addFiles(fileList) {
+    const pdfs = Array.from(fileList).filter(f => f.type === 'application/pdf' || f.name.toLowerCase().endsWith('.pdf'));
+    pdfs.forEach(file => {
+      const id = Date.now() + '-' + Math.random().toString(36).slice(2, 8);
+      files.push({
+        id,
+        name: file.name,
+        size: file.size,
+        url: URL.createObjectURL(file),
+        bookmarks: []
+      });
+    });
+    renderCollection();
+    if (pdfs.length && !activeId) selectFile(files[0].id);
+  }
+
+  function removeFile(id) {
+    const idx = files.findIndex(f => f.id === id);
+    if (idx === -1) return;
+    URL.revokeObjectURL(files[idx].url);
+    files.splice(idx, 1);
+    if (activeId === id) {
+      activeId = null;
+      currentPdf = null;
+      showPlaceholder();
+      renderBookmarks();
+    }
+    renderCollection();
+  }
+
+  function clearAll() {
+    files.forEach(f => URL.revokeObjectURL(f.url));
+    files = [];
+    activeId = null;
+    currentPdf = null;
+    showPlaceholder();
+    renderCollection();
+    renderBookmarks();
+  }
+
+  function formatSize(bytes) {
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
+    return (bytes / 1048576).toFixed(1) + ' MB';
+  }
+
+  function escapeHtml(str) {
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+  }
+
+  function renderCollection() {
+    counter.textContent = String(files.length).padStart(2, '0');
+    clearBtn.style.display = files.length ? 'block' : 'none';
+    emptyState.style.display = files.length ? 'none' : 'block';
+    collection.querySelectorAll('.file-item').forEach(el => el.remove());
+
+    files.forEach((file, i) => {
+      const item = document.createElement('div');
+      item.className = 'file-item' + (file.id === activeId ? ' active' : '');
+      const bmTag = file.bookmarks.length ? ` · ${file.bookmarks.length} ✦` : '';
+      item.innerHTML = `
+        <div class="file-icon">PDF</div>
+        <div class="file-info">
+          <div class="file-name">${escapeHtml(file.name)}</div>
+          <div class="file-meta">№ ${String(i + 1).padStart(3, '0')} · ${formatSize(file.size)}${bmTag}</div>
+        </div>
+        <button class="remove-btn" title="Remove">×</button>
+      `;
+      item.addEventListener('click', (e) => {
+        if (e.target.classList.contains('remove-btn')) return;
+        selectFile(file.id);
+      });
+      item.querySelector('.remove-btn').addEventListener('click', (e) => {
+        e.stopPropagation();
+        removeFile(file.id);
+      });
+      collection.appendChild(item);
+    });
+  }
+
+  // ───── PDF rendering (continuous) ─────
+  async function selectFile(id) {
+    const file = files.find(f => f.id === id);
+    if (!file) return;
+    activeId = id;
+    renderCollection();
+    renderBookmarks();
+
+    placeholder.style.display = 'none';
+    toolbar.style.display = 'flex';
+    loadingOverlay.classList.add('active');
+
+    canvasArea.querySelectorAll('.page-wrap').forEach(el => el.remove());
+    pageRefs = [];
+
+    const dotIdx = file.name.lastIndexOf('.');
+    const baseName = dotIdx > 0 ? file.name.slice(0, dotIdx) : file.name;
+    previewTitle.innerHTML = `<em>Reading</em> · ${escapeHtml(baseName)}`;
+
+    const myToken = ++renderToken;
+    suppressViewSave = true;
+
+    try {
+      const loadingTask = pdfjsLib.getDocument(file.url);
+      const pdf = await loadingTask.promise;
+      if (myToken !== renderToken) return; // user switched files
+      currentPdf = pdf;
+      pageCountEl.textContent = pdf.numPages;
+
+      // Apply saved scale (if any) before laying out pages
+      const savedView = file.savedView;
+      if (savedView && savedView.scale && savedView.scale >= 0.5 && savedView.scale <= 3) {
+        currentScale = savedView.scale;
+      }
+
+      pageInputEl.value = String((savedView && savedView.page) || 1);
+      await setupPagePlaceholders(myToken);
+      if (myToken !== renderToken) return;
+
+      // Restore scroll position: page + offset within page
+      if (savedView && savedView.page && (savedView.page > 1 || savedView.offset > 0)) {
+        // Wait a frame so layout settles
+        await new Promise(r => requestAnimationFrame(r));
+        if (myToken !== renderToken) return;
+        const ref = pageRefs.find(p => p.pageNum === savedView.page);
+        if (ref) {
+          const areaRect = canvasArea.getBoundingClientRect();
+          const wrapRect = ref.wrap.getBoundingClientRect();
+          const offsetPx = (savedView.offset || 0) * wrapRect.height;
+          canvasArea.scrollTop += (wrapRect.top - areaRect.top) + offsetPx;
+        }
+      }
+      // Highlights get drawn as their pages render in
+    } catch (err) {
+      console.error('PDF load error:', err);
+      previewTitle.innerHTML = `<em>Error</em> · could not open ${escapeHtml(file.name)}`;
+    } finally {
+      if (myToken === renderToken) {
+        loadingOverlay.classList.remove('active');
+        // Allow view saves again after a tick (lets the restoring scroll settle)
+        setTimeout(() => { suppressViewSave = false; }, 100);
+      }
+    }
+  }
+
+  // Cap DPR — going above 1.5 quadruples pixel work for marginal sharpness gain.
+  function getDpr() {
+    return Math.min(window.devicePixelRatio || 1, 1.5);
+  }
+
+  // Build empty page wrappers with correct sizes, then lazy-render via observer.
+  async function setupPagePlaceholders(token) {
+    if (!currentPdf) return;
+    const numPages = currentPdf.numPages;
+
+    // Get viewports for ALL pages in parallel — this is metadata only, fast.
+    const pages = await Promise.all(
+      Array.from({ length: numPages }, (_, i) => currentPdf.getPage(i + 1))
+    );
+    if (token !== renderToken) return;
+
+    pageObserver = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        const ref = pageRefs.find(p => p.wrap === entry.target);
+        if (!ref) return;
+        if (entry.isIntersecting) {
+          renderPageContent(ref);
+        }
+      });
+    }, {
+      root: canvasArea,
+      rootMargin: '600px 0px', // start rendering 600px before page enters viewport
+      threshold: 0
+    });
+
+    for (let i = 0; i < numPages; i++) {
+      const page = pages[i];
+      const num = i + 1;
+      const viewport = page.getViewport({ scale: currentScale });
+
+      const wrap = document.createElement('div');
+      wrap.className = 'page-wrap';
+      wrap.style.width = viewport.width + 'px';
+      wrap.style.height = viewport.height + 'px';
+      wrap.dataset.page = num;
+
+      const label = document.createElement('div');
+      label.className = 'page-label';
+      label.textContent = `${String(num).padStart(3, '0')} / ${String(numPages).padStart(3, '0')}`;
+      wrap.appendChild(label);
+
+      const hlLayer = document.createElement('div');
+      hlLayer.className = 'highlight-layer';
+      wrap.appendChild(hlLayer);
+
+      canvasArea.appendChild(wrap);
+
+      const ref = {
+        wrap, hlLayer, pageNum: num,
+        page, viewport,
+        rendered: false, rendering: false,
+        canvas: null, textLayer: null
+      };
+      pageRefs.push(ref);
+      pageObserver.observe(wrap);
+    }
+  }
+
+  async function renderPageContent(ref) {
+    if (ref.rendered || ref.rendering) return;
+    ref.rendering = true;
+    const myToken = renderToken;
+
+    try {
+      const dpr = getDpr();
+      const canvas = document.createElement('canvas');
+      canvas.width = ref.viewport.width * dpr;
+      canvas.height = ref.viewport.height * dpr;
+      canvas.style.width = ref.viewport.width + 'px';
+      canvas.style.height = ref.viewport.height + 'px';
+      const ctx = canvas.getContext('2d');
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      // Insert canvas before the highlight layer so highlights stay on top
+      ref.wrap.insertBefore(canvas, ref.hlLayer);
+      ref.canvas = canvas;
+
+      await ref.page.render({ canvasContext: ctx, viewport: ref.viewport }).promise;
+      if (myToken !== renderToken) return;
+
+      const textLayer = document.createElement('div');
+      textLayer.className = 'textLayer';
+      textLayer.style.width = ref.viewport.width + 'px';
+      textLayer.style.height = ref.viewport.height + 'px';
+      ref.wrap.appendChild(textLayer);
+      ref.textLayer = textLayer;
+
+      const textContent = await ref.page.getTextContent();
+      if (myToken !== renderToken) return;
+      await pdfjsLib.renderTextLayer({
+        textContent,
+        container: textLayer,
+        viewport: ref.viewport,
+        textDivs: []
+      }).promise.catch(() => {});
+
+      // Rect-draw layer (always present, only active in rect mode)
+      const rectLayer = document.createElement('div');
+      rectLayer.className = 'rect-draw-layer';
+      ref.wrap.appendChild(rectLayer);
+      ref.rectLayer = rectLayer;
+      attachRectDrawHandlers(ref);
+
+      ref.rendered = true;
+
+      // Draw any highlights that belong to this page
+      const file = files.find(f => f.id === activeId);
+      if (file) {
+        let thumbsAdded = false;
+        file.bookmarks.forEach(bm => {
+          if (bm.rects[ref.pageNum]) {
+            // Avoid duplicates: clear & redraw this page's highlights
+            ref.hlLayer.querySelectorAll(`.hl-rect[data-bm-id="${bm.id}"]`).forEach(el => el.remove());
+            drawHighlightOnPage(bm, ref);
+            // Regenerate thumb if missing (e.g. just loaded from server)
+            if (bm.kind === 'rect' && !bm.thumb && bm.page === ref.pageNum) {
+              const rel = bm.rects[ref.pageNum][0];
+              if (rel) { updateRectThumb(bm, ref, rel); thumbsAdded = true; }
+            }
+          }
+        });
+        if (thumbsAdded) renderBookmarks();
+      }
+    } catch (e) {
+      console.warn('Render failed for page', ref.pageNum, e);
+    } finally {
+      ref.rendering = false;
+    }
+  }
+
+  function showPlaceholder() {
+    if (pageObserver) { pageObserver.disconnect(); pageObserver = null; }
+    canvasArea.querySelectorAll('.page-wrap').forEach(el => el.remove());
+    pageRefs = [];
+    placeholder.style.display = 'block';
+    toolbar.style.display = 'none';
+  }
+
+  // ───── Zoom ─────
+  async function rerenderAll() {
+    if (!currentPdf) return;
+    loadingOverlay.classList.add('active');
+    if (pageObserver) { pageObserver.disconnect(); pageObserver = null; }
+    canvasArea.querySelectorAll('.page-wrap').forEach(el => el.remove());
+    pageRefs = [];
+    const myToken = ++renderToken;
+    await setupPagePlaceholders(myToken);
+    if (myToken !== renderToken) return;
+    loadingOverlay.classList.remove('active');
+  }
+
+  $('zoomIn').addEventListener('click', () => {
+    currentScale = Math.min(currentScale + 0.2, 3);
+    rerenderAll();
+    if (window.__pdfvault_bookmarksChanged) window.__pdfvault_bookmarksChanged();
+  });
+  $('zoomOut').addEventListener('click', () => {
+    currentScale = Math.max(currentScale - 0.2, 0.5);
+    rerenderAll();
+    if (window.__pdfvault_bookmarksChanged) window.__pdfvault_bookmarksChanged();
+  });
+
+  // ───── Track current page on scroll ─────
+  function goToPage(num) {
+    if (!currentPdf) return;
+    const n = Math.max(1, Math.min(currentPdf.numPages, Math.round(num)));
+    const ref = pageRefs.find(p => p.pageNum === n);
+    if (!ref) return;
+    const areaRect = canvasArea.getBoundingClientRect();
+    const wrapRect = ref.wrap.getBoundingClientRect();
+    canvasArea.scrollTop += (wrapRect.top - areaRect.top) - 16;
+    pageInputEl.value = n;
+  }
+
+  pageInputEl.addEventListener('focus', () => pageInputEl.select());
+  pageInputEl.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      const n = parseInt(pageInputEl.value, 10);
+      if (!isNaN(n)) goToPage(n);
+      pageInputEl.blur();
+    } else if (e.key === 'Escape') {
+      pageInputEl.blur();
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      const n = (parseInt(pageInputEl.value, 10) || 1) + 1;
+      pageInputEl.value = n;
+      goToPage(n);
+    } else if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      const n = (parseInt(pageInputEl.value, 10) || 1) - 1;
+      pageInputEl.value = n;
+      goToPage(n);
+    }
+  });
+  pageInputEl.addEventListener('blur', () => {
+    // Reset to actual current page if the user typed garbage
+    const n = parseInt(pageInputEl.value, 10);
+    if (isNaN(n) || !currentPdf || n < 1 || n > currentPdf.numPages) {
+      // recompute from scroll
+      canvasArea.dispatchEvent(new Event('scroll'));
+    }
+  });
+
+  let suppressViewSave = false;
+
+  canvasArea.addEventListener('scroll', () => {
+    if (!pageRefs.length) return;
+    const areaTop = canvasArea.getBoundingClientRect().top;
+    let current = pageRefs[0].pageNum;
+    for (const ref of pageRefs) {
+      const rect = ref.wrap.getBoundingClientRect();
+      if (rect.top - areaTop <= canvasArea.clientHeight * 0.4) {
+        current = ref.pageNum;
+      } else {
+        break;
+      }
+    }
+    // Don't override while user is typing in the input
+    if (document.activeElement !== pageInputEl) {
+      pageInputEl.value = current;
+    }
+    // Persist view (debounced)
+    if (!suppressViewSave && window.__pdfvault_bookmarksChanged) {
+      window.__pdfvault_bookmarksChanged();
+    }
+  });
+
+  // ───── Rect highlight mode (for scanned PDFs / no text) ─────
+  let rectModeOn = false;
+  const rectBtn = $('rectMode');
+
+  rectBtn.addEventListener('click', () => {
+    rectModeOn = !rectModeOn;
+    canvasArea.classList.toggle('rect-mode', rectModeOn);
+    rectBtn.classList.toggle('toggled', rectModeOn);
+    if (rectModeOn) window.getSelection().removeAllRanges();
+    hidePopup();
+  });
+
+  function attachRectDrawHandlers(ref) {
+    let dragging = false;
+    let startX = 0, startY = 0;
+    let draftEl = null;
+
+    ref.rectLayer.addEventListener('mousedown', (e) => {
+      if (!rectModeOn || e.button !== 0) return;
+      e.preventDefault();
+      const wr = ref.wrap.getBoundingClientRect();
+      startX = e.clientX - wr.left;
+      startY = e.clientY - wr.top;
+      dragging = true;
+      draftEl = document.createElement('div');
+      draftEl.className = 'rect-draft';
+      draftEl.style.left = startX + 'px';
+      draftEl.style.top = startY + 'px';
+      ref.rectLayer.appendChild(draftEl);
+    });
+
+    function onMove(e) {
+      if (!dragging || !draftEl) return;
+      const wr = ref.wrap.getBoundingClientRect();
+      const cx = Math.max(0, Math.min(e.clientX - wr.left, wr.width));
+      const cy = Math.max(0, Math.min(e.clientY - wr.top, wr.height));
+      const x = Math.min(startX, cx);
+      const y = Math.min(startY, cy);
+      const w = Math.abs(cx - startX);
+      const h = Math.abs(cy - startY);
+      draftEl.style.left = x + 'px';
+      draftEl.style.top = y + 'px';
+      draftEl.style.width = w + 'px';
+      draftEl.style.height = h + 'px';
+    }
+
+    function onUp(e) {
+      if (!dragging || !draftEl) { dragging = false; return; }
+      dragging = false;
+      const wr = ref.wrap.getBoundingClientRect();
+      const x = parseFloat(draftEl.style.left) || 0;
+      const y = parseFloat(draftEl.style.top) || 0;
+      const w = parseFloat(draftEl.style.width) || 0;
+      const h = parseFloat(draftEl.style.height) || 0;
+      draftEl.remove();
+      draftEl = null;
+      // Ignore tiny drags (likely accidental clicks)
+      if (w < 8 || h < 8) return;
+      createRectBookmark(ref, {
+        x: x / wr.width,
+        y: y / wr.height,
+        w: w / wr.width,
+        h: h / wr.height
+      });
+    }
+
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  }
+
+  function createRectBookmark(ref, rel) {
+    if (!activeId) return;
+    const file = files.find(f => f.id === activeId);
+    if (!file) return;
+
+    // Capture a thumbnail of the selected region from the page canvas
+    let thumbDataUrl = null;
+    try {
+      if (ref.canvas) {
+        const srcW = ref.canvas.width;
+        const srcH = ref.canvas.height;
+        const sx = Math.round(rel.x * srcW);
+        const sy = Math.round(rel.y * srcH);
+        const sw = Math.round(rel.w * srcW);
+        const sh = Math.round(rel.h * srcH);
+
+        // Cap thumb dimensions for storage / panel display
+        const maxW = 280, maxH = 220;
+        const ratio = Math.min(maxW / sw, maxH / sh, 1);
+        const tw = Math.max(1, Math.round(sw * ratio));
+        const th = Math.max(1, Math.round(sh * ratio));
+
+        const tc = document.createElement('canvas');
+        tc.width = tw; tc.height = th;
+        const tctx = tc.getContext('2d');
+        tctx.drawImage(ref.canvas, sx, sy, sw, sh, 0, 0, tw, th);
+        thumbDataUrl = tc.toDataURL('image/jpeg', 0.7);
+      }
+    } catch (e) {
+      console.warn('Thumb capture failed', e);
+    }
+
+    const bm = {
+      id: Date.now() + '-' + Math.random().toString(36).slice(2, 6),
+      kind: 'rect',
+      text: '', // no text for region bookmarks
+      thumb: thumbDataUrl,
+      page: ref.pageNum,
+      rects: { [ref.pageNum]: [rel] },
+      createdAt: new Date()
+    };
+    file.bookmarks.unshift(bm);
+    drawHighlightOnPage(bm, ref);
+    renderBookmarks();
+    renderCollection();
+    if (window.__pdfvault_bookmarksChanged) window.__pdfvault_bookmarksChanged();
+  }
+
+  // ───── Selection → highlight ─────
+  function getPageRefForRect(rect) {
+    const cx = rect.left + rect.width / 2;
+    const cy = rect.top + rect.height / 2;
+    for (const ref of pageRefs) {
+      const wr = ref.wrap.getBoundingClientRect();
+      if (cx >= wr.left && cx <= wr.right && cy >= wr.top && cy <= wr.bottom) {
+        return { ref, wr };
+      }
+    }
+    return null;
+  }
+
+  function captureSelection() {
+    if (rectModeOn) { hidePopup(); return; }
+    const sel = window.getSelection();
+    if (!sel || sel.isCollapsed || sel.rangeCount === 0) {
+      hidePopup();
+      return;
+    }
+    const range = sel.getRangeAt(0);
+    const text = sel.toString().trim();
+    if (!text) { hidePopup(); return; }
+
+    // Selection must start inside a text layer
+    let container = range.startContainer;
+    if (container.nodeType === 3) container = container.parentNode;
+    if (!container.closest || !container.closest('.textLayer')) { hidePopup(); return; }
+
+    const clientRects = Array.from(range.getClientRects()).filter(r => r.width > 1 && r.height > 1);
+    if (!clientRects.length) { hidePopup(); return; }
+
+    const rectsByPage = new Map();
+    for (const r of clientRects) {
+      const found = getPageRefForRect(r);
+      if (!found) continue;
+      const { ref, wr } = found;
+      const rel = {
+        x: (r.left - wr.left) / wr.width,
+        y: (r.top - wr.top) / wr.height,
+        w: r.width / wr.width,
+        h: r.height / wr.height
+      };
+      if (!rectsByPage.has(ref.pageNum)) rectsByPage.set(ref.pageNum, []);
+      rectsByPage.get(ref.pageNum).push(rel);
+    }
+
+    if (!rectsByPage.size) { hidePopup(); return; }
+    pendingSelection = { text, rectsByPage };
+
+    const last = clientRects[clientRects.length - 1];
+    // Use viewport-fixed positioning
+    selPopup.style.left = Math.min(last.right + 6, window.innerWidth - 140) + 'px';
+    selPopup.style.top = Math.max(last.top - 36, 8) + 'px';
+    selPopup.classList.add('active');
+  }
+
+  function hidePopup() {
+    selPopup.classList.remove('active');
+    pendingSelection = null;
+  }
+
+  document.addEventListener('mouseup', (e) => {
+    if (e.target === selPopup) return;
+    setTimeout(captureSelection, 10);
+  });
+
+  document.addEventListener('mousedown', (e) => {
+    if (e.target !== selPopup) hidePopup();
+  });
+
+  selPopup.addEventListener('mousedown', (e) => e.preventDefault());
+  selPopup.addEventListener('click', () => {
+    if (!pendingSelection || !activeId) return;
+    const file = files.find(f => f.id === activeId);
+    if (!file) return;
+
+    const pages = Array.from(pendingSelection.rectsByPage.keys()).sort((a, b) => a - b);
+    const firstPage = pages[0];
+
+    const bm = {
+      id: Date.now() + '-' + Math.random().toString(36).slice(2, 6),
+      text: pendingSelection.text,
+      page: firstPage,
+      rects: Object.fromEntries(pendingSelection.rectsByPage),
+      createdAt: new Date()
+    };
+    file.bookmarks.unshift(bm);
+    drawHighlight(bm);
+    window.getSelection().removeAllRanges();
+    hidePopup();
+    renderBookmarks();
+    renderCollection();
+    if (window.__pdfvault_bookmarksChanged) window.__pdfvault_bookmarksChanged();
+  });
+
+  function drawHighlightOnPage(bm, ref) {
+    const rels = bm.rects[ref.pageNum];
+    if (!rels) return;
+    rels.forEach((rel, idx) => {
+      const div = document.createElement('div');
+      div.className = 'hl-rect' + (bm.kind === 'rect' ? ' rect-kind' : '');
+      div.dataset.bmId = bm.id;
+      div.dataset.rectIdx = idx;
+      div.style.left = (rel.x * 100) + '%';
+      div.style.top = (rel.y * 100) + '%';
+      div.style.width = (rel.w * 100) + '%';
+      div.style.height = (rel.h * 100) + '%';
+      div.title = bm.text || '';
+
+      if (bm.kind === 'rect') {
+        // Always-on direct manipulation: cursor reflects mode, mousedown drags
+        attachRectManipulation(div, bm, ref);
+      } else {
+        // Text highlights stay click-to-focus
+        div.addEventListener('click', (e) => {
+          e.stopPropagation();
+          focusBookmark(bm.id);
+        });
+      }
+      ref.hlLayer.appendChild(div);
+    });
+  }
+
+  function updateRectThumb(bm, ref, rel) {
+    if (!ref || !ref.canvas) return;
+    try {
+      const srcW = ref.canvas.width, srcH = ref.canvas.height;
+      const sx = Math.max(0, Math.round(rel.x * srcW));
+      const sy = Math.max(0, Math.round(rel.y * srcH));
+      const sw = Math.max(1, Math.round(rel.w * srcW));
+      const sh = Math.max(1, Math.round(rel.h * srcH));
+      const maxW = 280, maxH = 220;
+      const ratio = Math.min(maxW / sw, maxH / sh, 1);
+      const tw = Math.max(1, Math.round(sw * ratio));
+      const th = Math.max(1, Math.round(sh * ratio));
+      const tc = document.createElement('canvas');
+      tc.width = tw; tc.height = th;
+      const tctx = tc.getContext('2d');
+      tctx.drawImage(ref.canvas, sx, sy, sw, sh, 0, 0, tw, th);
+      bm.thumb = tc.toDataURL('image/jpeg', 0.7);
+    } catch (e) { /* ignore */ }
+  }
+
+  // Distance threshold (px) for treating the mouse as "on" an edge.
+  const EDGE_PX = 7;
+
+  function detectEdgeMode(rectEl, clientX, clientY) {
+    const r = rectEl.getBoundingClientRect();
+    const dxL = clientX - r.left;
+    const dxR = r.right - clientX;
+    const dyT = clientY - r.top;
+    const dyB = r.bottom - clientY;
+
+    // If completely outside, no mode
+    if (dxL < -EDGE_PX || dxR < -EDGE_PX || dyT < -EDGE_PX || dyB < -EDGE_PX) return null;
+
+    // Effective edge zone — shrink for tiny rects so body is still grabbable
+    const ex = Math.min(EDGE_PX, r.width / 3);
+    const ey = Math.min(EDGE_PX, r.height / 3);
+
+    let onLeft   = dxL <= ex;
+    let onRight  = dxR <= ex;
+    let onTop    = dyT <= ey;
+    let onBottom = dyB <= ey;
+
+    // If somehow both vertical (or both horizontal) edges register, prefer closer one
+    if (onLeft && onRight) { if (dxL < dxR) onRight = false; else onLeft = false; }
+    if (onTop && onBottom) { if (dyT < dyB) onBottom = false; else onTop = false; }
+
+    let mode = '';
+    if (onTop) mode += 'n';
+    if (onBottom) mode += 's';
+    if (onLeft) mode += 'w';
+    if (onRight) mode += 'e';
+    return mode || 'move';
+  }
+
+  function cursorFor(mode) {
+    switch (mode) {
+      case 'n': case 's': return 'ns-resize';
+      case 'e': case 'w': return 'ew-resize';
+      case 'nw': case 'se': return 'nwse-resize';
+      case 'ne': case 'sw': return 'nesw-resize';
+      case 'move': return 'move';
+      default: return '';
+    }
+  }
+
+  function attachRectManipulation(rectEl, bm, ref) {
+    // Hover: update cursor based on proximity to edges
+    rectEl.addEventListener('mousemove', (e) => {
+      const mode = detectEdgeMode(rectEl, e.clientX, e.clientY);
+      rectEl.style.cursor = cursorFor(mode);
+    });
+    rectEl.addEventListener('mouseleave', () => {
+      rectEl.style.cursor = '';
+    });
+
+    // Mousedown: start drag — works always, no selection step needed
+    rectEl.addEventListener('mousedown', (e) => {
+      if (e.button !== 0) return;
+      const mode = detectEdgeMode(rectEl, e.clientX, e.clientY);
+      if (!mode) return;
+      e.preventDefault();
+      e.stopPropagation(); // critical: stop the rect-draw-layer below from creating a new rect
+      startDrag(e, rectEl, bm, ref, mode);
+    });
+  }
+
+  function startDrag(e, rectEl, bm, ref, mode) {
+    const wr = ref.wrap.getBoundingClientRect();
+    const rectIdx = Number(rectEl.dataset.rectIdx) || 0;
+    const orig = { ...bm.rects[ref.pageNum][rectIdx] };
+    const startX = e.clientX, startY = e.clientY;
+    const lockedCursor = cursorFor(mode);
+
+    // Lock the cursor across the whole document during drag so it doesn't flicker
+    const prevBodyCursor = document.body.style.cursor;
+    document.body.style.cursor = lockedCursor;
+
+    function onMove(ev) {
+      const dx = (ev.clientX - startX) / wr.width;
+      const dy = (ev.clientY - startY) / wr.height;
+      let { x, y, w, h } = orig;
+
+      if (mode === 'move') {
+        x = orig.x + dx;
+        y = orig.y + dy;
+        x = Math.max(0, Math.min(1 - w, x));
+        y = Math.max(0, Math.min(1 - h, y));
+      } else {
+        let left = orig.x, top = orig.y, right = orig.x + orig.w, bottom = orig.y + orig.h;
+        if (mode.includes('w')) left = Math.min(orig.x + dx, right - 0.01);
+        if (mode.includes('e')) right = Math.max(orig.x + orig.w + dx, left + 0.01);
+        if (mode.includes('n')) top = Math.min(orig.y + dy, bottom - 0.01);
+        if (mode.includes('s')) bottom = Math.max(orig.y + orig.h + dy, top + 0.01);
+        left = Math.max(0, left); top = Math.max(0, top);
+        right = Math.min(1, right); bottom = Math.min(1, bottom);
+        x = left; y = top; w = right - left; h = bottom - top;
+      }
+
+      rectEl.style.left = (x * 100) + '%';
+      rectEl.style.top = (y * 100) + '%';
+      rectEl.style.width = (w * 100) + '%';
+      rectEl.style.height = (h * 100) + '%';
+      bm.rects[ref.pageNum][rectIdx] = { x, y, w, h };
+    }
+
+    function onUp() {
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+      document.body.style.cursor = prevBodyCursor;
+      const finalRel = bm.rects[ref.pageNum][rectIdx];
+      updateRectThumb(bm, ref, finalRel);
+      renderBookmarks();
+      if (window.__pdfvault_bookmarksChanged) window.__pdfvault_bookmarksChanged();
+    }
+
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  }
+
+  function drawHighlight(bm) {
+    Object.keys(bm.rects).forEach(pageNum => {
+      const ref = pageRefs.find(p => p.pageNum === Number(pageNum));
+      if (!ref) return;
+      // Only draw immediately if page is rendered; otherwise it'll be drawn on render.
+      if (ref.rendered) {
+        drawHighlightOnPage(bm, ref);
+      }
+    });
+  }
+
+  function restoreHighlights(file) {
+    file.bookmarks.forEach(bm => drawHighlight(bm));
+  }
+
+  async function focusBookmark(bmId) {
+    document.querySelectorAll('.hl-rect').forEach(r => r.classList.remove('active'));
+    const file = files.find(f => f.id === activeId);
+    if (!file) return;
+    const bm = file.bookmarks.find(b => b.id === bmId);
+    if (!bm) return;
+    const ref = pageRefs.find(p => p.pageNum === bm.page);
+    if (!ref) return;
+
+    // Scroll first so the target page enters viewport (observer may then trigger render).
+    const areaRect = canvasArea.getBoundingClientRect();
+    const wrapRect = ref.wrap.getBoundingClientRect();
+    const firstRel = bm.rects[bm.page] && bm.rects[bm.page][0];
+    const offsetY = firstRel ? firstRel.y * wrapRect.height : 0;
+    canvasArea.scrollTop += (wrapRect.top - areaRect.top) + offsetY - 60;
+
+    // Force-render this page if it hasn't rendered yet.
+    if (!ref.rendered) {
+      await renderPageContent(ref);
+    }
+
+    document.querySelectorAll(`.hl-rect[data-bm-id="${bmId}"]`).forEach(r => r.classList.add('active'));
+    setTimeout(() => {
+      document.querySelectorAll(`.hl-rect[data-bm-id="${bmId}"]`).forEach(r => r.classList.remove('active'));
+    }, 1800);
+  }
+
+  function removeBookmark(bmId) {
+    const file = files.find(f => f.id === activeId);
+    if (!file) return;
+    file.bookmarks = file.bookmarks.filter(b => b.id !== bmId);
+    document.querySelectorAll(`.hl-rect[data-bm-id="${bmId}"]`).forEach(r => r.remove());
+    renderBookmarks();
+    renderCollection();
+    if (window.__pdfvault_bookmarksChanged) window.__pdfvault_bookmarksChanged();
+  }
+
+  function renderBookmarks() {
+    bookmarksList.querySelectorAll('.bookmark-item').forEach(el => el.remove());
+    const file = files.find(f => f.id === activeId);
+    const bms = file ? file.bookmarks : [];
+    bmCount.textContent = String(bms.length).padStart(2, '0');
+    emptyBm.style.display = bms.length ? 'none' : 'block';
+
+    bms.forEach(bm => {
+      const item = document.createElement('div');
+      item.className = 'bookmark-item';
+      const isRect = bm.kind === 'rect';
+      const body = isRect && bm.thumb
+        ? `<img class="bm-thumb" src="${bm.thumb}" alt="Region from page ${bm.page}">`
+        : `<div class="bm-quote">${escapeHtml(bm.text)}</div>`;
+      const tag = isRect ? '▢ Region' : `Page ${String(bm.page).padStart(2, '0')}`;
+      const pageLabel = isRect ? `Page ${String(bm.page).padStart(2, '0')} · ${tag}` : `Page ${String(bm.page).padStart(2, '0')}`;
+      item.innerHTML = `
+        ${body}
+        <div class="bm-meta">
+          <span>${pageLabel}</span>
+          <button class="bm-remove" title="Remove">×</button>
+        </div>
+      `;
+      item.addEventListener('click', (e) => {
+        if (e.target.classList.contains('bm-remove')) return;
+        focusBookmark(bm.id);
+      });
+      item.querySelector('.bm-remove').addEventListener('click', (e) => {
+        e.stopPropagation();
+        removeBookmark(bm.id);
+      });
+      bookmarksList.appendChild(item);
+    });
+  }
+
+  // ───── Drop zone ─────
+  dropzone.addEventListener('click', () => fileInput.click());
+  fileInput.addEventListener('change', (e) => {
+    addFiles(e.target.files);
+    fileInput.value = '';
+  });
+
+  ['dragenter', 'dragover'].forEach(evt => {
+    dropzone.addEventListener(evt, (e) => {
+      e.preventDefault();
+      dropzone.classList.add('drag-active');
+    });
+  });
+  ['dragleave', 'drop'].forEach(evt => {
+    dropzone.addEventListener(evt, (e) => {
+      e.preventDefault();
+      dropzone.classList.remove('drag-active');
+    });
+  });
+  dropzone.addEventListener('drop', (e) => {
+    e.preventDefault();
+    addFiles(e.dataTransfer.files);
+  });
+
+  let dragCounter = 0;
+  window.addEventListener('dragenter', (e) => {
+    e.preventDefault();
+    if (e.dataTransfer && Array.from(e.dataTransfer.types).includes('Files')) {
+      dragCounter++;
+      dragOverlay.classList.add('active');
+    }
+  });
+  window.addEventListener('dragleave', (e) => {
+    e.preventDefault();
+    dragCounter--;
+    if (dragCounter <= 0) {
+      dragCounter = 0;
+      dragOverlay.classList.remove('active');
+    }
+  });
+  window.addEventListener('dragover', (e) => e.preventDefault());
+  window.addEventListener('drop', (e) => {
+    e.preventDefault();
+    dragCounter = 0;
+    dragOverlay.classList.remove('active');
+    if (e.target.closest('.dropzone')) return;
+    addFiles(e.dataTransfer.files);
+  });
+
+  clearBtn.addEventListener('click', clearAll);
+
+  // ───── Load from notes API if ?note=<uid> is present ─────
+  async function loadFromNote(noteUid) {
+    const apiBase = `/api/v1/notes/${encodeURIComponent(noteUid)}`;
+    let note;
+    try {
+      const res = await fetch(apiBase);
+      if (!res.ok) throw new Error(`Note fetch failed: ${res.status}`);
+      note = await res.json();
+    } catch (err) {
+      console.error('Could not load note:', err);
+      previewTitle && (previewTitle.innerHTML = `<em>Error</em> · could not load note ${escapeHtml(noteUid)}`);
+      return;
+    }
+
+    const pdfFiles = (note.files || []).filter(f =>
+      (f.path || '').toLowerCase().endsWith('.pdf')
+    );
+
+    // Set of all file paths in the note — used to skip fetching bookmarks
+    // for PDFs that don't have a bookmarks file yet.
+    const existingPaths = new Set((note.files || []).map(f => f.path));
+
+    if (!pdfFiles.length) {
+      const empty = document.getElementById('emptyState');
+      if (empty) empty.textContent = `No PDFs in note ${noteUid}.`;
+      return;
+    }
+
+    // Load PDFs + their bookmarks (in parallel)
+    await Promise.all(pdfFiles.map(async f => {
+      const id = `note-${noteUid}-${f.path}`;
+      const name = f.path.split('/').pop() || f.path;
+      const hasBookmarksFile = existingPaths.has(bookmarksPathFor(f.path));
+      const { bookmarks, view } = hasBookmarksFile
+        ? await fetchBookmarks(noteUid, f.path)
+        : { bookmarks: [], view: null };
+      files.push({
+        id,
+        name,
+        size: f.size || 0,
+        url: f.url,
+        bookmarks,
+        savedView: view, // { page, scale } | null — applied on first selectFile
+        source: { kind: 'note', noteUid, path: f.path }
+      });
+    }));
+
+    renderCollection();
+    if (!activeId && files.length) selectFile(files[0].id);
+  }
+
+  // ───── Bookmark persistence (notes API) ─────
+  // Stored at: <note>/files/apps/pdf/<pdf-path>.bookmarks.json
+
+  function bookmarksPathFor(pdfPath) {
+    return `apps/pdf/${pdfPath}.bookmarks.json`;
+  }
+
+  async function fetchBookmarks(noteUid, pdfPath) {
+    const url = `/r/${encodeURIComponent(noteUid)}/files/${bookmarksPathFor(pdfPath).split('/').map(encodeURIComponent).join('/')}`;
+    const empty = { bookmarks: [], view: null };
+    try {
+      const res = await fetch(url);
+      if (!res.ok) return empty; // 404 = no saved data yet
+      const data = await res.json();
+      if (!data || !Array.isArray(data.bookmarks)) return empty;
+      const bookmarks = data.bookmarks.map(bm => ({
+        id: bm.id,
+        kind: bm.kind || 'text',
+        page: bm.page,
+        rects: bm.rects || {},
+        text: bm.text || '',
+        thumb: null,
+        createdAt: bm.createdAt ? new Date(bm.createdAt) : new Date()
+      }));
+      const view = data.view && typeof data.view === 'object'
+        ? {
+            page: data.view.page || 1,
+            scale: data.view.scale || null,
+            offset: typeof data.view.offset === 'number' ? data.view.offset : 0
+          }
+        : null;
+      return { bookmarks, view };
+    } catch (e) {
+      console.warn('Could not fetch bookmarks for', pdfPath, e);
+      return empty;
+    }
+  }
+
+  // Compute the current viewport position relative to a specific page:
+  // returns { page, offset, scale } where offset is a 0..1 fraction of that
+  // page's height. Restoring later: scroll to top of page + offset*pageHeight.
+  function computeCurrentView() {
+    if (!pageRefs.length) return null;
+    const areaTop = canvasArea.getBoundingClientRect().top;
+    // Find the page whose top is at or above the viewport top.
+    let topRef = pageRefs[0];
+    for (const ref of pageRefs) {
+      const rect = ref.wrap.getBoundingClientRect();
+      if (rect.top - areaTop <= 0) {
+        topRef = ref;
+      } else {
+        break;
+      }
+    }
+    const wrapRect = topRef.wrap.getBoundingClientRect();
+    const offsetPx = (areaTop - wrapRect.top); // distance from page top to viewport top
+    const offset = wrapRect.height > 0 ? Math.max(0, offsetPx / wrapRect.height) : 0;
+    return { page: topRef.pageNum, offset, scale: currentScale };
+  }
+
+  async function saveBookmarks(file) {
+    if (!file || !file.source || file.source.kind !== 'note') return;
+    const { noteUid, path } = file.source;
+
+    const isActive = file.id === activeId;
+    const currentView = isActive ? computeCurrentView() : null;
+    const payload = {
+      version: 1,
+      view: currentView || file.savedView || { page: 1, offset: 0, scale: currentScale },
+      bookmarks: file.bookmarks.map(bm => ({
+        id: bm.id,
+        kind: bm.kind || 'text',
+        page: bm.page,
+        rects: bm.rects,
+        text: bm.text || '',
+        createdAt: bm.createdAt
+      }))
+    };
+
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+    const fd = new FormData();
+    // The originalname carries the path; multer's preservePath keeps the folders.
+    fd.append('file', blob, bookmarksPathFor(path));
+
+    try {
+      const res = await fetch(`/api/v1/notes/${encodeURIComponent(noteUid)}/files?overwrite=1`, {
+        method: 'POST',
+        body: fd
+      });
+      if (!res.ok) console.warn('Bookmark save failed:', res.status);
+    } catch (e) {
+      console.warn('Bookmark save error:', e);
+    }
+  }
+
+  // Debounced save per file
+  const saveTimers = new Map();
+  function scheduleSave(fileId) {
+    if (saveTimers.has(fileId)) clearTimeout(saveTimers.get(fileId));
+    const t = setTimeout(() => {
+      saveTimers.delete(fileId);
+      const file = files.find(f => f.id === fileId);
+      if (file) saveBookmarks(file);
+    }, 600);
+    saveTimers.set(fileId, t);
+  }
+
+  // Public hook called by the existing bookmark mutation paths
+  window.__pdfvault_bookmarksChanged = function () {
+    if (!activeId) return;
+    scheduleSave(activeId);
+  };
+
+  // Flush any pending saves before unload
+  window.addEventListener('pagehide', () => {
+    for (const [fileId, t] of saveTimers) {
+      clearTimeout(t);
+      const file = files.find(f => f.id === fileId);
+      if (file) {
+        // Synchronous-ish: fire-and-forget; the browser will flush in-flight requests
+        saveBookmarks(file);
+      }
+    }
+    saveTimers.clear();
+  });
+
+  // Read ?note=... from the URL on startup
+  (function bootstrap() {
+    const params = new URLSearchParams(window.location.search);
+    const noteUid = params.get('note');
+    if (noteUid) loadFromNote(noteUid);
+  })();
+</script>
+</body>
+</html>

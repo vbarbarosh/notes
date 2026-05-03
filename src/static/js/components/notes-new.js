@@ -69,9 +69,7 @@ app.component('notes-new', {
         },
         async attachFiles(files) {
             const note_uid = await this.ensureNote();
-            for (const file of files) {
-                await api_notes_upload_file({ note_uid, file });
-            }
+            await Promise.all(files.map(file => do_upload_file(note_uid, file)));
             const freshNote = await api_notes_fetch(note_uid);
             this.attachedFiles = freshNote.files || [];
             this.$refs.textarea.focus();

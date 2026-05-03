@@ -15,6 +15,25 @@
         .gap20 { gap: 20px; }
         .gap25 { gap: 25px; }
         .bucket { font-size: 50px; line-height: 1em; }
+        .upload-progress-panel {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: #fff;
+            border: 1px solid #c7cde2;
+            border-radius: 10px;
+            padding: 12px 16px;
+            min-width: 280px;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.15);
+            z-index: 1000;
+        }
+        .upload-progress-title { font-weight: 600; margin-bottom: 8px; font-size: 13px; color: #555; }
+        .upload-progress-item { display: flex; align-items: center; gap: 8px; margin-bottom: 5px; }
+        .upload-progress-item:last-child { margin-bottom: 0; }
+        .upload-progress-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
+        .upload-progress-bar-wrap { width: 90px; height: 5px; background: #e3e6ee; border-radius: 3px; flex-shrink: 0; }
+        .upload-progress-bar { height: 100%; background: #2486fd; border-radius: 3px; transition: width 0.1s linear; }
+        .upload-progress-pct { width: 34px; text-align: right; font-size: 12px; color: #888; flex-shrink: 0; }
     </style>
 </head>
 <body>
@@ -29,6 +48,34 @@
 <script src="js/utils.js"></script>
 <script src="js/apis.js"></script>
 <script>
+const uploads_list = Vue.reactive([]);
+let uploads_uid_seq = 0;
+
+async function do_upload_file(note_uid, file)
+{
+    const uid = ++uploads_uid_seq;
+    const name = file.name || String(file.fullPath || '').split('/').filter(Boolean).pop() || 'file';
+    uploads_list.push({uid, name, progress: 0});
+    try {
+        await api_notes_upload_file({
+            note_uid,
+            file,
+            onProgress: function (event) {
+                const item = uploads_list.find(u => u.uid === uid);
+                if (item && event.total) {
+                    item.progress = Math.round(event.loaded / event.total * 100);
+                }
+            },
+        });
+    }
+    finally {
+        const i = uploads_list.findIndex(u => u.uid === uid);
+        if (i !== -1) {
+            uploads_list.splice(i, 1);
+        }
+    }
+}
+
 const TAG_FILTER_STORAGE_KEY = 'notes.selected_tags';
 const TAG_EXCLUDE_STORAGE_KEY = 'notes.excluded_tags';
 const TAG_PATTERN = /#[A-Za-z0-9][A-Za-z0-9_-]*/g;
@@ -387,6 +434,17 @@ const app = Vue.createApp({
             </div>
         </div>
 
+        <div v-if="uploads.length" class="upload-progress-panel">
+            <div class="upload-progress-title">Uploading {{ uploads.length }} file{{ uploads.length !== 1 ? 's' : '' }}</div>
+            <div v-for="upload in uploads" v-bind:key="upload.uid" class="upload-progress-item">
+                <div class="upload-progress-name" v-bind:title="upload.name">{{ upload.name }}</div>
+                <div class="upload-progress-bar-wrap">
+                    <div class="upload-progress-bar" v-bind:style="{width: upload.progress + '%'}"></div>
+                </div>
+                <div class="upload-progress-pct">{{ upload.progress }}%</div>
+            </div>
+        </div>
+
         <div v-if="youtube_player" class="youtube-player">
             <div class="youtube-player-head">
                 <div class="youtube-player-title">{{ youtube_player.title }}</div>
@@ -421,6 +479,7 @@ const app = Vue.createApp({
             jobs_loaded: false,
             jobs_poll_timer: null,
             seen_terminal_job_uids: [],
+            uploads: uploads_list,
         };
     },
     computed: {
@@ -619,7 +678,7 @@ const app = Vue.createApp({
             const tmp = await api_notes_create({body: this.new_body});
             const note_uid = tmp.uid;
             const files = await get_event_files(event);
-            await Promise.all(files.map(file => api_notes_upload_file({note_uid, file})));
+            await Promise.all(files.map(file => do_upload_file(note_uid, file)));
             this.reset();
             await this.refresh();
         },
@@ -638,7 +697,7 @@ const app = Vue.createApp({
                             const tmp = await api_notes_create({body: this.new_body});
                             note_uid = tmp.uid;
                         }
-                        await api_notes_upload_file({note_uid, file});
+                        await do_upload_file(note_uid, file);
                     }
                 }
             }
@@ -655,7 +714,7 @@ const app = Vue.createApp({
                 if (item.kind === 'file') {
                     const file = item.getAsFile();
                     if (file) {
-                        await api_notes_upload_file({note_uid, file});
+                        await do_upload_file(note_uid, file);
                     }
                 }
             }
@@ -678,7 +737,7 @@ const app = Vue.createApp({
             const items = await navigator.clipboard.read();
             for (const item of items) {
                 const blob = await item.getType('image/png');
-                await api_notes_upload_file({note_uid, file: new File([blob], 'image.png')});
+                await do_upload_file(note_uid, new File([blob], 'image.png'));
             }
             await this.refresh();
         },
@@ -749,7 +808,7 @@ const app = Vue.createApp({
             this.dropping_note_uid = null;
             const files = await get_event_files(event);
             if (files.length) {
-                await Promise.all(files.map(file => api_notes_upload_file({note_uid: note.uid, file})));
+                await Promise.all(files.map(file => do_upload_file(note.uid, file)));
                 await this.refresh();
             }
         },
