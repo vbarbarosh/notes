@@ -36,6 +36,7 @@ async function main()
     await fs_mkdirp(`${__dirname}/../data/thumbnails`);
     await fs_mkdirp(`${__dirname}/../data/trash-bin`);
     await fs_mkdirp(`${__dirname}/../data/temp-uploads`);
+    await fs_mkdirp(`${__dirname}/../data/chunks`);
 
     const app = express();
     const upload = multer({
@@ -63,7 +64,11 @@ async function main()
 
     app.post('/api/v1/notes/:note_uid/files', upload.array('file'), amx(notes_upload_file));
 
+    const files_routes = require('./routes/files');
+    app.post('/api/v1/files/upload/:upload_id/chunk/:chunk_index', files_routes.chunk_upload.single('chunk'), amx(files_routes.files_upload_chunk));
+
     express_routes(app, [
+        ...files_routes,
         {req: 'GET /', fn: echo},
         {req: 'GET /r/*', fn: data_fetch},
         {req: 'GET /t/:size/*', fn: thumbnail},

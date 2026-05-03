@@ -51,22 +51,30 @@
 const uploads_list = Vue.reactive([]);
 let uploads_uid_seq = 0;
 
+const CHUNKED_UPLOAD_THRESHOLD = 50 * 1024 * 1024; // 50 MB
+const CHUNK_SIZE = 10 * 1024 * 1024; // 10 MB per chunk
+
 async function do_upload_file(note_uid, file)
 {
     const uid = ++uploads_uid_seq;
     const name = file.name || String(file.fullPath || '').split('/').filter(Boolean).pop() || 'file';
     uploads_list.push({uid, name, progress: 0});
     try {
-        await api_notes_upload_file({
-            note_uid,
-            file,
-            onProgress: function (event) {
-                const item = uploads_list.find(u => u.uid === uid);
-                if (item && event.total) {
-                    item.progress = Math.round(event.loaded / event.total * 100);
-                }
-            },
-        });
+        if (file.size > CHUNKED_UPLOAD_THRESHOLD) {
+            await do_upload_file_chunked(note_uid, file, uid);
+        }
+        else {
+            await api_notes_upload_file({
+                note_uid,
+                file,
+                onProgress: function (event) {
+                    const item = uploads_list.find(u => u.uid === uid);
+                    if (item && event.total) {
+                        item.progress = Math.round(event.loaded / event.total * 100);
+                    }
+                },
+            });
+        }
     }
     finally {
         const i = uploads_list.findIndex(u => u.uid === uid);
@@ -74,6 +82,32 @@ async function do_upload_file(note_uid, file)
             uploads_list.splice(i, 1);
         }
     }
+}
+
+async function do_upload_file_chunked(note_uid, file, uid)
+{
+    const total_chunks = Math.ceil(file.size / CHUNK_SIZE);
+    const filename = file.name || String(file.fullPath || '').split('/').filter(Boolean).pop() || 'file';
+
+    const { upload_id } = await api_files_upload_start({ filename, total_chunks, total_size: file.size });
+
+    for (let i = 0; i < total_chunks; i++) {
+        const start = i * CHUNK_SIZE;
+        const chunk = file.slice(start, start + CHUNK_SIZE);
+        await api_files_upload_chunk({
+            upload_id,
+            chunk_index: i,
+            chunk,
+            onProgress: function (event) {
+                const item = uploads_list.find(u => u.uid === uid);
+                if (item && event.total) {
+                    item.progress = Math.round((i + event.loaded / event.total) / total_chunks * 100);
+                }
+            },
+        });
+    }
+
+    return api_files_upload_assemble({ upload_id, note_uid });
 }
 
 const TAG_FILTER_STORAGE_KEY = 'notes.selected_tags';

@@ -33,6 +33,24 @@ async function api_notes_upload_file({note_uid, file, onProgress})
     });
 }
 
+async function api_files_upload_start({filename, total_chunks, total_size})
+{
+    return http_post_json('/api/v1/files/upload/start', {filename, total_chunks, total_size});
+}
+
+async function api_files_upload_chunk({upload_id, chunk_index, chunk, onProgress})
+{
+    const items = [{name: 'chunk', body: chunk}];
+    return http_post_multipart(`/api/v1/files/upload/${upload_id}/chunk/${chunk_index}`, items, {
+        onUploadProgress: onProgress,
+    });
+}
+
+async function api_files_upload_assemble({upload_id, note_uid, overwrite})
+{
+    return http_post_json(`/api/v1/files/upload/${upload_id}/assemble`, {note_uid, overwrite});
+}
+
 async function api_notes_remove_file({note_uid, filename})
 {
     return http_delete(`/api/v1/notes/${note_uid}/files/${filename}`);
