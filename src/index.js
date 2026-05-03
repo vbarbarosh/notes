@@ -35,21 +35,20 @@ async function main()
     await fs_mkdirp(`${__dirname}/../data/notes`);
     await fs_mkdirp(`${__dirname}/../data/thumbnails`);
     await fs_mkdirp(`${__dirname}/../data/trash-bin`);
-    await fs_mkdirp(`${__dirname}/../data/uploads`);
+    await fs_mkdirp(`${__dirname}/../data/temp-uploads`);
 
     const app = express();
     const upload = multer({
-        preservePath: true,
-        storage: multer.diskStorage({
-            destination: fs_path_resolve(__dirname, '../data/uploads'),
-        }),
+        dest: fs_path_resolve(__dirname, '../../data/temp-uploads'),
         limits: {
             fileSize: 500 * 1024 * 1024, // 500 MB
         },
+        preservePath: true,
     });
 
     app.use(express_log({
         file: () => `${__dirname}/../data/logs/http-${new Date().toJSON().substring(0, 10)}.log`,
+        // append: s => console.log(s),
     }));
 
     app.use(express.static(fs_path_resolve(__dirname, 'static')));
@@ -340,7 +339,7 @@ async function notes_remove_file(req, res)
 async function notes_upload_file(req, res)
 {
     const note_uid = req.params.note_uid;
-    const file = req.files[0];
+    const file = req.files?.[0];
 
     if (!file) {
         res.status(400).send('No file was provided');
@@ -356,8 +355,8 @@ async function notes_upload_file(req, res)
     const files_root = fs_path_resolve(d, 'files');
     const overwrite = request_overwrite(req);
     const file_path = overwrite
-        ? await fs_write_over_file(files_root, file.originalname, file.buffer)
-        : await fs_write_unique_file(files_root, file.originalname, file.buffer);
+        ? await fs_write_over_file(files_root, file)
+        : await fs_write_unique_file(files_root, file);
 
     const lstat = await fs_lstat(file_path);
     const path = fs_path_safe_relative(files_root, file_path);
@@ -429,9 +428,9 @@ async function error_handler(error, req, res, next)
     }
 
     if (error instanceof UserFriendlyError) {
-        res.status(500).send({error: error.message});
+        res.status(400).send({error: error.message});
     }
     else {
-        res.status(500).send({error: 'An error occurred'})
+        res.status(400).send({error: 'An error occurred'})
     }
 }
