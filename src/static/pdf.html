@@ -951,16 +951,25 @@
 
       // Restore scroll position: page + offset within page
       if (savedView && savedView.page && (savedView.page > 1 || savedView.offset > 0)) {
-        // Wait a frame so layout settles
+        // Reset scroll first so we measure absolute positions, not relative deltas.
+        canvasArea.scrollTop = 0;
+        // Wait two frames: one for the scroll reset, one for layout to settle.
+        await new Promise(r => requestAnimationFrame(r));
         await new Promise(r => requestAnimationFrame(r));
         if (myToken !== renderToken) return;
         const ref = pageRefs.find(p => p.pageNum === savedView.page);
         if (ref) {
           const areaRect = canvasArea.getBoundingClientRect();
           const wrapRect = ref.wrap.getBoundingClientRect();
+          // wrapRect.top - areaRect.top is the page's distance from viewport top
+          // when scrollTop=0, so this is the absolute scrollTop we want.
           const offsetPx = (savedView.offset || 0) * wrapRect.height;
-          canvasArea.scrollTop += (wrapRect.top - areaRect.top) + offsetPx;
+          canvasArea.scrollTop = (wrapRect.top - areaRect.top) + offsetPx;
         }
+      } else {
+        // No saved view → start at top. Important when switching from a PDF
+        // where the user had scrolled — otherwise scroll might persist.
+        canvasArea.scrollTop = 0;
       }
       // Highlights get drawn as their pages render in
     } catch (err) {
