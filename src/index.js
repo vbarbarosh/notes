@@ -30,16 +30,22 @@ cli(main);
 
 async function main()
 {
-    const app = express();
-    const upload = multer({
-        preservePath: true,
-        storage: multer.memoryStorage(),
-    });
-
     await fs_mkdirp(`${__dirname}/../data/logs`);
     await fs_mkdirp(`${__dirname}/../data/notes`);
     await fs_mkdirp(`${__dirname}/../data/thumbnails`);
     await fs_mkdirp(`${__dirname}/../data/trash-bin`);
+    await fs_mkdirp(`${__dirname}/../data/uploads`);
+
+    const app = express();
+    const upload = multer({
+        preservePath: true,
+        storage: multer.diskStorage({
+            destination: fs_path_resolve(__dirname, '../data/uploads'),
+        }),
+        limits: {
+            fileSize: 500 * 1024 * 1024, // 500 MB
+        },
+    });
 
     app.use(express_log({
         file: () => `${__dirname}/../data/logs/http-${new Date().toJSON().substring(0, 10)}.log`,
