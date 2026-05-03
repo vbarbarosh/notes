@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 const Promise = require('bluebird');
+const UserFriendlyError = require('@vbarbarosh/node-helpers/src/errors/UserFriendlyError');
 const amx = require('@vbarbarosh/express-helpers/src/amx');
 const body_parser = require('body-parser');
 const cli = require('@vbarbarosh/node-helpers/src/cli');
@@ -76,6 +77,8 @@ async function main()
         {req: 'PATCH /api/v1/notes/:note_uid', fn: notes_update},
         {req: 'ALL *', fn: page404},
     ]);
+
+    app.use(error_handler);
 
     await express_run(app, 3000, process.env.LISTEN || 'localhost');
 }
@@ -406,4 +409,29 @@ function fcmp_strings_ascii(a, b)
 function str_count(str, ch)
 {
     return str.split(ch).length - 1;
+}
+
+async function error_handler(error, req, res, next)
+{
+    try {
+        const details = {
+            status: error.response?.status,
+            body: error.response?.data,
+            headers: error.response?.headers,
+            stack: error.stack,
+            url: req.url,
+            originalUrl: req.originalUrl,
+        };
+        req.log(`[error_handler] ⚠️ ${JSON.stringify(details)}`);
+    }
+    catch (error2) {
+        req.log(`[error_handler] ⚠️ ${JSON.stringify(error.stack).slice(1, -1)} url=${req.url} originalUrl=${req.originalUrl}`);
+    }
+
+    if (error instanceof UserFriendlyError) {
+        res.send({error: error.message});
+    }
+    else {
+        res.send({error: `An error occurred [${req.uid}]`})
+    }
 }
