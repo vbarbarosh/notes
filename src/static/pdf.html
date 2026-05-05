@@ -39,67 +39,14 @@
     flex-direction: column;
   }
 
-  header {
-    padding: 20px 32px 14px;
-    border-bottom: 1px solid var(--line);
-    display: grid;
-    grid-template-columns: auto 1fr auto;
-    align-items: end;
-    gap: 32px;
-    flex-shrink: 0;
-  }
-  .brand { display: flex; align-items: baseline; gap: 12px; }
-  .brand-mark {
-    width: 32px; height: 32px;
-    border: 1.5px solid var(--ink);
-    background: var(--accent);
-    transform: rotate(-4deg);
-    position: relative;
-    align-self: center;
-  }
-  .brand-mark::after { content: ''; position: absolute; inset: 4px; border: 1px solid var(--paper); }
-  .brand h1 {
-    font-weight: 900;
-    font-size: 32px;
-    letter-spacing: -0.04em;
-    line-height: 1;
-    font-variation-settings: "opsz" 144;
-  }
-  .brand h1 em { font-style: italic; font-weight: 400; color: var(--accent); }
-
-  .meta {
+  /* Inline count next to "Collection" / "Bookmarks" headers */
+  .section-count {
     font-family: 'JetBrains Mono', monospace;
     font-size: 10px;
-    text-transform: uppercase;
-    letter-spacing: 0.18em;
     color: var(--ink-muted);
-    text-align: center;
-    line-height: 1.6;
-  }
-  .meta .divider {
-    display: inline-block;
-    width: 24px; height: 1px;
-    background: var(--ink-muted);
-    vertical-align: middle;
-    margin: 0 8px;
-  }
-
-  .counter {
-    text-align: right;
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 10px;
-    text-transform: uppercase;
-    letter-spacing: 0.18em;
-    color: var(--ink-soft);
-  }
-  .counter .num {
-    font-family: 'Fraunces', serif;
-    font-weight: 900;
-    font-size: 28px;
-    color: var(--ink);
-    display: block;
-    line-height: 1;
-    font-variation-settings: "opsz" 144;
+    margin-left: 6px;
+    font-weight: 500;
+    letter-spacing: 0.05em;
   }
 
   main {
@@ -107,7 +54,37 @@
     display: grid;
     grid-template-columns: 300px 1fr 280px;
     overflow: hidden;
+    transition: grid-template-columns 0.18s ease;
   }
+  /* Pin each child to its own column so collapsing a panel doesn't reflow
+     the others into the wrong cells. */
+  main > aside           { grid-column: 1; }
+  main > .preview        { grid-column: 2; }
+  main > .bookmarks-panel { grid-column: 3; }
+
+  /* Hide-panel modifiers: collapse the corresponding column to 0.
+     The aside/bookmarks-panel have overflow:hidden so they clip cleanly.
+     We do NOT use display:none here — that would reflow the grid and
+     push the preview into the wrong column. */
+  main.no-sidebar { grid-template-columns: 0 1fr 280px; }
+  main.no-bookmarks { grid-template-columns: 300px 1fr 0; }
+  main.no-sidebar.no-bookmarks { grid-template-columns: 0 1fr 0; }
+  /* Defensive: also hide the visual border on collapsed panels */
+  main.no-sidebar > aside { border-right: 0; }
+  main.no-bookmarks > .bookmarks-panel { border-left: 0; }
+
+  /* Edge toolbar buttons (panel toggles) */
+  .toolbar-edge {
+    flex-shrink: 0;
+    font-size: 14px !important;
+    padding: 5px 10px !important;
+    line-height: 1;
+  }
+  /* When no PDF is loaded, hide the inner controls but keep the toolbar
+     shell (with its panel-toggle buttons) visible so the user can always
+     reach the sidebar to pick a file. */
+  .preview-toolbar.no-doc .preview-title,
+  .preview-toolbar.no-doc .controls { visibility: hidden; }
 
   aside {
     border-right: 1px solid var(--line);
@@ -197,7 +174,7 @@
     display: grid;
     grid-template-columns: 36px 1fr;
     gap: 12px;
-    align-items: center;
+    align-items: start;
     padding: 12px 10px;
     margin-top: 8px;
     background: var(--paper);
@@ -245,12 +222,13 @@
   .file-name {
     font-size: 14px;
     font-weight: 500;
-    line-height: 1.2;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    margin-bottom: 3px;
+    line-height: 1.25;
+    margin-bottom: 4px;
     letter-spacing: -0.01em;
+    /* Allow long names to wrap on multiple lines, breaking very long
+       words if needed (e.g. underscored filenames with no spaces) */
+    word-break: break-word;
+    overflow-wrap: anywhere;
   }
   .file-meta {
     font-family: 'JetBrains Mono', monospace;
@@ -332,8 +310,18 @@
   /* Rect-drawing mode */
   .canvas-area.rect-mode .page-wrap,
   .canvas-area.shot-mode .page-wrap { cursor: crosshair; }
-  .canvas-area.rect-mode .textLayer,
-  .canvas-area.shot-mode .textLayer { pointer-events: none; user-select: none; }
+  .canvas-area.pan-mode { cursor: grab; }
+  .canvas-area.pan-mode.panning { cursor: grabbing; }
+  .canvas-area.pan-mode .page-wrap { cursor: inherit; }
+  .canvas-area.text-mode .page-wrap { cursor: text; }
+  /* When the mouse is over the scrollbar area, show the default arrow
+     cursor regardless of mode. Set by JS via mousemove. */
+  .canvas-area.over-scrollbar,
+  .canvas-area.over-scrollbar .page-wrap,
+  .canvas-area.over-scrollbar .textLayer { cursor: default !important; }
+  /* Text selection only works in text mode; other modes disable the text layer */
+  .textLayer { pointer-events: none; user-select: none; }
+  .canvas-area.text-mode .textLayer { pointer-events: auto; user-select: text; }
   .rect-draw-layer {
     position: absolute;
     inset: 0;
@@ -403,7 +391,12 @@
     padding: 24px 16px;
     display: flex;
     flex-direction: column;
-    align-items: center;
+    /* Use flex-start, not center: when a page-wrap is wider than the
+       container (zoomed in), `align-items: center` puts its left edge in
+       negative scroll territory which the browser won't expose. We center
+       narrow pages via `margin-inline: auto` on .page-wrap below — that
+       handles both cases correctly. */
+    align-items: flex-start;
     gap: 16px;
   }
   .canvas-area::-webkit-scrollbar { width: 8px; height: 8px; }
@@ -416,21 +409,11 @@
     box-shadow: var(--shadow);
     user-select: text;
     flex-shrink: 0;
+    /* Centers narrow pages, behaves correctly (left-aligned, scrollable)
+       when the page is wider than the container. */
+    margin-inline: auto;
   }
   .page-wrap canvas { display: block; }
-
-  .page-label {
-    position: absolute;
-    top: 6px; right: 8px;
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 9px;
-    color: var(--ink-muted);
-    letter-spacing: 0.1em;
-    background: rgba(251, 249, 244, 0.85);
-    padding: 2px 6px;
-    pointer-events: none;
-    z-index: 5;
-  }
 
   .textLayer {
     position: absolute;
@@ -439,7 +422,7 @@
     opacity: 1;
     line-height: 1;
     -webkit-font-smoothing: antialiased;
-    user-select: text;
+    /* user-select / pointer-events are controlled by .canvas-area mode classes */
     /* PDF.js v3 uses this CSS variable to scale text spans.
        Default 1 keeps the property defined; we override per-page in JS. */
     --scale-factor: 1;
@@ -481,7 +464,8 @@
     outline: 1.5px solid var(--accent);
   }
   /* In shot mode, don't let highlights intercept drag events */
-  .canvas-area.shot-mode .hl-rect { pointer-events: none; }
+  .canvas-area.shot-mode .hl-rect,
+  .canvas-area.pan-mode .hl-rect { pointer-events: none; }
   /* Cursor changes on edge proximity are set inline by JS */
 
   .sel-popup {
@@ -747,27 +731,10 @@
   @media (max-width: 800px) {
     main { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
     aside { max-height: 40vh; border-right: none; border-bottom: 1px solid var(--line); }
-    header { grid-template-columns: 1fr; gap: 8px; padding: 14px 18px; }
-    .meta, .counter { text-align: left; }
-    .counter .num { font-size: 22px; display: inline-block; margin-right: 8px; }
   }
 </style>
 </head>
 <body>
-
-<header>
-  <div class="brand">
-    <div class="brand-mark"></div>
-    <h1>PDF <em>Vault</em></h1>
-  </div>
-  <div class="meta">
-    EST. MMXXVI<span class="divider"></span>DROP<span class="divider"></span>READ<span class="divider"></span>HIGHLIGHT
-  </div>
-  <div class="counter">
-    <span class="num" id="counter">00</span>
-    Documents
-  </div>
-</header>
 
 <main>
   <aside>
@@ -779,7 +746,7 @@
     </div>
 
     <div class="section-header">
-      <h2>Collection</h2>
+      <h2>Collection <span class="section-count" id="counter">00</span></h2>
       <button class="clear-btn" id="clearBtn" style="display:none">Clear all</button>
     </div>
 
@@ -789,17 +756,23 @@
   </aside>
 
   <section class="preview">
-    <div class="preview-toolbar" id="toolbar" style="display:none">
+    <div class="preview-toolbar no-doc" id="toolbar">
+      <button class="ctrl-btn toolbar-edge" id="toggleSidebar" title="Show/hide files panel">◧</button>
       <div class="preview-title" id="previewTitle"></div>
       <div class="controls">
         <div class="page-indicator">
           Page <input type="text" id="pageInput" value="1" /> / <span id="pageCount">1</span>
         </div>
+        <button class="ctrl-btn" id="panMode" title="Drag to pan the document">✋ Pan</button>
+        <button class="ctrl-btn" id="textMode" title="Select text to highlight">T Text</button>
         <button class="ctrl-btn" id="rectMode" title="Draw rectangle highlight">▢ Box</button>
         <button class="ctrl-btn" id="shotMode" title="Drag a region, save as PNG">⌖ Shot</button>
+        <button class="ctrl-btn" id="fitWidth" title="Fit page to width">↔ Fit</button>
+        <button class="ctrl-btn" id="fitHeight" title="Fit page to height">⇕ Fit</button>
         <button class="ctrl-btn" id="zoomOut">−</button>
         <button class="ctrl-btn" id="zoomIn">+</button>
       </div>
+      <button class="ctrl-btn toolbar-edge" id="toggleBookmarks" title="Show/hide bookmarks panel">◨</button>
     </div>
 
     <div class="canvas-area" id="canvasArea">
@@ -1025,7 +998,7 @@
     }
 
     placeholder.style.display = 'none';
-    toolbar.style.display = 'flex';
+    toolbar.classList.remove('no-doc');
     loadingOverlay.classList.add('active');
 
     canvasArea.querySelectorAll('.page-wrap').forEach(el => el.remove());
@@ -1135,11 +1108,6 @@
       wrap.style.height = viewport.height + 'px';
       wrap.dataset.page = num;
 
-      const label = document.createElement('div');
-      label.className = 'page-label';
-      label.textContent = `${String(num).padStart(3, '0')} / ${String(numPages).padStart(3, '0')}`;
-      wrap.appendChild(label);
-
       const hlLayer = document.createElement('div');
       hlLayer.className = 'highlight-layer';
       wrap.appendChild(hlLayer);
@@ -1237,32 +1205,171 @@
     canvasArea.querySelectorAll('.page-wrap').forEach(el => el.remove());
     pageRefs = [];
     placeholder.style.display = 'block';
-    toolbar.style.display = 'none';
+    toolbar.classList.add('no-doc');
   }
 
   // ───── Zoom ─────
   async function rerenderAll() {
     if (!currentPdf) return;
+    // Capture current logical position (scale-independent: page + offset within page)
+    const before = computeCurrentView(); // { page, offset, scale } | null
+
     loadingOverlay.classList.add('active');
+    suppressViewSave = true;
     if (pageObserver) { pageObserver.disconnect(); pageObserver = null; }
     canvasArea.querySelectorAll('.page-wrap').forEach(el => el.remove());
     pageRefs = [];
     const myToken = ++renderToken;
     await setupPagePlaceholders(myToken);
     if (myToken !== renderToken) return;
+
+    // Restore scroll to the same logical position at the new scale
+    if (before && before.page) {
+      // Wait two frames so layout settles
+      await new Promise(r => requestAnimationFrame(r));
+      await new Promise(r => requestAnimationFrame(r));
+      if (myToken !== renderToken) return;
+      canvasArea.scrollTop = 0;
+      const ref = pageRefs.find(p => p.pageNum === before.page);
+      if (ref) {
+        const areaRect = canvasArea.getBoundingClientRect();
+        const wrapRect = ref.wrap.getBoundingClientRect();
+        const offsetPx = (before.offset || 0) * wrapRect.height;
+        canvasArea.scrollTop = (wrapRect.top - areaRect.top) + offsetPx;
+      }
+    }
+
     loadingOverlay.classList.remove('active');
+    setTimeout(() => { suppressViewSave = false; }, 100);
   }
 
-  $('zoomIn').addEventListener('click', () => {
+  $('zoomIn').addEventListener('click', async () => {
     currentScale = Math.min(currentScale + 0.2, 3);
-    rerenderAll();
+    await rerenderAll();
     if (window.__pdfvault_bookmarksChanged) window.__pdfvault_bookmarksChanged();
   });
-  $('zoomOut').addEventListener('click', () => {
+  $('zoomOut').addEventListener('click', async () => {
     currentScale = Math.max(currentScale - 0.2, 0.5);
-    rerenderAll();
+    await rerenderAll();
     if (window.__pdfvault_bookmarksChanged) window.__pdfvault_bookmarksChanged();
   });
+
+  // Fit current page to the viewport (width or height).
+  // Uses the page closest to viewport top — what the user sees right now.
+  async function fitToViewport(mode) {
+    if (!currentPdf || !pageRefs.length) return;
+    // Find current page (same logic the scroll tracker uses)
+    const areaTop = canvasArea.getBoundingClientRect().top;
+    let currentRef = pageRefs[0];
+    for (const ref of pageRefs) {
+      const rect = ref.wrap.getBoundingClientRect();
+      if (rect.top - areaTop <= canvasArea.clientHeight * 0.4) currentRef = ref;
+      else break;
+    }
+    // Get the page's natural dimensions at scale 1
+    const page = await currentPdf.getPage(currentRef.pageNum);
+    const baseViewport = page.getViewport({ scale: 1 });
+
+    // canvasArea.clientWidth already excludes the vertical scrollbar.
+    // Subtract horizontal padding (16px × 2) plus a small safety margin to
+    // avoid overshoot from subpixel canvas rounding / box-shadow bleed.
+    const PAD_X = 32;
+    const PAD_Y = 48; // top+bottom padding (24+24 from CSS) for height-fit
+    const SAFETY = 6; // tiny reserve so width-fit doesn't cause hscroll
+    const availW = canvasArea.clientWidth - PAD_X - SAFETY;
+    const availH = canvasArea.clientHeight - PAD_Y;
+
+    let newScale;
+    if (mode === 'width') {
+      newScale = availW / baseViewport.width;
+    } else {
+      newScale = availH / baseViewport.height;
+    }
+    // Clamp to the same range as the +/- buttons
+    newScale = Math.max(0.5, Math.min(3, newScale));
+
+    currentScale = newScale;
+    await rerenderAll();
+    if (window.__pdfvault_bookmarksChanged) window.__pdfvault_bookmarksChanged();
+  }
+
+  $('fitWidth').addEventListener('click', () => fitToViewport('width'));
+  $('fitHeight').addEventListener('click', () => fitToViewport('height'));
+
+  // ───── Pan / drag-to-scroll ─────
+  // Drag-to-scroll: middle-button always, left-button when pan mode is on.
+  (function setupPanDragging() {
+    let panning = false;
+    let startX = 0, startY = 0;
+    let startScrollLeft = 0, startScrollTop = 0;
+    let panButton = -1; // which mouse button started the pan
+
+    canvasArea.addEventListener('mousedown', (e) => {
+      const isMiddle = e.button === 1;
+      const isLeftPan = e.button === 0 && panModeOn;
+      if (!isMiddle && !isLeftPan) return;
+
+      // Don't hijack scrollbar clicks — let the browser handle them.
+      if (canvasArea.classList.contains('over-scrollbar')) return;
+
+      e.preventDefault();
+      panning = true;
+      panButton = e.button;
+      startX = e.clientX;
+      startY = e.clientY;
+      startScrollLeft = canvasArea.scrollLeft;
+      startScrollTop = canvasArea.scrollTop;
+      canvasArea.classList.add('panning');
+    });
+
+    document.addEventListener('mousemove', (e) => {
+      if (!panning) return;
+      e.preventDefault();
+      canvasArea.scrollLeft = startScrollLeft - (e.clientX - startX);
+      canvasArea.scrollTop = startScrollTop - (e.clientY - startY);
+    });
+
+    function endPan() {
+      if (!panning) return;
+      panning = false;
+      panButton = -1;
+      canvasArea.classList.remove('panning');
+    }
+
+    document.addEventListener('mouseup', (e) => {
+      if (e.button === panButton) endPan();
+    });
+    window.addEventListener('blur', endPan);
+
+    // Suppress middle-click default behaviors (autoscroll, paste-on-X11)
+    canvasArea.addEventListener('auxclick', (e) => {
+      if (e.button === 1) e.preventDefault();
+    });
+  })();
+
+  // ───── Scrollbar hover detection ─────
+  // CSS can't tell when the cursor is over the native scrollbar. We detect it
+  // by comparing pointer position to the element's clientRight/clientBottom.
+  // Result toggles the .over-scrollbar class which overrides the mode cursor.
+  (function setupScrollbarCursor() {
+    function update(e) {
+      // scrollbar widths (right gutter + bottom gutter)
+      const sbW = canvasArea.offsetWidth - canvasArea.clientWidth;
+      const sbH = canvasArea.offsetHeight - canvasArea.clientHeight;
+      const rect = canvasArea.getBoundingClientRect();
+      const px = e.clientX - rect.left;
+      const py = e.clientY - rect.top;
+      // The scrollbar sits inside the element's border box, on the right/bottom.
+      // Account for any border with rect.right - sbW etc.
+      const overRight  = sbW > 0 && px >= (canvasArea.clientWidth);
+      const overBottom = sbH > 0 && py >= (canvasArea.clientHeight);
+      canvasArea.classList.toggle('over-scrollbar', overRight || overBottom);
+    }
+    canvasArea.addEventListener('mousemove', update);
+    canvasArea.addEventListener('mouseleave', () => {
+      canvasArea.classList.remove('over-scrollbar');
+    });
+  })();
 
   // ───── Track current page on scroll ─────
   function goToPage(num) {
@@ -1329,38 +1436,85 @@
     }
   });
 
-  // ───── Rect highlight mode (for scanned PDFs / no text) ─────
+  // ───── Modes ─────
+  // The page area is always in exactly one mode. Clicking a button activates
+  // that mode (no toggle-off). Default = pan.
+  //   pan  — left-drag scrolls the document
+  //   text — left-drag selects text → highlight popup
+  //   rect — left-drag draws a rectangle bookmark
+  //   shot — left-drag selects a region → PNG download + clipboard
+  let currentMode = 'pan';
+  const modeBtns = {
+    pan:  $('panMode'),
+    text: $('textMode'),
+    rect: $('rectMode'),
+    shot: $('shotMode'),
+  };
+
+  // Convenience flags read by other code paths
   let rectModeOn = false;
   let shotModeOn = false;
-  const rectBtn = $('rectMode');
-  const shotBtn = $('shotMode');
+  let panModeOn  = false;
+  let textModeOn = false;
 
-  rectBtn.addEventListener('click', () => {
-    rectModeOn = !rectModeOn;
-    if (rectModeOn && shotModeOn) {
-      // Modes are mutually exclusive
-      shotModeOn = false;
-      canvasArea.classList.remove('shot-mode');
-      shotBtn.classList.remove('toggled');
-    }
+  function setMode(mode) {
+    if (!modeBtns[mode]) return;
+    currentMode = mode;
+    rectModeOn = (mode === 'rect');
+    shotModeOn = (mode === 'shot');
+    panModeOn  = (mode === 'pan');
+    textModeOn = (mode === 'text');
     canvasArea.classList.toggle('rect-mode', rectModeOn);
-    rectBtn.classList.toggle('toggled', rectModeOn);
-    if (rectModeOn) window.getSelection().removeAllRanges();
+    canvasArea.classList.toggle('shot-mode', shotModeOn);
+    canvasArea.classList.toggle('pan-mode',  panModeOn);
+    canvasArea.classList.toggle('text-mode', textModeOn);
+    Object.entries(modeBtns).forEach(([m, btn]) => {
+      btn.classList.toggle('toggled', m === mode);
+    });
+    // Clear stale text selection when leaving text mode
+    if (!textModeOn) window.getSelection().removeAllRanges();
     hidePopup();
+  }
+
+  Object.entries(modeBtns).forEach(([mode, btn]) => {
+    btn.addEventListener('click', () => setMode(mode));
   });
 
-  shotBtn.addEventListener('click', () => {
-    shotModeOn = !shotModeOn;
-    if (shotModeOn && rectModeOn) {
-      rectModeOn = false;
-      canvasArea.classList.remove('rect-mode');
-      rectBtn.classList.remove('toggled');
-    }
-    canvasArea.classList.toggle('shot-mode', shotModeOn);
-    shotBtn.classList.toggle('toggled', shotModeOn);
-    if (shotModeOn) window.getSelection().removeAllRanges();
-    hidePopup();
+  // Apply default mode at startup
+  setMode('pan');
+
+  // ───── Panel visibility (sidebar / bookmarks) ─────
+  // Persist to localStorage so layout choices survive reloads.
+  const LS_SIDEBAR_HIDDEN   = 'pdfvault.sidebar.hidden';
+  const LS_BOOKMARKS_HIDDEN = 'pdfvault.bookmarks.hidden';
+  const mainEl = document.querySelector('main');
+  const toggleSidebarBtn   = $('toggleSidebar');
+  const toggleBookmarksBtn = $('toggleBookmarks');
+
+  function applyPanelVisibility() {
+    let sidebarHidden = false, bookmarksHidden = false;
+    try {
+      sidebarHidden   = localStorage.getItem(LS_SIDEBAR_HIDDEN)   === '1';
+      bookmarksHidden = localStorage.getItem(LS_BOOKMARKS_HIDDEN) === '1';
+    } catch (e) { /* localStorage may be unavailable */ }
+    mainEl.classList.toggle('no-sidebar',   sidebarHidden);
+    mainEl.classList.toggle('no-bookmarks', bookmarksHidden);
+    toggleSidebarBtn.classList.toggle('toggled',   !sidebarHidden);
+    toggleBookmarksBtn.classList.toggle('toggled', !bookmarksHidden);
+  }
+
+  toggleSidebarBtn.addEventListener('click', () => {
+    const nowHidden = !mainEl.classList.contains('no-sidebar');
+    try { localStorage.setItem(LS_SIDEBAR_HIDDEN, nowHidden ? '1' : '0'); } catch (e) {}
+    applyPanelVisibility();
   });
+  toggleBookmarksBtn.addEventListener('click', () => {
+    const nowHidden = !mainEl.classList.contains('no-bookmarks');
+    try { localStorage.setItem(LS_BOOKMARKS_HIDDEN, nowHidden ? '1' : '0'); } catch (e) {}
+    applyPanelVisibility();
+  });
+
+  applyPanelVisibility();
 
   function attachRectDrawHandlers(ref) {
     let dragging = false;
@@ -1574,7 +1728,7 @@
   }
 
   function captureSelection() {
-    if (rectModeOn || shotModeOn) { hidePopup(); return; }
+    if (!textModeOn) { hidePopup(); return; }
     const sel = window.getSelection();
     if (!sel || sel.isCollapsed || sel.rangeCount === 0) {
       hidePopup();
