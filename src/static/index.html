@@ -283,7 +283,7 @@ const app = Vue.createApp({
                     v-model="note_query"
                     type="search"
                     class="note-search"
-                    placeholder="Search notes">
+                    placeholder="Search notes and files">
 
                 <button
                     v-if="has_any_filter"
@@ -577,6 +577,7 @@ const app = Vue.createApp({
                     note.name,
                     note.body,
                     note.display_tags.join(' '),
+                    (note.files || []).map(file => file.path).join(' '),
                 ].join(' ').toLowerCase().includes(query);
             });
         },
