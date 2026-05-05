@@ -17,6 +17,7 @@ const TEMP_DIR = path.resolve(__dirname, '../../data/temp-uploads');
 
 const chunk_upload = multer({
     dest: TEMP_DIR,
+    defParamCharset: 'utf8',
     limits: { fileSize: 25 * 1024 * 1024 },
 });
 

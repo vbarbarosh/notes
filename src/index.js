@@ -41,6 +41,7 @@ async function main()
     const app = express();
     const upload = multer({
         dest: fs_path_resolve(__dirname, '../data/temp-uploads'),
+        defParamCharset: 'utf8',
         limits: {
             fileSize: 500 * 1024 * 1024, // 500 MB
         },
