@@ -486,7 +486,7 @@ async function get_event_files(event, options = {})
     const limit = options.limit ?? Number.MAX_SAFE_INTEGER;
     if (!event.dataTransfer) {
         return Array.from(event.target.files).slice(0, limit).map(function (file) {
-            file.fullPath ??= '/' + (file.webkitRelativePath ?? file.name);
+            file.fullPath ??= '/' + (file.webkitRelativePath || file.name);
             return file;
         });
     }
