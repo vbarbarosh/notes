@@ -441,7 +441,6 @@ button:disabled {
 .note-images a {
     display: block;
     position: relative;
-    width: 100%;
     outline: none !important;
     background: transparent !important;
 }
