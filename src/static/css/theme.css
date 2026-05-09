@@ -47,6 +47,19 @@ body {
     margin-bottom: 6px;
 }
 
+.note-date {
+    font-size: 1rem;
+    font-weight: 600;
+    color: #3b4273;
+    font-variant-numeric: tabular-nums;
+}
+
+.note-header-separator {
+    color: #8d94aa;
+    font-size: 0.92rem;
+    font-weight: 600;
+}
+
 .filters-bar {
     display: grid;
     grid-template-columns: auto minmax(140px, 1fr) auto auto;

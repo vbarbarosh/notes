@@ -353,7 +353,9 @@ const app = Vue.createApp({
                  v-bind:class="{dropping: dropping_note_uid === note.uid, active: (active_note?.uid === note.uid)}"
                  class="note-card">
                 <h2 class="flex-row-center gap5">
-                    {{ note.uid }} | {{ note.name }}
+                    <span class="note-date">{{ format_note_uid_date(note.uid) }}</span>
+                    <span v-if="note_header_has_buttons(note)" class="note-header-separator">•</span>
+                    <span v-if="note.name" class="note-name">{{ note.name }}</span>
                     <button
                         v-if="note.youtube_items.length"
                         v-on:click.stop="play_youtube(note, note.youtube_items[0])"
@@ -698,6 +700,28 @@ const app = Vue.createApp({
         },
         note_has_pdf: function (note) {
             return note.files.some(f => f.path.toLowerCase().endsWith('.pdf'));
+        },
+        note_header_has_buttons: function (note) {
+            return !!(note.youtube_items.length || this.note_has_pdf(note));
+        },
+        format_note_uid_date: function (uid) {
+            const match = String(uid || '').match(/^(\d{4})(\d{2})(\d{2})_(\d{2})(\d{2})(\d{2})/);
+            if (!match) {
+                return uid;
+            }
+            const date = new Date(Date.UTC(
+                Number(match[1]),
+                Number(match[2]) - 1,
+                Number(match[3]),
+                Number(match[4]),
+                Number(match[5]),
+                Number(match[6])
+            ));
+            if (Number.isNaN(date.getTime())) {
+                return uid;
+            }
+            const pad = value => String(value).padStart(2, '0');
+            return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
         },
         note_file_query: function (note) {
             return String(this.file_queries[note.uid] || '').trim().toLowerCase();
