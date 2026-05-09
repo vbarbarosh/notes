@@ -433,7 +433,11 @@ const app = Vue.createApp({
 
                 <fancybox>
                     <div class="note-images">
-                        <a v-for="file in note.files.filter(v => v.thumbnail_url)" v-bind:href="(file.url)" target="_blank">
+                        <a
+                            v-for="file in note.files.filter(v => v.thumbnail_url)"
+                            v-bind:href="(file.url)"
+                            v-bind:class="{highlight: (mouseover_note_uid === note.uid && mouseover_file_path === file.path)}"
+                            target="_blank">
                             <img
                                 v-on:mouseover="mouseover_note_image($event, note, file)"
                                 v-on:mouseleave="mouseleave_note_image($event, note, file)"
