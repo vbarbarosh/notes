@@ -262,7 +262,9 @@
   }
 
   .preview-toolbar {
-    padding: 12px 24px;
+    padding: 0 24px;
+    height: 52px;
+    box-sizing: border-box;
     border-bottom: 1px solid var(--ink);
     background: var(--bg);
     display: flex;
@@ -436,6 +438,43 @@
   }
   .textLayer ::selection { background: var(--highlight); color: transparent; }
 
+  /* PDF.js annotation layer — clickable link hotspots.
+     Sits above the canvas, below the highlight overlay. */
+  .annotationLayer {
+    position: absolute;
+    inset: 0;
+    --scale-factor: 1;
+    pointer-events: none; /* the section/a children pick up events as needed */
+  }
+  /* Link annotations: invisible but clickable, with a subtle hover state. */
+  .annotationLayer .linkAnnotation > a,
+  .annotationLayer section > a {
+    position: absolute;
+    display: block;
+    width: 100%;
+    height: 100%;
+    pointer-events: auto;
+    cursor: pointer;
+    /* Faint outline so the user knows they're hovering a link */
+    transition: background 0.12s, outline-color 0.12s;
+    outline: 1px solid transparent;
+    text-decoration: none;
+  }
+  .annotationLayer .linkAnnotation,
+  .annotationLayer section {
+    position: absolute;
+    pointer-events: auto;
+  }
+  .annotationLayer a:hover {
+    background: rgba(200, 71, 43, 0.12);
+    outline-color: var(--accent);
+  }
+  /* Disable link clicks in modes where the user is doing something else */
+  .canvas-area.rect-mode .annotationLayer,
+  .canvas-area.shot-mode .annotationLayer { pointer-events: none; }
+  .canvas-area.rect-mode .annotationLayer a,
+  .canvas-area.shot-mode .annotationLayer a { pointer-events: none; }
+
   .highlight-layer {
     position: absolute;
     inset: 0;
@@ -447,7 +486,10 @@
     background: var(--highlight);
     pointer-events: auto;
     cursor: pointer;
-    mix-blend-mode: multiply;
+    /* No mix-blend-mode: when PDF.js generates overlapping selection rects
+       at line boundaries, blending darkens the overlap and makes the
+       highlight look uneven across lines. Plain translucent overlay is
+       consistent and visually equivalent for our use case. */
     transition: background 0.12s;
   }
   .hl-rect:hover { background: var(--highlight-active); }
@@ -457,7 +499,6 @@
   .hl-rect.rect-kind {
     background: rgba(200, 71, 43, 0.14);
     outline: 1px solid rgba(200, 71, 43, 0.5);
-    mix-blend-mode: normal;
   }
   .hl-rect.rect-kind:hover {
     background: rgba(200, 71, 43, 0.22);
@@ -574,11 +615,14 @@
     background: var(--bg);
   }
   .bm-header {
-    padding: 18px 18px 10px;
+    /* Same height as preview-toolbar so bottom borders align across panes. */
+    padding: 0 18px;
+    height: 52px;
+    box-sizing: border-box;
     border-bottom: 1px solid var(--line);
     display: flex;
     justify-content: space-between;
-    align-items: baseline;
+    align-items: center;
     flex-shrink: 0;
   }
   .bm-header h2 {
@@ -630,8 +674,22 @@
     overflow: hidden;
     margin-bottom: 8px;
   }
-  .bm-quote::before { content: '“'; color: var(--accent); font-size: 18px; vertical-align: -4px; margin-right: 1px; }
-  .bm-quote::after { content: '”'; color: var(--accent); font-size: 18px; vertical-align: -4px; margin-left: 1px; }
+  .bm-quote::before {
+    content: '“';
+    color: var(--accent);
+    font-size: 18px;
+    line-height: 0;        /* don't inflate the line-box height */
+    vertical-align: -4px;
+    margin-right: 1px;
+  }
+  .bm-quote::after {
+    content: '”';
+    color: var(--accent);
+    font-size: 18px;
+    line-height: 0;
+    vertical-align: -4px;
+    margin-left: 1px;
+  }
   .bm-meta {
     font-family: 'JetBrains Mono', monospace;
     font-size: 9px;
@@ -1166,6 +1224,72 @@
         textDivs: []
       }).promise.catch(() => {});
 
+      // Annotation layer — gives us clickable links from the PDF.
+      // External links open in a new tab; internal links jump within the doc.
+      // Inserted AFTER textLayer in DOM order so link elements stack on
+      // top of text spans (links are clickable; text outside links is
+      // still selectable in text mode).
+      try {
+        const annotations = await ref.page.getAnnotations();
+        if (myToken !== renderToken) return;
+        if (annotations && annotations.length) {
+          const annLayer = document.createElement('div');
+          annLayer.className = 'annotationLayer';
+          annLayer.style.width = ref.viewport.width + 'px';
+          annLayer.style.height = ref.viewport.height + 'px';
+          annLayer.style.setProperty('--scale-factor', ref.viewport.scale);
+          // Place after textLayer (above text spans) but below the highlight
+          // layer (which has z-index: 3).
+          ref.wrap.appendChild(annLayer);
+          ref.annLayer = annLayer;
+
+          if (pdfjsLib.AnnotationLayer && typeof pdfjsLib.AnnotationLayer.render === 'function') {
+            pdfjsLib.AnnotationLayer.render({
+              viewport: ref.viewport.clone({ dontFlip: true }),
+              div: annLayer,
+              annotations,
+              page: ref.page,
+              renderForms: false,
+              linkService: {
+                externalLinkTarget: 2, // BLANK
+                externalLinkRel: 'noopener noreferrer',
+                externalLinkEnabled: true,
+                isInPresentationMode: false,
+                getDestinationHash: () => '#',
+                getAnchorUrl: (hash) => hash,
+                navigateTo: (dest) => navigateToDest(dest),
+                goToDestination: (dest) => navigateToDest(dest),
+              },
+              downloadManager: null,
+              imageResourcesPath: '',
+            });
+          }
+
+          // Post-process: harden external links to open in new tab even
+          // if PDF.js's renderer didn't (older versions ignored the option).
+          annLayer.querySelectorAll('a').forEach((a) => {
+            const href = a.getAttribute('href') || '';
+            if (/^https?:/i.test(href)) {
+              a.setAttribute('target', '_blank');
+              a.setAttribute('rel', 'noopener noreferrer');
+            }
+          });
+        }
+      } catch (e) {
+        // Annotations are a nice-to-have; never let them break rendering.
+        console.warn('Annotation render failed for page', ref.pageNum, e);
+      }
+
+      // Auto-link bare URLs in the text layer. Many PDFs render URLs as
+      // styled text without an explicit link annotation, so they look like
+      // links but aren't clickable. We scan the text-layer DOM for URL
+      // patterns and overlay invisible <a> hotspots positioned over them.
+      try {
+        addAutoLinks(ref);
+      } catch (e) {
+        console.warn('Auto-link failed for page', ref.pageNum, e);
+      }
+
       // Rect-draw layer (always present, only active in rect mode)
       const rectLayer = document.createElement('div');
       rectLayer.className = 'rect-draw-layer';
@@ -1381,6 +1505,110 @@
     const wrapRect = ref.wrap.getBoundingClientRect();
     canvasArea.scrollTop += (wrapRect.top - areaRect.top) - 16;
     pageInputEl.value = n;
+  }
+
+  // Internal PDF link target → resolve to a page number, then scroll there.
+  // PDF.js destinations are either a string name (named destination, must
+  // be resolved via pdf.getDestination()) or an array describing where to go.
+  // The first element of the array is a page reference object.
+  async function navigateToDest(dest) {
+    if (!currentPdf || !dest) return;
+    try {
+      const explicit = (typeof dest === 'string')
+        ? await currentPdf.getDestination(dest)
+        : dest;
+      if (!Array.isArray(explicit) || !explicit.length) return;
+      const pageRef = explicit[0];
+      const pageIndex = await currentPdf.getPageIndex(pageRef);
+      goToPage(pageIndex + 1);
+    } catch (e) {
+      console.warn('Internal link nav failed:', e);
+    }
+  }
+
+  // Auto-link bare URLs in the text layer. Scans the rendered text for
+  // URL patterns and overlays invisible <a> hotspots positioned over the
+  // matching glyphs, so URLs that the PDF rendered as plain styled text
+  // (no link annotation) become clickable.
+  // Trailing punctuation is excluded from the URL on purpose — "see X."
+  // shouldn't make the period part of the link.
+  const URL_RE = /\bhttps?:\/\/[^\s<>"'`]+[^\s<>"'`.,;:!?)\]]/g;
+
+  function addAutoLinks(ref) {
+    if (!ref.textLayer) return;
+    // Build a flat list of text nodes with their cumulative offsets so we
+    // can map regex match indices back to (node, offset) pairs.
+    const walker = document.createTreeWalker(ref.textLayer, NodeFilter.SHOW_TEXT);
+    const nodes = [];
+    let total = '';
+    let n;
+    while ((n = walker.nextNode())) {
+      nodes.push({ node: n, start: total.length, end: total.length + n.nodeValue.length });
+      total += n.nodeValue;
+    }
+    if (!total) return;
+
+    // Find every URL match in the concatenated text
+    const matches = [];
+    URL_RE.lastIndex = 0;
+    let m;
+    while ((m = URL_RE.exec(total)) !== null) {
+      matches.push({ url: m[0], start: m.index, end: m.index + m[0].length });
+    }
+    if (!matches.length) return;
+
+    // Place auto-link hotspots in the same annotation layer (or create one).
+    let annLayer = ref.annLayer;
+    if (!annLayer) {
+      annLayer = document.createElement('div');
+      annLayer.className = 'annotationLayer';
+      annLayer.style.width = ref.viewport.width + 'px';
+      annLayer.style.height = ref.viewport.height + 'px';
+      annLayer.style.setProperty('--scale-factor', ref.viewport.scale);
+      ref.wrap.appendChild(annLayer);
+      ref.annLayer = annLayer;
+    }
+    const wrapRect = ref.wrap.getBoundingClientRect();
+
+    // Find the (node, offset) pair for a global text-string offset.
+    function locate(globalOffset) {
+      for (const entry of nodes) {
+        if (globalOffset >= entry.start && globalOffset <= entry.end) {
+          return { node: entry.node, offset: globalOffset - entry.start };
+        }
+      }
+      return null;
+    }
+
+    for (const match of matches) {
+      const startLoc = locate(match.start);
+      const endLoc = locate(match.end);
+      if (!startLoc || !endLoc) continue;
+      let range;
+      try {
+        range = document.createRange();
+        range.setStart(startLoc.node, startLoc.offset);
+        range.setEnd(endLoc.node, endLoc.offset);
+      } catch (e) { continue; }
+
+      // The URL may span multiple visual lines if it wrapped in the PDF.
+      // Each client rect becomes its own clickable hotspot.
+      const rects = Array.from(range.getClientRects()).filter(r => r.width >= 2 && r.height >= 2);
+      for (const r of rects) {
+        const hotspot = document.createElement('a');
+        hotspot.href = match.url;
+        hotspot.target = '_blank';
+        hotspot.rel = 'noopener noreferrer';
+        hotspot.title = match.url;
+        hotspot.className = 'auto-link';
+        hotspot.style.position = 'absolute';
+        hotspot.style.left   = ((r.left   - wrapRect.left)   / wrapRect.width  * 100) + '%';
+        hotspot.style.top    = ((r.top    - wrapRect.top)    / wrapRect.height * 100) + '%';
+        hotspot.style.width  = (r.width  / wrapRect.width  * 100) + '%';
+        hotspot.style.height = (r.height / wrapRect.height * 100) + '%';
+        annLayer.appendChild(hotspot);
+      }
+    }
   }
 
   pageInputEl.addEventListener('focus', () => pageInputEl.select());
@@ -1727,6 +1955,91 @@
     return null;
   }
 
+  // PDF.js text layer splits each visual line into multiple text-run spans,
+  // so range.getClientRects() returns several rects per line that overlap
+  // or sit adjacent. Group rects into "lines" by significant vertical
+  // overlap, then merge each line's rects into a single bounding box.
+  // All inputs/outputs are page-fractional coords {x,y,w,h} in 0..1.
+  function mergeLineRects(rels) {
+    if (rels.length <= 1) return rels;
+
+    // Two rects are on the same line iff they vertically overlap by at
+    // least half the height of the shorter one. This is the standard
+    // line-grouping heuristic — robust to small height differences (kerning,
+    // mixed fonts) but won't merge across paragraph gaps or wraps.
+    function sameLine(a, b) {
+      const aTop = a.y, aBot = a.y + a.h;
+      const bTop = b.y, bBot = b.y + b.h;
+      const overlap = Math.min(aBot, bBot) - Math.max(aTop, bTop);
+      if (overlap <= 0) return false;
+      const minH = Math.min(a.h, b.h);
+      return overlap >= minH * 0.5;
+    }
+
+    // Sort top-to-bottom, then left-to-right
+    const sorted = [...rels].sort((a, b) => a.y - b.y || a.x - b.x);
+    const lines = []; // each entry: array of rects on the same line
+    for (const r of sorted) {
+      // Try to join an existing line. Test against the line's FIRST rect
+      // (the original anchor) — not against the running union — so a line
+      // can't grow vertically by absorbing outliers.
+      let joined = false;
+      for (const line of lines) {
+        if (sameLine(line[0], r)) {
+          line.push(r);
+          joined = true;
+          break;
+        }
+      }
+      if (!joined) lines.push([r]);
+    }
+
+    // For each line, cluster rects by horizontal adjacency. Rects with a
+    // significant horizontal gap between them belong to different clusters.
+    // This catches end-of-line whitespace markers that browsers include in
+    // multi-line selections — they appear as small rects at the left page
+    // margin, isolated from the actual text rects that start ~10-15% in.
+    // Each cluster becomes its own bounding rect.
+    const GAP_THRESHOLD = 0.03; // 3% of page width — bigger than any inter-word gap
+    const merged = [];
+    for (const line of lines) {
+      // Sort rects in line by left edge
+      const inLine = [...line].sort((a, b) => a.x - b.x);
+      // Split into clusters where the gap between consecutive rects exceeds
+      // the threshold (i.e., not the same continuous piece of selected text).
+      const clusters = [[inLine[0]]];
+      for (let i = 1; i < inLine.length; i++) {
+        const prev = inLine[i - 1];
+        const cur = inLine[i];
+        const gap = cur.x - (prev.x + prev.w);
+        if (gap > GAP_THRESHOLD) {
+          clusters.push([cur]);
+        } else {
+          clusters[clusters.length - 1].push(cur);
+        }
+      }
+      // Merge each cluster into a bounding rect
+      for (const cluster of clusters) {
+        let minX = Infinity, maxX = -Infinity;
+        let minY = Infinity, maxY = -Infinity;
+        for (const r of cluster) {
+          if (r.x < minX) minX = r.x;
+          if (r.x + r.w > maxX) maxX = r.x + r.w;
+          if (r.y < minY) minY = r.y;
+          if (r.y + r.h > maxY) maxY = r.y + r.h;
+        }
+        merged.push({ x: minX, y: minY, w: maxX - minX, h: maxY - minY });
+      }
+    }
+
+    // Drop sliver rects: PDF.js sometimes emits tiny rects at line breaks
+    // (whitespace runs, end-of-line markers) that aren't real content.
+    // After clustering, an EOL marker becomes a tiny standalone cluster
+    // we can confidently drop.
+    const filtered = merged.filter(r => r.w >= 0.01);
+    return filtered.length > 0 ? filtered : merged;
+  }
+
   function captureSelection() {
     if (!textModeOn) { hidePopup(); return; }
     const sel = window.getSelection();
@@ -1743,7 +2056,10 @@
     if (container.nodeType === 3) container = container.parentNode;
     if (!container.closest || !container.closest('.textLayer')) { hidePopup(); return; }
 
-    const clientRects = Array.from(range.getClientRects()).filter(r => r.width > 1 && r.height > 1);
+    // Filter out clearly degenerate rects. PDF.js sometimes emits 1-3px
+    // wide rects at line boundaries for whitespace/break characters.
+    const clientRects = Array.from(range.getClientRects())
+      .filter(r => r.width >= 2 && r.height >= 2);
     if (!clientRects.length) { hidePopup(); return; }
 
     const rectsByPage = new Map();
@@ -1759,6 +2075,14 @@
       };
       if (!rectsByPage.has(ref.pageNum)) rectsByPage.set(ref.pageNum, []);
       rectsByPage.get(ref.pageNum).push(rel);
+    }
+
+    // PDF.js's text layer splits each line into multiple text runs, so a
+    // selection across one visual line returns several rects with similar
+    // y/height that overlap horizontally. Merge per-page so we don't store
+    // 6 rects to highlight 3 lines.
+    for (const [pageNum, rels] of rectsByPage) {
+      rectsByPage.set(pageNum, mergeLineRects(rels));
     }
 
     if (!rectsByPage.size) { hidePopup(); return; }
@@ -1811,8 +2135,29 @@
   });
 
   function drawHighlightOnPage(bm, ref) {
-    const rels = bm.rects[ref.pageNum];
-    if (!rels) return;
+    const stored = bm.rects[ref.pageNum];
+    if (!stored) return;
+    // For text bookmarks, dedupe overlapping rects at draw time (PDF.js
+    // splits visual lines into multiple text-run rects; old bookmarks made
+    // before mergeLineRects landed in capture have these duplicates stored).
+    // We DO NOT touch bm.rects — storage stays untouched, only rendering
+    // uses the cleaned set. If merge ever misbehaves, old data is intact.
+    // Rect bookmarks are never merged: they're single boxes by design and
+    // their drag/manipulation code addresses rects[0] specifically.
+    let rels = stored;
+    if (bm.kind !== 'rect' && stored.length > 1) {
+      try {
+        const merged = mergeLineRects(stored);
+        // Defensive: only use the merged result if it looks sane
+        // (non-empty and not larger than the input).
+        if (merged && merged.length > 0 && merged.length <= stored.length) {
+          rels = merged;
+        }
+      } catch (e) {
+        // If anything goes wrong, fall back to the original rects.
+        console.warn('Highlight rect merge failed, using stored rects:', e);
+      }
+    }
     rels.forEach((rel, idx) => {
       const div = document.createElement('div');
       div.className = 'hl-rect' + (bm.kind === 'rect' ? ' rect-kind' : '');
