@@ -16,8 +16,8 @@ describe('fs_write_over_file', function () {
     });
 
     it('overwrites files under apps/', async function () {
-        const first = await fs_write_over_file(root, 'apps/demo/index.js', Buffer.from('first'));
-        const second = await fs_write_over_file(root, 'apps/demo/index.js', Buffer.from('second'));
+        const first = await fs_write_over_file(root, file('apps/demo/index.js', 'first'));
+        const second = await fs_write_over_file(root, file('apps/demo/index.js', 'second'));
 
         assert.equal(first, second);
         assert.equal(path.relative(root, second), 'apps/demo/index.js');
@@ -26,8 +26,13 @@ describe('fs_write_over_file', function () {
 
     it('throws when the file is not under apps/', async function () {
         await assert.rejects(
-            fs_write_over_file(root, 'image.png', Buffer.from('image')),
+            fs_write_over_file(root, file('image.png', 'image')),
             /overwrite=1 is only allowed for files under apps\//
         );
     });
 });
+
+function file(originalname, contents)
+{
+    return {originalname, buffer: Buffer.from(contents)};
+}

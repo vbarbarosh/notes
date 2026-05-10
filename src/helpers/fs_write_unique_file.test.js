@@ -16,8 +16,8 @@ describe('fs_write_unique_file', function () {
     });
 
     it('adds a numeric suffix when a file already exists', async function () {
-        const first = await fs_write_unique_file(root, 'image.png', Buffer.from('first'));
-        const second = await fs_write_unique_file(root, 'image.png', Buffer.from('second'));
+        const first = await fs_write_unique_file(root, file('image.png', 'first'));
+        const second = await fs_write_unique_file(root, file('image.png', 'second'));
 
         assert.equal(path.basename(first), 'image.png');
         assert.equal(path.basename(second), 'image_2.png');
@@ -26,20 +26,20 @@ describe('fs_write_unique_file', function () {
     });
 
     it('uses parenthesized numbers when the name has spaces', async function () {
-        await fs_write_unique_file(root, 'my image.png', Buffer.from('first'));
-        const second = await fs_write_unique_file(root, 'my image.png', Buffer.from('second'));
+        await fs_write_unique_file(root, file('my image.png', 'first'));
+        const second = await fs_write_unique_file(root, file('my image.png', 'second'));
 
         assert.equal(path.basename(second), 'my image (2).png');
     });
 
     it('uses the first underscore or hyphen from the name', async function () {
-        await fs_write_unique_file(root, 'my_image.png', Buffer.from('first'));
-        await fs_write_unique_file(root, 'my-image.png', Buffer.from('first'));
-        await fs_write_unique_file(root, 'my-image_v1.png', Buffer.from('first'));
+        await fs_write_unique_file(root, file('my_image.png', 'first'));
+        await fs_write_unique_file(root, file('my-image.png', 'first'));
+        await fs_write_unique_file(root, file('my-image_v1.png', 'first'));
 
-        const underscore = await fs_write_unique_file(root, 'my_image.png', Buffer.from('second'));
-        const hyphen = await fs_write_unique_file(root, 'my-image.png', Buffer.from('second'));
-        const first_separator = await fs_write_unique_file(root, 'my-image_v1.png', Buffer.from('second'));
+        const underscore = await fs_write_unique_file(root, file('my_image.png', 'second'));
+        const hyphen = await fs_write_unique_file(root, file('my-image.png', 'second'));
+        const first_separator = await fs_write_unique_file(root, file('my-image_v1.png', 'second'));
 
         assert.equal(path.basename(underscore), 'my_image_2.png');
         assert.equal(path.basename(hyphen), 'my-image-2.png');
@@ -47,8 +47,8 @@ describe('fs_write_unique_file', function () {
     });
 
     it('keeps colliding uploads in the same sanitized directory', async function () {
-        const first = await fs_write_unique_file(root, '../nested/image.png', Buffer.from('first'));
-        const second = await fs_write_unique_file(root, '../nested/image.png', Buffer.from('second'));
+        const first = await fs_write_unique_file(root, file('../nested/image.png', 'first'));
+        const second = await fs_write_unique_file(root, file('../nested/image.png', 'second'));
 
         assert.equal(path.relative(root, first), 'nested/image.png');
         assert.equal(path.relative(root, second), 'nested/image_2.png');
@@ -56,9 +56,9 @@ describe('fs_write_unique_file', function () {
 
     it('handles parallel writes with the same requested name', async function () {
         const files = await Promise.all([
-            fs_write_unique_file(root, 'image.png', Buffer.from('one')),
-            fs_write_unique_file(root, 'image.png', Buffer.from('two')),
-            fs_write_unique_file(root, 'image.png', Buffer.from('three')),
+            fs_write_unique_file(root, file('image.png', 'one')),
+            fs_write_unique_file(root, file('image.png', 'two')),
+            fs_write_unique_file(root, file('image.png', 'three')),
         ]);
 
         assert.deepEqual(files.map(v => path.basename(v)).sort(), [
@@ -68,3 +68,8 @@ describe('fs_write_unique_file', function () {
         ]);
     });
 });
+
+function file(originalname, contents)
+{
+    return {originalname, buffer: Buffer.from(contents)};
+}
