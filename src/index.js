@@ -5,7 +5,6 @@ const UserFriendlyError = require('@vbarbarosh/node-helpers/src/errors/UserFrien
 const amx = require('@vbarbarosh/express-helpers/src/amx');
 const body_parser = require('body-parser');
 const cli = require('@vbarbarosh/node-helpers/src/cli');
-const data_root = require('./helpers/data_root');
 const express = require('express');
 const express_log = require('@vbarbarosh/express-helpers/src/express_log');
 const express_params = require('@vbarbarosh/express-helpers/src/express_params');
@@ -58,9 +57,21 @@ async function main()
     app.use(express.static(fs_path_resolve(__dirname, 'static')));
     app.use(body_parser.json());
 
+    const data_dir = fs_path_resolve(__dirname, '../data');
     app.use(function (req, res, next) {
-        req.user_uid = req.headers['x-auth-user'] ?? '.';
-        req.user_dir = data_root(req.user_uid);
+        req.user_uid = req.headers['x-auth-user'] ?? null;
+
+        if (!req.user_uid) {
+            req.user_dir = data_dir;
+        }
+        else {
+            if (req.user_uid.match(/[^0-9a-zA-Z_-]/)) {
+                next(new Error(`Invalid user_uid: ${req.user_uid}`));
+                return;
+            }
+            req.user_dir = fs_path_safe_resolve(data_dir, `users/${req.user_uid}`);
+        }
+
         next();
     });
 
