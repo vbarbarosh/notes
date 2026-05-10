@@ -572,7 +572,6 @@ const app = Vue.createApp({
             seen_terminal_job_uids: [],
             file_queries: {},
             uploads: uploads_list,
-            initial_notes_limit: 10,
         };
     },
     computed: {
@@ -666,23 +665,6 @@ const app = Vue.createApp({
     methods: {
         refresh: async function () {
             this.notes = await api_notes_list().then(v => v.items);
-            this.prune_selected_tags();
-        },
-        refresh_initial_notes: async function () {
-            const items = await api_notes_list().then(v => v.items);
-            const first = items.slice(0, this.initial_notes_limit);
-            const rest = items.slice(this.initial_notes_limit);
-
-            this.notes = first;
-            await this.$nextTick();
-            await new Promise(requestAnimationFrame);
-
-            if (!rest.length) {
-                this.prune_selected_tags();
-                return;
-            }
-
-            this.notes = [...first, ...rest];
             this.prune_selected_tags();
         },
         refresh_jobs: async function () {
@@ -1080,7 +1062,7 @@ const app = Vue.createApp({
         },
     },
     created: async function () {
-        await this.refresh_initial_notes();
+        await this.refresh();
         await this.refresh_jobs();
     },
     mounted: function () {
