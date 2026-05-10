@@ -10,6 +10,7 @@ const express_log = require('@vbarbarosh/express-helpers/src/express_log');
 const express_params = require('@vbarbarosh/express-helpers/src/express_params');
 const express_routes = require('@vbarbarosh/express-helpers/src/express_routes');
 const express_run = require('@vbarbarosh/express-helpers/src/express_run');
+const file_meta_cache = require('./helpers/file_meta_cache');
 const fs_exists = require('@vbarbarosh/node-helpers/src/fs_exists');
 const fs_lstat = require('@vbarbarosh/node-helpers/src/fs_lstat');
 const fs_mkdirp = require('@vbarbarosh/node-helpers/src/fs_mkdirp');
@@ -33,6 +34,7 @@ async function main()
 {
     await fs_mkdirp(`${__dirname}/../data/logs`);
     await fs_mkdirp(`${__dirname}/../data/notes`);
+    await fs_mkdirp(`${__dirname}/../data/notes.meta`);
     await fs_mkdirp(`${__dirname}/../data/thumbnails`);
     await fs_mkdirp(`${__dirname}/../data/trash-bin`);
     await fs_mkdirp(`${__dirname}/../data/temp-uploads`);
@@ -71,6 +73,7 @@ async function main()
     express_routes(app, [
         ...files_routes,
         {req: 'GET /', fn: echo},
+        {req: 'GET /r/*.meta', fn: data_meta},
         {req: 'GET /r/*', fn: data_fetch},
         {req: 'GET /t/:size/*', fn: thumbnail},
         ...require('./routes/jobs'),
@@ -122,6 +125,32 @@ async function data_fetch(req, res)
     // }
     //
     // res.sendFile(fs_path_resolve(`${__dirname}/../data/notes/${req.user_uid}/${path}`));
+}
+
+async function data_meta(req, res)
+{
+    const rel = req.params['0'] ?? '';
+
+    if (!rel) {
+        res.status(404).send('Not Found');
+        return;
+    }
+
+    try {
+        const meta = await file_meta_cache({
+            notes_root: fs_path_resolve(__dirname, '..', 'data', 'notes', req.user_uid),
+            notes_meta_root: fs_path_resolve(__dirname, '..', 'data', 'notes.meta', req.user_uid),
+            relative: rel,
+        });
+        res.json(meta);
+    }
+    catch (error) {
+        if (error.code === 'ENOENT' || error.status === 404) {
+            res.status(404).send('Not Found');
+            return;
+        }
+        throw error;
+    }
 }
 
 async function thumbnail(req, res)
@@ -240,6 +269,8 @@ async function read_note(req, note_root_name)
                 url,
                 thumbnail_url,
                 size: lstat.size,
+                created_at: lstat.birthtime,
+                updated_at: lstat.mtime,
             });
         });
     }
@@ -313,8 +344,10 @@ async function notes_remove(req, res)
     const note_uid = req.params.note_uid;
 
     const d = `${__dirname}/../data`;
+    const meta_root = fs_path_resolve(d, 'notes.meta', req.user_uid);
     await fs_mkdirp(`${d}/trash-bin/${req.user_uid}`);
     await fs_rename(`${d}/notes/${req.user_uid}/${note_uid}`, `${d}/trash-bin/${req.user_uid}/${now_fs()}-${note_uid}`);
+    await file_meta_cache.remove_dir_meta_cache(meta_root, note_uid);
 
     res.send();
 }
@@ -325,6 +358,7 @@ async function notes_remove_file(req, res)
     const note_uid = req.params.note_uid;
 
     const d = `${__dirname}/../data`;
+    const meta_root = fs_path_resolve(d, 'notes.meta', req.user_uid);
     const path = fs_path_safe_resolve(`${d}/notes/${req.user_uid}/${note_uid}/files`, req.params[0]);
     const relative = fs_path_safe_relative(`${d}/notes/${req.user_uid}/${note_uid}/files`, path);
     const source = `${d}/notes/${req.user_uid}/${note_uid}/files/${relative}`;
@@ -337,6 +371,7 @@ async function notes_remove_file(req, res)
 
     await fs_mkdirp(fs_path_dirname(target));
     await fs_rename(source, target);
+    await file_meta_cache.remove_file_meta_cache(meta_root, `${note_uid}/files/${relative}`);
     res.send();
 }
 
@@ -352,6 +387,7 @@ async function notes_upload_file(req, res)
         return;
     }
 
+    const meta_root = fs_path_resolve(__dirname, '..', 'data', 'notes.meta', req.user_uid);
     const d = fs_path_resolve(__dirname, '..', 'data', 'notes', req.user_uid, note_uid);
     if (!await fs_exists(d)) {
         res.status(404).send('Note Not Found');
@@ -366,6 +402,9 @@ async function notes_upload_file(req, res)
 
     const lstat = await fs_lstat(file_path);
     const path = fs_path_safe_relative(files_root, file_path);
+    if (overwrite) {
+        await file_meta_cache.remove_file_meta_cache(meta_root, `${note_uid}/files/${path}`);
+    }
     const url = `/r/${note_uid}/files/${path}`;
     const thumbnail_url = await is_image(file.buffer) ? `/t/1024/${note_uid}/files/${path}` : null ;
     res.send({
@@ -373,6 +412,8 @@ async function notes_upload_file(req, res)
         url,
         thumbnail_url,
         size: lstat.size,
+        created_at: lstat.birthtime,
+        updated_at: lstat.mtime,
     });
 }
 

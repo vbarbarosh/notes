@@ -7,6 +7,7 @@ const sharp = require('sharp');
 const fs_exists = require('@vbarbarosh/node-helpers/src/fs_exists');
 const fs_lstat = require('@vbarbarosh/node-helpers/src/fs_lstat');
 const fs_mkdirp = require('@vbarbarosh/node-helpers/src/fs_mkdirp');
+const file_meta_cache = require('../helpers/file_meta_cache');
 const fs_path_safe_relative = require('../helpers/fs_path_safe_relative');
 const fs_write_over_file = require('../helpers/fs_write_over_file');
 const fs_write_unique_file = require('../helpers/fs_write_unique_file');
@@ -146,10 +147,21 @@ async function files_upload_assemble(req, res)
 
     const lstat = await fs_lstat(file_path);
     const rel = fs_path_safe_relative(files_root, file_path);
+    if (should_overwrite) {
+        const meta_root = path.resolve(__dirname, '../../data/notes.meta', req.user_uid);
+        await file_meta_cache.remove_file_meta_cache(meta_root, `${note_uid}/files/${rel}`);
+    }
     const url = `/r/${note_uid}/files/${rel}`;
     const thumbnail_url = await is_image(file_path) ? `/t/1024/${note_uid}/files/${rel}` : null;
 
-    res.json({ path: rel, url, thumbnail_url, size: lstat.size });
+    res.json({
+        path: rel,
+        url,
+        thumbnail_url,
+        size: lstat.size,
+        created_at: lstat.birthtime,
+        updated_at: lstat.mtime,
+    });
 }
 
 async function is_image(file_path)
