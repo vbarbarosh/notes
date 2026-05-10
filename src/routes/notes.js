@@ -1,5 +1,7 @@
 const Promise = require('bluebird');
 const UserFriendlyError = require('@vbarbarosh/node-helpers/src/errors/UserFriendlyError');
+const cache_api_notes = require('../helpers/cache_api_notes');
+const cache_api_notes_invalidate = require('../helpers/cache_api_notes_invalidate');
 const file_meta_cache = require('../helpers/file_meta_cache');
 const fs_exists = require('@vbarbarosh/node-helpers/src/fs_exists');
 const fs_lstat = require('@vbarbarosh/node-helpers/src/fs_lstat');
@@ -44,6 +46,11 @@ const routes = [
 // GET /api/v1/notes.json
 async function notes_list(req, res)
 {
+    res.send(await cache_api_notes(req, null, () => read_notes_list(req)));
+}
+
+async function read_notes_list(req)
+{
     const d = `${req.user_dir}/notes`;
     if (!await fs_exists(d)) {
         await fs_mkdirp(d);
@@ -51,14 +58,14 @@ async function notes_list(req, res)
     const names = await fs_readdir(d);
     const items = await Promise.all(names.map(v => read_note(req, v)));
 
-    res.send({items: items.sort((b, a) => fcmp_strings_ascii(a.uid, b.uid))});
+    return {items: items.sort((b, a) => fcmp_strings_ascii(a.uid, b.uid))};
 }
 
 // GET /api/v1/notes/:note_uid
 async function notes_fetch(req, res)
 {
     const note_root_name = await resolve_note_root_name(req, req.params.note_uid);
-    const note = await read_note(req, note_root_name);
+    const note = await cache_api_notes(req, note_root_name, () => read_note(req, note_root_name));
     res.send(note);
 }
 
@@ -74,6 +81,7 @@ async function notes_create(req, res)
 
     await fs_mkdirp(dir_path);
     await fs_write(`${dir_path}/README.md`, body);
+    await cache_api_notes_invalidate(req);
 
     res.status(201).json({uid, name, prefix: `/r/${dir_name}/`});
 }
@@ -108,6 +116,7 @@ async function notes_upload_file(req, res)
     if (overwrite) {
         await file_meta_cache.remove_file_meta_cache(meta_root, `${note_uid}/files/${path}`);
     }
+    await cache_api_notes_invalidate(req, note_uid);
     const url = `/r/${note_uid}/files/${path}`;
     const thumbnail_url = await is_image(file.buffer) ? `/t/1024/${note_uid}/files/${path}` : null ;
     res.send({
@@ -134,6 +143,7 @@ async function notes_update(req, res)
     }
 
     await fs_write(`${d}/README.md`, body);
+    await cache_api_notes_invalidate(req, note_uid);
     res.status(204).send();
 }
 
@@ -146,6 +156,7 @@ async function notes_remove(req, res)
     await fs_mkdirp(`${req.user_dir}/trash-bin`);
     await fs_rename(`${req.user_dir}/notes/${note_uid}`, `${req.user_dir}/trash-bin/${now_fs()}-${note_uid}`);
     await file_meta_cache.remove_dir_meta_cache(meta_root, note_uid);
+    await cache_api_notes_invalidate(req, note_uid);
 
     res.send();
 }
@@ -170,6 +181,7 @@ async function notes_remove_file(req, res)
     await fs_mkdirp(fs_path_dirname(target));
     await fs_rename(source, target);
     await file_meta_cache.remove_file_meta_cache(meta_root, `${note_uid}/files/${relative}`);
+    await cache_api_notes_invalidate(req, note_uid);
     res.send();
 }
 

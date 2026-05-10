@@ -1,3 +1,4 @@
+const cache_api_notes_invalidate = require('../helpers/cache_api_notes_invalidate');
 const crypto = require('crypto');
 const file_meta_cache = require('../helpers/file_meta_cache');
 const fs = require('fs');
@@ -158,6 +159,7 @@ async function files_upload_assemble(req, res)
         const meta_root = path.resolve(req.user_dir, 'notes.meta');
         await file_meta_cache.remove_file_meta_cache(meta_root, `${note_uid}/files/${rel}`);
     }
+    await cache_api_notes_invalidate(req, note_uid);
     const url = `/r/${note_uid}/files/${rel}`;
     const thumbnail_url = await is_image(file_path) ? `/t/1024/${note_uid}/files/${rel}` : null;
 

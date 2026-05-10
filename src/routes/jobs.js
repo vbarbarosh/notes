@@ -1,4 +1,5 @@
 const Promise = require('bluebird');
+const cache_api_notes_invalidate = require('../helpers/cache_api_notes_invalidate');
 const child_process = require('child_process');
 const fs = require('fs');
 const fs_exists = require('@vbarbarosh/node-helpers/src/fs_exists');
@@ -287,7 +288,13 @@ async function finish_job(job_root, status, error)
     if (await fs_exists(target)) {
         return;
     }
+    await cache_api_notes_invalidate({user_dir: job_root_user_dir(job_root)}, status.note_uid);
     await fs_rename(job_root, target);
+}
+
+function job_root_user_dir(job_root)
+{
+    return path.dirname(path.dirname(path.dirname(job_root)));
 }
 
 async function resolve_note_root_name(req, note_uid)
