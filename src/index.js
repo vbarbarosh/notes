@@ -143,14 +143,6 @@ async function data_fetch(req, res)
     }
 
     res.sendFile(full);
-
-    // const path = req.params['0'];
-    // if (!path || path.includes('..')) {
-    //     res.status(400).send('Invalid path');
-    //     return;
-    // }
-    //
-    // res.sendFile(fs_path_resolve(`${__dirname}/../data/notes/${req.user_uid}/${path}`));
 }
 
 async function data_meta(req, res)
@@ -219,39 +211,6 @@ async function notes_list(req, res)
     const names = await fs_readdir(d);
     const items = await Promise.all(names.map(v => read_note(req, v)));
 
-    // await Promise.all(names.map(async function (name) {
-    //     const lstat = await fs_lstat(`${d}/${name}`);
-    //     let i = name.indexOf('-');
-    //     if (i === -1) {
-    //         i = name.length;
-    //     }
-    //     const files = [];
-    //     if (await fs_exists(`${d}/${name}/files`)) {
-    //         await fs_walk(`${d}/${name}/files`, async function (lstat, path) {
-    //             const url = `/r/${name}/files/${path}`;
-    //             const thumbnail_url = await is_image(`${d}/${name}/files/${path}`)
-    //                 ? `/t/1024/${name}/files/${path}` : null;
-    //             files.push({
-    //                 path,
-    //                 url,
-    //                 thumbnail_url,
-    //                 size: lstat.size,
-    //             });
-    //         });
-    //     }
-    //     files.sort(function (a, b) {
-    //         return (str_count(b.path, '/') - str_count(a.path, '/')) || fcmp_strings_ascii(a.path, b.path);
-    //     });
-    //     items.push({
-    //         uid: name.slice(0, i),
-    //         name: name.slice(i + 1),
-    //         body: await fs_read_utf8(`${d}/${name}/README.md`),
-    //         prefix: `/r/${name}/`,
-    //         files,
-    //         created_at: lstat.birthtime,
-    //         updated_at: lstat.ctime,
-    //     });
-    // }));
     res.send({items: items.sort((b, a) => fcmp_strings_ascii(a.uid, b.uid))});
 }
 
