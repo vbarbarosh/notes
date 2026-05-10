@@ -44,7 +44,7 @@ async function main()
         }),
         defParamCharset: 'utf8',
         limits: {
-            fileSize: 500 * 1024 * 1024, // 500 MB
+            fileSize: 50 * 1024 * 1024, // 50MB
         },
         preservePath: true,
     });
