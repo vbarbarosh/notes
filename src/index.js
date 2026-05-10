@@ -49,6 +49,8 @@ async function main()
         preservePath: true,
     });
 
+    app.use(x_perf);
+
     app.use(express_log({
         file: () => `${__dirname}/../data/logs/http-${new Date().toJSON().substring(0, 10)}.log`,
         // append: s => console.log(s),
@@ -104,6 +106,20 @@ async function main()
 async function echo(req, res)
 {
     res.status(200).send(express_params(req));
+}
+
+function x_perf(req, res, next)
+{
+    const started = process.hrtime.bigint();
+    const writeHead = res.writeHead;
+
+    res.writeHead = function (...args) {
+        const seconds = Number(process.hrtime.bigint() - started) / 1e9;
+        res.setHeader('x-perf', `${seconds.toFixed(2)}s`);
+        return writeHead.apply(this, args);
+    };
+
+    next();
 }
 
 async function page404(req, res)
