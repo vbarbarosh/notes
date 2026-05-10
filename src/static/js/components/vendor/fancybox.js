@@ -8,7 +8,7 @@ app.component('fancybox', {
         <div>
             <slot>
                 <div class="flex-row flex-align-center flex-justify-start flex-wrap gap10">
-                    <a v-for="item in (value||[]).filter(v => v.thumbnail_url)" v-bind:href="(item.download_url||item.url||item.thumbnail_url)" target="_blank" class="p5 border-silver">
+                    <a v-for="item in (value||[]).filter(v => v.thumbnail_url)" v-bind:key="item.download_url || item.url || item.thumbnail_url" v-bind:href="(item.download_url||item.url||item.thumbnail_url)" target="_blank" class="p5 border-silver">
                         <img v-bind:src="item.thumbnail_url" v-bind:alt="item.basename" class="db max-w200 max-h200 fit-down checkerboard">
                     </a>
                 </div>

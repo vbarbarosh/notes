@@ -1,7 +1,7 @@
 // Attach files immediately, patch body later, reset everything only after both are done.
 
 app.component('notes-new', {
-    emits: ['refresh'],
+    emits: ['refresh', 'create-start', 'create-done', 'create-fail'],
     template: `
         <div class="notes-new-bar">
             <textarea
@@ -76,18 +76,57 @@ app.component('notes-new', {
         },
         async removeFile(file) {
             if (!this.note_uid) return;
-            await api_notes_remove_file({ note_uid: this.note_uid, filename: file.path });
-            const freshNote = await api_notes_fetch(this.note_uid);
-            this.attachedFiles = freshNote.files || [];
+            const index = this.attachedFiles.findIndex(item => item.path === file.path);
+            const removed = this.attachedFiles[index];
+            this.attachedFiles = this.attachedFiles.filter(item => item.path !== file.path);
+            try {
+                await api_notes_remove_file({ note_uid: this.note_uid, filename: file.path });
+            }
+            catch (error) {
+                if (removed && !this.attachedFiles.some(item => item.path === removed.path)) {
+                    this.attachedFiles = [
+                        ...this.attachedFiles.slice(0, index),
+                        removed,
+                        ...this.attachedFiles.slice(index),
+                    ];
+                }
+                throw error;
+            }
         },
         async submit() {
             if (!this.canSubmit) return;
+            const body = this.new_body;
+            const files = this.attachedFiles;
             if (this.note_uid) {
-                await api_notes_update({ note_uid: this.note_uid, body: this.new_body });
+                const note_uid = this.note_uid;
+                this.$emit("create-start", { uid: note_uid, body, files });
+                this.resetAll();
+                try {
+                    await api_notes_update({ note_uid, body });
+                    this.$emit("create-done", { uid: note_uid, note_uid, body, files });
+                }
+                catch (error) {
+                    this.$emit("create-fail", { uid: note_uid });
+                    this.new_body = body;
+                    this.attachedFiles = files;
+                    this.note_uid = note_uid;
+                    throw error;
+                }
             } else {
-                await api_notes_create({ body: this.new_body });
+                const uid = `tmp_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+                this.$emit("create-start", { uid, body, files });
+                this.resetAll();
+                try {
+                    const note = await api_notes_create({ body });
+                    this.$emit("create-done", { uid, note_uid: note.uid, body, files });
+                }
+                catch (error) {
+                    this.$emit("create-fail", { uid });
+                    this.new_body = body;
+                    this.attachedFiles = files;
+                    throw error;
+                }
             }
-            this.resetAll();
             this.$emit("refresh");
         },
         async paste(e) {

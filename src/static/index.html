@@ -227,7 +227,11 @@ const app = Vue.createApp({
 
         <div class="ma max-w600">
 
-            <notes-new v-on:refresh="refresh" />
+            <notes-new
+                v-on:refresh="refresh"
+                v-on:create-start="note_create_start"
+                v-on:create-done="note_create_done"
+                v-on:create-fail="note_create_fail" />
 
             <div class="filters-bar">
                 <div v-if="all_tags.length" ref="tag_picker_wrap" class="tag-picker-wrap">
@@ -343,6 +347,7 @@ const app = Vue.createApp({
 -->
 
             <div v-for="note in filtered_notes"
+                 v-bind:key="note.uid"
                  v-bind:ref="elem => note_refs[note.uid] = elem"
                  v-on:paste="paste_note($event, note)"
                  v-on:mouseover="mouseover_note($event, note)"
@@ -437,6 +442,7 @@ const app = Vue.createApp({
                     <div class="note-images">
                         <a
                             v-for="file in note.files.filter(v => v.thumbnail_url)"
+                            v-bind:key="note.uid + ':' + file.path"
                             v-bind:href="(file.url)"
                             v-bind:class="{highlight: (mouseover_note_uid === note.uid && mouseover_file_path === file.path)}"
                             target="_blank">
@@ -487,7 +493,7 @@ const app = Vue.createApp({
                     </div>
                     <template v-if="note.files.length">
                         <div v-for="file in filtered_note_files(note)"
-                            v-bind:key="file.path"
+                            v-bind:key="note.uid + ':' + file.path"
                             v-on:mouseover="mouseover_note_table_row($event, note, file)"
                             v-on:mouseleave="mouseleave_note_table_row($event, note, file)"
                             v-bind:class="['note-files-row', 'note-files-body', {'system-file': is_system_file(file), highlight: (mouseover_note_uid === note.uid && mouseover_file_path === file.path)}]">
@@ -571,6 +577,8 @@ const app = Vue.createApp({
             jobs_poll_timer: null,
             seen_terminal_job_uids: [],
             file_queries: {},
+            pending_note_removals: [],
+            pending_file_removals: [],
             uploads: uploads_list,
         };
     },
@@ -664,8 +672,42 @@ const app = Vue.createApp({
     },
     methods: {
         refresh: async function () {
-            this.notes = await api_notes_list().then(v => v.items);
+            const notes = await api_notes_list().then(v => v.items);
+            this.notes = this.merge_notes_from_backend(notes);
             this.prune_selected_tags();
+        },
+        merge_notes_from_backend: function (notes) {
+            const local_by_uid = new Map(this.notes.map(note => [note.uid, note]));
+            const pending_removals = new Set(this.pending_note_removals);
+            notes = notes
+                .filter(note => !pending_removals.has(note.uid))
+                .map(note => this.note_without_pending_file_removals(note));
+            const backend_uids = new Set(notes.map(note => note.uid));
+            const pending = this.notes.filter(note => {
+                return !backend_uids.has(note.uid) && note.pending_create;
+            });
+            const merged = notes.map(note => {
+                const local = local_by_uid.get(note.uid);
+                if (!local) {
+                    return note;
+                }
+                if (local.pending_update_revision || local.pending_create || this.editing_note?.uid === note.uid) {
+                    return this.note_without_pending_file_removals(local);
+                }
+                return note;
+            });
+            return [...pending, ...merged];
+        },
+        file_removal_key: function (note_uid, path) {
+            return JSON.stringify([note_uid, path]);
+        },
+        note_without_pending_file_removals: function (note) {
+            const pending = new Set(this.pending_file_removals);
+            const files = (note.files || []).filter(file => !pending.has(this.file_removal_key(note.uid, file.path)));
+            if (files.length === (note.files || []).length) {
+                return note;
+            }
+            return {...note, files};
         },
         refresh_jobs: async function () {
             const data = await api_jobs_list();
@@ -691,6 +733,32 @@ const app = Vue.createApp({
         reset: function () {
             this.new_body = '';
             this.editing_note = null;
+        },
+        optimistic_note: function ({uid, body, files = [], pending_create = false}) {
+            const now = new Date().toISOString();
+            return {
+                uid,
+                name: '',
+                body: body.toString().trim() + '\n',
+                prefix: `/r/${uid}/`,
+                files,
+                created_at: now,
+                updated_at: now,
+                pending_create,
+            };
+        },
+        note_create_start: function ({uid, body, files = []}) {
+            this.notes = [
+                this.optimistic_note({uid, body, files, pending_create: true}),
+                ...this.notes.filter(note => note.uid !== uid),
+            ];
+        },
+        note_create_done: function ({uid, note_uid, body, files = []}) {
+            const note = this.optimistic_note({uid: note_uid, body, files});
+            this.notes = this.notes.map(v => v.uid === uid ? note : v);
+        },
+        note_create_fail: function ({uid}) {
+            this.notes = this.notes.filter(note => note.uid !== uid);
         },
         note_jobs: function (note) {
             return this.jobs.filter(job => job.note_uid === note.uid || String(job.note_uid || '').startsWith(note.uid + '-'));
@@ -924,13 +992,66 @@ const app = Vue.createApp({
             this.editing_note = JSON.parse(JSON.stringify(note));
         },
         click_h2_remove: async function (note) {
-            await api_notes_remove({note_uid: note.uid});
-            await this.refresh();
+            const index = this.notes.findIndex(v => v.uid === note.uid);
+            const removed = this.notes[index];
+            if (!this.pending_note_removals.includes(note.uid)) {
+                this.pending_note_removals = [...this.pending_note_removals, note.uid];
+            }
+            this.notes = this.notes.filter(v => v.uid !== note.uid);
+            if (this.active_note?.uid === note.uid) {
+                this.active_note = null;
+            }
+            try {
+                await api_notes_remove({note_uid: note.uid});
+                this.pending_note_removals = this.pending_note_removals.filter(uid => uid !== note.uid);
+            }
+            catch (error) {
+                this.pending_note_removals = this.pending_note_removals.filter(uid => uid !== note.uid);
+                if (removed) {
+                    this.notes = [
+                        ...this.notes.slice(0, index),
+                        removed,
+                        ...this.notes.slice(index),
+                    ];
+                }
+                throw error;
+            }
         },
         click_editing_save: async function () {
-            await api_notes_update({note_uid: this.editing_note.uid, body: this.editing_note.body});
+            const editing_note = this.editing_note;
+            const index = this.notes.findIndex(v => v.uid === editing_note.uid);
+            const previous = this.notes[index];
+            const revision = `update_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+            const updated = {
+                ...(previous || editing_note),
+                body: editing_note.body.toString().trim() + '\n',
+                updated_at: new Date().toISOString(),
+                pending_update_revision: revision,
+            };
+
+            this.notes = this.notes.map(v => v.uid === editing_note.uid ? updated : v);
             this.reset();
-            await this.refresh();
+
+            try {
+                await api_notes_update({note_uid: editing_note.uid, body: editing_note.body});
+                this.notes = this.notes.map(function (note) {
+                    if (note.uid !== editing_note.uid || note.pending_update_revision !== revision) {
+                        return note;
+                    }
+                    const {pending_update_revision, ...clean_note} = note;
+                    return clean_note;
+                });
+            }
+            catch (error) {
+                const current = this.notes.find(v => v.uid === editing_note.uid);
+                if (previous && current?.pending_update_revision === revision) {
+                    this.notes = this.notes.map(v => v.uid === previous.uid ? previous : v);
+                    if (this.editing_note?.uid !== previous.uid) {
+                        this.editing_note = JSON.parse(JSON.stringify(previous));
+                    }
+                }
+                throw error;
+            }
         },
         click_editing_cancel: async function () {
             this.editing_note = null;
@@ -939,8 +1060,49 @@ const app = Vue.createApp({
             window.open(file.url, '_blank');
         },
         click_file_remove: async function (note, file) {
-            await api_notes_remove_file({note_uid: note.uid, filename: file.path});
-            await this.refresh_preserving_note_files(note);
+            const key = this.file_removal_key(note.uid, file.path);
+            const note_index = this.notes.findIndex(v => v.uid === note.uid);
+            const current = this.notes[note_index];
+            const file_index = (current?.files || []).findIndex(v => v.path === file.path);
+            const removed = file_index === -1 ? null : current.files[file_index];
+
+            if (!this.pending_file_removals.includes(key)) {
+                this.pending_file_removals = [...this.pending_file_removals, key];
+            }
+            this.notes = this.notes.map(function (v) {
+                if (v.uid !== note.uid) {
+                    return v;
+                }
+                return {...v, files: (v.files || []).filter(item => item.path !== file.path)};
+            });
+            if (this.mouseover_note_uid === note.uid && this.mouseover_file_path === file.path) {
+                this.mouseover_note_uid = null;
+                this.mouseover_file_path = null;
+            }
+
+            try {
+                await api_notes_remove_file({note_uid: note.uid, filename: file.path});
+                this.pending_file_removals = this.pending_file_removals.filter(value => value !== key);
+            }
+            catch (error) {
+                this.pending_file_removals = this.pending_file_removals.filter(value => value !== key);
+                if (removed && this.notes.some(v => v.uid === note.uid)) {
+                    this.notes = this.notes.map(function (v) {
+                        if (v.uid !== note.uid || v.files.some(item => item.path === removed.path)) {
+                            return v;
+                        }
+                        return {
+                            ...v,
+                            files: [
+                                ...v.files.slice(0, file_index),
+                                removed,
+                                ...v.files.slice(file_index),
+                            ],
+                        };
+                    });
+                }
+                throw error;
+            }
         },
         refresh_preserving_note_files: async function (note) {
             const anchor = this.capture_note_files_scroll_anchor(note);
