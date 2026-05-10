@@ -21,13 +21,13 @@ const routes = [
 // GET /api/v1/jobs
 async function jobs_list(req, res)
 {
-    await ensure_jobs_dirs();
-    await recover_active_jobs();
+    await ensure_jobs_dirs(req);
+    await recover_active_jobs(req);
 
     const items = [];
 
     await Promise.each(['active', 'finished', 'failed'], async function (bucket) {
-        const bucket_root = jobs_bucket_root(bucket);
+        const bucket_root = jobs_bucket_root(req, bucket);
         if (!await fs_exists(bucket_root)) {
             return;
         }
@@ -73,7 +73,7 @@ async function jobs_create(req, res)
     }
 
     const note_root_name = await resolve_note_root_name(req, note_uid);
-    const note_root = fs_path_resolve(__dirname, '..', '..', 'data', 'notes', req.user_uid, note_root_name);
+    const note_root = fs_path_resolve(req.user_dir, 'notes', note_root_name);
     const run_file = fs_path_resolve(__dirname, '..', 'jobs', job_name, 'bin', 'run');
 
     if (!await fs_exists(run_file)) {
@@ -81,10 +81,10 @@ async function jobs_create(req, res)
         return;
     }
 
-    await ensure_jobs_dirs();
+    await ensure_jobs_dirs(req);
 
-    const uid = await next_job_uid(job_name);
-    const job_root = fs_path_resolve(jobs_bucket_root('active'), uid);
+    const uid = await next_job_uid(req, job_name);
+    const job_root = fs_path_resolve(jobs_bucket_root(req, 'active'), uid);
     const now = new Date().toJSON();
     const status = {
         pid: null,
@@ -115,10 +115,10 @@ async function jobs_confirm(req, res)
         return;
     }
 
-    await ensure_jobs_dirs();
+    await ensure_jobs_dirs(req);
 
     for (const bucket of ['finished', 'failed']) {
-        const source = fs_path_resolve(jobs_bucket_root(bucket), job_uid);
+        const source = fs_path_resolve(jobs_bucket_root(req, bucket), job_uid);
         if (!await fs_exists(source)) {
             continue;
         }
@@ -129,7 +129,7 @@ async function jobs_confirm(req, res)
             return;
         }
 
-        const target = fs_path_resolve(jobs_bucket_root('confirmed'), job_uid);
+        const target = fs_path_resolve(jobs_bucket_root(req, 'confirmed'), job_uid);
         await fs_rename(source, target);
         res.send({...status, bucket: 'confirmed'});
         return;
@@ -138,9 +138,9 @@ async function jobs_confirm(req, res)
     res.status(404).send('Job not found');
 }
 
-async function recover_active_jobs()
+async function recover_active_jobs(req)
 {
-    const active_root = jobs_bucket_root('active');
+    const active_root = jobs_bucket_root(req, 'active');
     if (!await fs_exists(active_root)) {
         return;
     }
@@ -277,11 +277,13 @@ async function finish_job(job_root, status, error)
             await fs_write(error_file, error.stack || error.message || String(error));
         }
     }
-    await write_job_status(job_root, status);
-    await fs_mkdirp(jobs_bucket_root(status.status === 'finished' ? 'finished' : 'failed'));
-
     const target_bucket = status.status === 'finished' ? 'finished' : 'failed';
-    const target = fs_path_resolve(jobs_bucket_root(target_bucket), status.uid);
+    const target_bucket_root = job_root_bucket(job_root, target_bucket);
+
+    await write_job_status(job_root, status);
+    await fs_mkdirp(target_bucket_root);
+
+    const target = fs_path_resolve(target_bucket_root, status.uid);
     if (await fs_exists(target)) {
         return;
     }
@@ -290,7 +292,7 @@ async function finish_job(job_root, status, error)
 
 async function resolve_note_root_name(req, note_uid)
 {
-    const d = fs_path_resolve(__dirname, '..', '..', 'data', 'notes', req.user_uid);
+    const d = `${req.user_dir}/notes`;
     const names = await fs_readdir(d);
     const out = names.find(name => name.startsWith(note_uid));
     if (out) {
@@ -309,18 +311,18 @@ async function write_job_status(job_root, status)
     await fs_write_json(fs_path_resolve(job_root, 'status.json'), status);
 }
 
-async function ensure_jobs_dirs()
+async function ensure_jobs_dirs(req)
 {
-    await Promise.all(['active', 'finished', 'failed', 'confirmed'].map(bucket => fs_mkdirp(jobs_bucket_root(bucket))));
+    await Promise.all(['active', 'finished', 'failed', 'confirmed'].map(bucket => fs_mkdirp(jobs_bucket_root(req, bucket))));
 }
 
-async function next_job_uid(job_name)
+async function next_job_uid(req, job_name)
 {
     const base = `${now_fs()}-${job_name}`;
     for (let i = 0; ; ++i) {
         const uid = i ? `${base}-${i + 1}` : base;
         const exists = (await Promise.all(['active', 'finished', 'failed', 'confirmed'].map(bucket => {
-            return fs_exists(fs_path_resolve(jobs_bucket_root(bucket), uid));
+            return fs_exists(fs_path_resolve(jobs_bucket_root(req, bucket), uid));
         }))).some(Boolean);
         if (!exists) {
             return uid;
@@ -328,9 +330,14 @@ async function next_job_uid(job_name)
     }
 }
 
-function jobs_bucket_root(bucket)
+function jobs_bucket_root(req, bucket)
 {
-    return fs_path_resolve(__dirname, '..', '..', 'data', 'jobs', bucket);
+    return fs_path_resolve(req.user_dir, 'jobs', bucket);
+}
+
+function job_root_bucket(job_root, bucket)
+{
+    return fs_path_resolve(path.dirname(path.dirname(job_root)), bucket);
 }
 
 function is_safe_job_name(value)

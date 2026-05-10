@@ -1,23 +1,23 @@
-const { createReadStream, createWriteStream, existsSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } = require('fs');
-const { randomUUID } = require('crypto');
-const path = require('path');
-const amx = require('@vbarbarosh/express-helpers/src/amx');
-const multer = require('multer');
-const sharp = require('sharp');
+const crypto = require('crypto');
+const file_meta_cache = require('../helpers/file_meta_cache');
+const fs = require('fs');
 const fs_exists = require('@vbarbarosh/node-helpers/src/fs_exists');
 const fs_lstat = require('@vbarbarosh/node-helpers/src/fs_lstat');
 const fs_mkdirp = require('@vbarbarosh/node-helpers/src/fs_mkdirp');
-const file_meta_cache = require('../helpers/file_meta_cache');
 const fs_path_safe_relative = require('../helpers/fs_path_safe_relative');
 const fs_write_over_file = require('../helpers/fs_write_over_file');
 const fs_write_unique_file = require('../helpers/fs_write_unique_file');
-
-const CHUNKS_DIR = path.resolve(__dirname, '../../data/chunks');
-const NOTES_DIR = path.resolve(__dirname, '../../data/notes');
-const TEMP_DIR = path.resolve(__dirname, '../../data/temp-uploads');
+const multer = require('multer');
+const path = require('path');
+const sharp = require('sharp');
 
 const chunk_upload = multer({
-    dest: TEMP_DIR,
+    storage: multer.diskStorage({
+        destination: function (req, file, callback) {
+            const dir = `${req.user_dir}/temp-uploads`;
+            fs_mkdirp(dir).then(() => callback(null, dir), callback);
+        },
+    }),
     defParamCharset: 'utf8',
     limits: { fileSize: 25 * 1024 * 1024 },
 });
@@ -31,8 +31,8 @@ async function files_upload_start(req, res)
         res.status(400).json({ error: 'filename and total_chunks are required' });
         return;
     }
-    const upload_id = randomUUID();
-    const chunks_dir = path.join(CHUNKS_DIR, upload_id);
+    const upload_id = crypto.randomUUID();
+    const chunks_dir = path.join(req.user_dir, 'chunks', upload_id);
     await fs_mkdirp(chunks_dir);
     const meta = {
         filename,
@@ -40,7 +40,7 @@ async function files_upload_start(req, res)
         total_size: Number(total_size || 0),
         user_uid: req.user_uid,
     };
-    writeFileSync(path.join(chunks_dir, 'meta.json'), JSON.stringify(meta));
+    fs.writeFileSync(path.join(chunks_dir, 'meta.json'), JSON.stringify(meta));
     res.json({ upload_id });
 }
 
@@ -57,29 +57,29 @@ async function files_upload_chunk(req, res)
         return;
     }
 
-    const chunks_dir = path.join(CHUNKS_DIR, upload_id);
+    const chunks_dir = path.join(req.user_dir, 'chunks', upload_id);
     if (!await fs_exists(chunks_dir)) {
-        require('fs').unlinkSync(chunk.path);
+        fs.unlinkSync(chunk.path);
         res.status(404).json({ error: 'Upload not found' });
         return;
     }
 
-    const meta = JSON.parse(readFileSync(path.join(chunks_dir, 'meta.json'), 'utf8'));
+    const meta = JSON.parse(fs.readFileSync(path.join(chunks_dir, 'meta.json'), 'utf8'));
     if (meta.user_uid !== req.user_uid) {
-        require('fs').unlinkSync(chunk.path);
+        fs.unlinkSync(chunk.path);
         res.status(403).json({ error: 'Forbidden' });
         return;
     }
 
     if (chunk_index < 0 || chunk_index >= meta.total_chunks) {
-        require('fs').unlinkSync(chunk.path);
+        fs.unlinkSync(chunk.path);
         res.status(400).json({ error: 'Invalid chunk index' });
         return;
     }
 
-    renameSync(chunk.path, path.join(chunks_dir, `chunk_${chunk_index}`));
+    fs.renameSync(chunk.path, path.join(chunks_dir, `chunk_${chunk_index}`));
 
-    const received = readdirSync(chunks_dir).filter(f => f.startsWith('chunk_')).length;
+    const received = fs.readdirSync(chunks_dir).filter(f => f.startsWith('chunk_')).length;
     res.json({ received, total: meta.total_chunks });
 }
 
@@ -95,30 +95,31 @@ async function files_upload_assemble(req, res)
         return;
     }
 
-    const chunks_dir = path.join(CHUNKS_DIR, upload_id);
+    const chunks_dir = path.join(req.user_dir, 'chunks', upload_id);
     if (!await fs_exists(chunks_dir)) {
         res.status(404).json({ error: 'Upload not found' });
         return;
     }
 
-    const meta = JSON.parse(readFileSync(path.join(chunks_dir, 'meta.json'), 'utf8'));
+    const meta = JSON.parse(fs.readFileSync(path.join(chunks_dir, 'meta.json'), 'utf8'));
     if (meta.user_uid !== req.user_uid) {
         res.status(403).json({ error: 'Forbidden' });
         return;
     }
 
     for (let i = 0; i < meta.total_chunks; i++) {
-        if (!existsSync(path.join(chunks_dir, `chunk_${i}`))) {
+        if (!fs.existsSync(path.join(chunks_dir, `chunk_${i}`))) {
             res.status(400).json({ error: `Missing chunk ${i}` });
             return;
         }
     }
 
-    const temp_path = path.join(TEMP_DIR, `${upload_id}_assembled`);
-    const out_stream = createWriteStream(temp_path);
+    const temp_path = path.join(req.user_dir, 'temp-uploads', `${upload_id}_assembled`);
+    await fs_mkdirp(path.dirname(temp_path));
+    const out_stream = fs.createWriteStream(temp_path);
     for (let i = 0; i < meta.total_chunks; i++) {
         await new Promise(function (resolve, reject) {
-            const src = createReadStream(path.join(chunks_dir, `chunk_${i}`));
+            const src = fs.createReadStream(path.join(chunks_dir, `chunk_${i}`));
             src.pipe(out_stream, { end: false });
             src.on('end', resolve);
             src.on('error', reject);
@@ -128,9 +129,9 @@ async function files_upload_assemble(req, res)
         out_stream.end(err => err ? reject(err) : resolve());
     });
 
-    const note_dir = path.resolve(NOTES_DIR, req.user_uid, note_uid);
+    const note_dir = path.resolve(req.user_dir, 'notes', note_uid);
     if (!await fs_exists(note_dir)) {
-        require('fs').unlinkSync(temp_path);
+        fs.unlinkSync(temp_path);
         res.status(404).json({ error: 'Note Not Found' });
         return;
     }
@@ -143,12 +144,12 @@ async function files_upload_assemble(req, res)
         ? await fs_write_over_file(files_root, fake_file)
         : await fs_write_unique_file(files_root, fake_file);
 
-    rmSync(chunks_dir, { recursive: true });
+    fs.rmSync(chunks_dir, { recursive: true });
 
     const lstat = await fs_lstat(file_path);
     const rel = fs_path_safe_relative(files_root, file_path);
     if (should_overwrite) {
-        const meta_root = path.resolve(__dirname, '../../data/notes.meta', req.user_uid);
+        const meta_root = path.resolve(req.user_dir, 'notes.meta');
         await file_meta_cache.remove_file_meta_cache(meta_root, `${note_uid}/files/${rel}`);
     }
     const url = `/r/${note_uid}/files/${rel}`;

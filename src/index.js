@@ -5,6 +5,7 @@ const UserFriendlyError = require('@vbarbarosh/node-helpers/src/errors/UserFrien
 const amx = require('@vbarbarosh/express-helpers/src/amx');
 const body_parser = require('body-parser');
 const cli = require('@vbarbarosh/node-helpers/src/cli');
+const data_root = require('./helpers/data_root');
 const express = require('express');
 const express_log = require('@vbarbarosh/express-helpers/src/express_log');
 const express_params = require('@vbarbarosh/express-helpers/src/express_params');
@@ -33,16 +34,15 @@ cli(main);
 async function main()
 {
     await fs_mkdirp(`${__dirname}/../data/logs`);
-    await fs_mkdirp(`${__dirname}/../data/notes`);
-    await fs_mkdirp(`${__dirname}/../data/notes.meta`);
-    await fs_mkdirp(`${__dirname}/../data/thumbnails`);
-    await fs_mkdirp(`${__dirname}/../data/trash-bin`);
-    await fs_mkdirp(`${__dirname}/../data/temp-uploads`);
-    await fs_mkdirp(`${__dirname}/../data/chunks`);
 
     const app = express();
     const upload = multer({
-        dest: fs_path_resolve(__dirname, '../data/temp-uploads'),
+        storage: multer.diskStorage({
+            destination: function (req, file, callback) {
+                const dir = `${req.user_dir}/temp-uploads`;
+                fs_mkdirp(dir).then(() => callback(null, dir), callback);
+            },
+        }),
         defParamCharset: 'utf8',
         limits: {
             fileSize: 500 * 1024 * 1024, // 500 MB
@@ -59,10 +59,9 @@ async function main()
     app.use(body_parser.json());
 
     app.use(function (req, res, next) {
-        // req.user_uid = req.headers['x-auth-user'] ?? 'anon';
         req.user_uid = req.headers['x-auth-user'] ?? '.';
+        req.user_dir = data_root(req.user_uid);
         next();
-        // next(new Error('No user provided'));
     });
 
     app.post('/api/v1/notes/:note_uid/files', upload.array('file'), amx(notes_upload_file));
@@ -105,7 +104,7 @@ async function data_fetch(req, res)
 {
     const rel = req.params['0'] ?? '';
 
-    const base = fs_path_resolve(__dirname, '..', 'data', 'notes', req.user_uid);
+    const base = `${req.user_dir}/notes`;
 
     let full;
     try {
@@ -138,8 +137,8 @@ async function data_meta(req, res)
 
     try {
         const meta = await file_meta_cache({
-            notes_root: fs_path_resolve(__dirname, '..', 'data', 'notes', req.user_uid),
-            notes_meta_root: fs_path_resolve(__dirname, '..', 'data', 'notes.meta', req.user_uid),
+            notes_root: `${req.user_dir}/notes`,
+            notes_meta_root: `${req.user_dir}/notes.meta`,
             relative: rel,
         });
         res.json(meta);
@@ -158,7 +157,7 @@ async function thumbnail(req, res)
     const size = make(req.params.size, {type: 'int', min: 32, max: 2048, default: 1024});
     const rel = make(req.params['0'], {type: 'str', default: ''});
 
-    const base = fs_path_resolve(__dirname, '..', 'data', 'notes', req.user_uid);
+    const base = `${req.user_dir}/notes`;
 
     let image_file;
     try {
@@ -186,7 +185,7 @@ async function thumbnail(req, res)
 
 async function notes_list(req, res)
 {
-    const d = `${__dirname}/../data/notes/${req.user_uid}`;
+    const d = `${req.user_dir}/notes`;
     if (!await fs_exists(d)) {
         await fs_mkdirp(d);
     }
@@ -239,7 +238,7 @@ async function notes_fetch(req, res)
 
 async function resolve_note_root_name(req, note_uid)
 {
-    const d = `${__dirname}/../data/notes/${req.user_uid}`;
+    const d = `${req.user_dir}/notes`;
     const names = await fs_readdir(d);
     const out = names.find(name => name.startsWith(note_uid));
     if (out) {
@@ -250,7 +249,7 @@ async function resolve_note_root_name(req, note_uid)
 
 async function read_note(req, note_root_name)
 {
-    const d = `${__dirname}/../data/notes/${req.user_uid}`;
+    const d = `${req.user_dir}/notes`;
     const lstat = await fs_lstat(`${d}/${note_root_name}`);
 
     let i = note_root_name.indexOf('-');
@@ -313,7 +312,7 @@ async function notes_create(req, res)
 
     const uid = now_fs();
     const dir_name = uid;
-    const dir_path = fs_path_resolve(__dirname, '..', 'data', 'notes', req.user_uid, dir_name);
+    const dir_path = `${req.user_dir}/notes/${dir_name}`;
 
     await fs_mkdirp(dir_path);
     await fs_write(`${dir_path}/README.md`, body);
@@ -327,7 +326,7 @@ async function notes_update(req, res)
     const note_uid = req.params.note_uid;
     const body = req.body.body.toString().trim() + '\n';
 
-    const d = fs_path_resolve(__dirname, '..', 'data', 'notes', req.user_uid, note_uid);
+    const d = `${req.user_dir}/notes/${note_uid}`;
 
     if (!await fs_exists(`${d}/README.md`)) {
         res.status(404).send('Note not found');
@@ -343,10 +342,9 @@ async function notes_remove(req, res)
 {
     const note_uid = req.params.note_uid;
 
-    const d = `${__dirname}/../data`;
-    const meta_root = fs_path_resolve(d, 'notes.meta', req.user_uid);
-    await fs_mkdirp(`${d}/trash-bin/${req.user_uid}`);
-    await fs_rename(`${d}/notes/${req.user_uid}/${note_uid}`, `${d}/trash-bin/${req.user_uid}/${now_fs()}-${note_uid}`);
+    const meta_root = `${req.user_dir}/notes.meta`;
+    await fs_mkdirp(`${req.user_dir}/trash-bin`);
+    await fs_rename(`${req.user_dir}/notes/${note_uid}`, `${req.user_dir}/trash-bin/${now_fs()}-${note_uid}`);
     await file_meta_cache.remove_dir_meta_cache(meta_root, note_uid);
 
     res.send();
@@ -357,12 +355,12 @@ async function notes_remove_file(req, res)
 {
     const note_uid = req.params.note_uid;
 
-    const d = `${__dirname}/../data`;
-    const meta_root = fs_path_resolve(d, 'notes.meta', req.user_uid);
-    const path = fs_path_safe_resolve(`${d}/notes/${req.user_uid}/${note_uid}/files`, req.params[0]);
-    const relative = fs_path_safe_relative(`${d}/notes/${req.user_uid}/${note_uid}/files`, path);
-    const source = `${d}/notes/${req.user_uid}/${note_uid}/files/${relative}`;
-    const target = `${d}/trash-bin/${req.user_uid}/${now_fs()}-${note_uid}/files/${relative}`;
+    const meta_root = `${req.user_dir}/notes.meta`;
+    const files_root = `${req.user_dir}/notes/${note_uid}/files`;
+    const path = fs_path_safe_resolve(files_root, req.params[0]);
+    const relative = fs_path_safe_relative(files_root, path);
+    const source = `${files_root}/${relative}`;
+    const target = `${req.user_dir}/trash-bin/${now_fs()}-${note_uid}/files/${relative}`;
 
     if (!await fs_exists(source)) {
         res.status(404, 'File Not Found').send();
@@ -387,8 +385,8 @@ async function notes_upload_file(req, res)
         return;
     }
 
-    const meta_root = fs_path_resolve(__dirname, '..', 'data', 'notes.meta', req.user_uid);
-    const d = fs_path_resolve(__dirname, '..', 'data', 'notes', req.user_uid, note_uid);
+    const meta_root = `${req.user_dir}/notes.meta`;
+    const d = `${req.user_dir}/notes/${note_uid}`;
     if (!await fs_exists(d)) {
         res.status(404).send('Note Not Found');
         return;
