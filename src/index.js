@@ -8,8 +8,6 @@ const cli = require('@vbarbarosh/node-helpers/src/cli');
 const express = require('express');
 const express_log = require('@vbarbarosh/express-helpers/src/express_log');
 const express_params = require('@vbarbarosh/express-helpers/src/express_params');
-const express_routes = require('@vbarbarosh/express-helpers/src/express_routes');
-const express_run = require('@vbarbarosh/express-helpers/src/express_run');
 const file_meta_cache = require('./helpers/file_meta_cache');
 const fs_exists = require('@vbarbarosh/node-helpers/src/fs_exists');
 const fs_lstat = require('@vbarbarosh/node-helpers/src/fs_lstat');
@@ -27,6 +25,8 @@ const fs_write_unique_file = require('./helpers/fs_write_unique_file');
 const make = require('@vbarbarosh/type-helpers');
 const multer = require('multer');
 const sharp = require('sharp');
+const express_routes = require('./helpers/express/express_routes');
+const express_run = require('./helpers/express/express_run');
 
 cli(main);
 
@@ -79,16 +79,13 @@ async function main()
 
     app.post('/api/v1/notes/:note_uid/files', upload.array('file'), amx(notes_upload_file));
 
-    const files_routes = require('./routes/files');
-    app.post('/api/v1/files/upload/:upload_id/chunk/:chunk_index', files_routes.chunk_upload.single('chunk'), amx(files_routes.files_upload_chunk));
-
     express_routes(app, [
-        ...files_routes,
         {req: 'GET /', fn: echo},
         {req: 'GET /r/*.meta', fn: data_meta},
         {req: 'GET /r/*', fn: data_fetch},
         {req: 'GET /t/:size/*', fn: thumbnail},
         ...require('./routes/jobs'),
+        ...require('./routes/files'),
         {req: 'GET /api/v1/notes.json', fn: notes_list},
         {req: 'GET /api/v1/notes/:note_uid', fn: notes_fetch},
         {req: 'POST /api/v1/notes', fn: notes_create},

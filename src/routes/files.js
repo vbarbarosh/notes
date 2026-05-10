@@ -22,6 +22,12 @@ const chunk_upload = multer({
     limits: { fileSize: 25 * 1024 * 1024 },
 });
 
+const routes = [
+    {req: 'POST /api/v1/files/upload/start', fn: files_upload_start},
+    {req: 'POST /api/v1/files/upload/:upload_id/assemble', fn: files_upload_assemble},
+    {req: 'POST /api/v1/files/upload/:upload_id/chunk/:chunk_index', fn: [chunk_upload.single('chunk'), files_upload_chunk]},
+];
+
 // POST /api/v1/files/upload/start
 // Body: { filename, total_chunks, total_size }
 async function files_upload_start(req, res)
@@ -176,11 +182,4 @@ async function is_image(file_path)
     }
 }
 
-const routes = [
-    { req: 'POST /api/v1/files/upload/start', fn: files_upload_start },
-    { req: 'POST /api/v1/files/upload/:upload_id/assemble', fn: files_upload_assemble },
-];
-
 module.exports = routes;
-module.exports.chunk_upload = chunk_upload;
-module.exports.files_upload_chunk = files_upload_chunk;
