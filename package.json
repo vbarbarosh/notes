@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@vbarbarosh/express-helpers": "^2.2.1",
+    "@vbarbarosh/ffmpeg-helpers": "^0.10.0",
     "@vbarbarosh/node-helpers": "^3.74.0",
     "@vbarbarosh/type-helpers": "^0.2.0",
     "bluebird": "^3.7.2",
