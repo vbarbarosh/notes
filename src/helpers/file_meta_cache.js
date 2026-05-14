@@ -1,3 +1,4 @@
+const ffprobe = require('@vbarbarosh/ffmpeg-helpers/src/ffprobe');
 const fs_mime = require('./fs_mime');
 const fs_mkdirp = require('@vbarbarosh/node-helpers/src/fs_mkdirp');
 const fs_path_dirname = require('@vbarbarosh/node-helpers/src/fs_path_dirname');
@@ -12,6 +13,7 @@ const fs_stat = require('@vbarbarosh/node-helpers/src/fs_stat');
 const fs_write_json = require('@vbarbarosh/node-helpers/src/fs_write_json');
 const json_stringify_stable = require('@vbarbarosh/node-helpers/src/json_stringify_stable');
 const sharp = require('sharp');
+const shell_json = require('@vbarbarosh/node-helpers/src/shell_json');
 
 const CACHE_VERSION = 1;
 
@@ -43,6 +45,11 @@ async function file_meta_cache({notes_root, notes_meta_root, relative})
     };
 
     switch (out.mime) {
+    case 'audio/mpeg':
+        out.type = 'audio';
+        out.audio = await shell_json(ffprobe(source_file));
+        out.audio.format.filename = source.relative;
+        break;
     case 'image/svg+xml':
     case 'image/gif':
     case 'image/png':
