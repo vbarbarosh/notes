@@ -152,6 +152,12 @@ async function thumbnail(req, res)
         return;
     }
 
+    set_thumbnail_cache_headers(res, meta, size);
+    if (req.headers['if-none-match'] === res.getHeader('etag')) {
+        res.status(304).send();
+        return;
+    }
+
     const source_file = `${req.user_dir}/notes/${meta.source.relative}`;
     if (meta.mime === 'image/svg+xml') {
         res.type(meta.mime).sendFile(source_file);
@@ -167,6 +173,15 @@ async function thumbnail(req, res)
     await fs_mkdirp(fs_path_dirname(thumbnail_file));
     await sharp(source_file).resize({width: size, fit: 'inside', withoutEnlargement: true}).toFile(thumbnail_file);
     res.type(meta.mime).sendFile(thumbnail_file);
+}
+
+function set_thumbnail_cache_headers(res, meta, size)
+{
+    res.set({
+        'Cache-Control': 'private, max-age=0, must-revalidate',
+        'ETag': `"thumbnail-${THUMBNAIL_VERSION}-${size}-${meta.sha256}"`,
+        'Last-Modified': new Date(meta.source.mtime_ms).toUTCString(),
+    });
 }
 
 async function error_handler(error, req, res, next)
