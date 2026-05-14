@@ -438,32 +438,21 @@
   }
   .textLayer ::selection { background: var(--highlight); color: transparent; }
 
-  /* PDF.js annotation layer — clickable link hotspots.
-     Sits above the canvas, below the highlight overlay. */
+  /* PDF link hotspots — invisible <a> elements positioned over the
+     canvas-rendered links. Faint hover state so users see what's clickable. */
   .annotationLayer {
     position: absolute;
     inset: 0;
-    --scale-factor: 1;
-    pointer-events: none; /* the section/a children pick up events as needed */
+    pointer-events: none; /* children opt back in */
+    z-index: 1; /* above text layer (auto), below rect-draw (2) and highlight (3) */
   }
-  /* Link annotations: invisible but clickable, with a subtle hover state. */
-  .annotationLayer .linkAnnotation > a,
-  .annotationLayer section > a {
-    position: absolute;
+  .annotationLayer a {
+    pointer-events: auto;
     display: block;
-    width: 100%;
-    height: 100%;
-    pointer-events: auto;
     cursor: pointer;
-    /* Faint outline so the user knows they're hovering a link */
-    transition: background 0.12s, outline-color 0.12s;
-    outline: 1px solid transparent;
     text-decoration: none;
-  }
-  .annotationLayer .linkAnnotation,
-  .annotationLayer section {
-    position: absolute;
-    pointer-events: auto;
+    outline: 1px solid transparent;
+    transition: background 0.12s, outline-color 0.12s;
   }
   .annotationLayer a:hover {
     background: rgba(200, 71, 43, 0.12);
@@ -471,7 +460,7 @@
   }
   /* Disable link clicks in modes where the user is doing something else */
   .canvas-area.rect-mode .annotationLayer,
-  .canvas-area.shot-mode .annotationLayer { pointer-events: none; }
+  .canvas-area.shot-mode .annotationLayer,
   .canvas-area.rect-mode .annotationLayer a,
   .canvas-area.shot-mode .annotationLayer a { pointer-events: none; }
 
@@ -824,6 +813,7 @@
         <button class="ctrl-btn" id="panMode" title="Drag to pan the document">✋ Pan</button>
         <button class="ctrl-btn" id="textMode" title="Select text to highlight">T Text</button>
         <button class="ctrl-btn" id="rectMode" title="Draw rectangle highlight">▢ Box</button>
+        <button class="ctrl-btn" id="noteMode" title="Click or drag to add a note">✎ Note</button>
         <button class="ctrl-btn" id="shotMode" title="Drag a region, save as PNG">⌖ Shot</button>
         <button class="ctrl-btn" id="fitWidth" title="Fit page to width">↔ Fit</button>
         <button class="ctrl-btn" id="fitHeight" title="Fit page to height">⇕ Fit</button>
@@ -1224,66 +1214,67 @@
         textDivs: []
       }).promise.catch(() => {});
 
-      // Annotation layer — gives us clickable links from the PDF.
-      // External links open in a new tab; internal links jump within the doc.
-      // Inserted AFTER textLayer in DOM order so link elements stack on
-      // top of text spans (links are clickable; text outside links is
-      // still selectable in text mode).
+      // Annotation layer — build clickable link hotspots from PDF link
+      // annotations. We bypass pdfjsLib.AnnotationLayer.render (its API
+      // varies across versions and silently produces nothing when its
+      // linkService stub isn't exactly right) and just position our own
+      // <a> elements over the link rects.
       try {
         const annotations = await ref.page.getAnnotations();
         if (myToken !== renderToken) return;
-        if (annotations && annotations.length) {
+        const linkAnnotations = annotations.filter(a => a.subtype === 'Link');
+        if (linkAnnotations.length) {
           const annLayer = document.createElement('div');
           annLayer.className = 'annotationLayer';
           annLayer.style.width = ref.viewport.width + 'px';
           annLayer.style.height = ref.viewport.height + 'px';
-          annLayer.style.setProperty('--scale-factor', ref.viewport.scale);
-          // Place after textLayer (above text spans) but below the highlight
-          // layer (which has z-index: 3).
           ref.wrap.appendChild(annLayer);
           ref.annLayer = annLayer;
 
-          if (pdfjsLib.AnnotationLayer && typeof pdfjsLib.AnnotationLayer.render === 'function') {
-            pdfjsLib.AnnotationLayer.render({
-              viewport: ref.viewport.clone({ dontFlip: true }),
-              div: annLayer,
-              annotations,
-              page: ref.page,
-              renderForms: false,
-              linkService: {
-                externalLinkTarget: 2, // BLANK
-                externalLinkRel: 'noopener noreferrer',
-                externalLinkEnabled: true,
-                isInPresentationMode: false,
-                getDestinationHash: () => '#',
-                getAnchorUrl: (hash) => hash,
-                navigateTo: (dest) => navigateToDest(dest),
-                goToDestination: (dest) => navigateToDest(dest),
-              },
-              downloadManager: null,
-              imageResourcesPath: '',
-            });
-          }
+          for (const ann of linkAnnotations) {
+            // ann.rect is [x1, y1, x2, y2] in PDF user space (origin bottom-left).
+            // convertToViewportRectangle gives us [x1, y1, x2, y2] in viewport
+            // pixel coords (origin top-left), but the axes may be unsorted.
+            const r = ref.viewport.convertToViewportRectangle(ann.rect);
+            const left = Math.min(r[0], r[2]);
+            const top = Math.min(r[1], r[3]);
+            const width = Math.abs(r[2] - r[0]);
+            const height = Math.abs(r[3] - r[1]);
 
-          // Post-process: harden external links to open in new tab even
-          // if PDF.js's renderer didn't (older versions ignored the option).
-          annLayer.querySelectorAll('a').forEach((a) => {
-            const href = a.getAttribute('href') || '';
-            if (/^https?:/i.test(href)) {
-              a.setAttribute('target', '_blank');
-              a.setAttribute('rel', 'noopener noreferrer');
+            const a = document.createElement('a');
+            a.style.position = 'absolute';
+            a.style.left = left + 'px';
+            a.style.top = top + 'px';
+            a.style.width = width + 'px';
+            a.style.height = height + 'px';
+
+            if (ann.url) {
+              // External link
+              a.href = ann.url;
+              a.target = '_blank';
+              a.rel = 'noopener noreferrer';
+              a.title = ann.url;
+            } else if (ann.dest) {
+              // Internal link (named or explicit destination)
+              a.href = '#';
+              a.title = 'Go to page in document';
+              a.addEventListener('click', (e) => {
+                e.preventDefault();
+                navigateToDest(ann.dest);
+              });
+            } else {
+              // Unknown link target — skip
+              continue;
             }
-          });
+            annLayer.appendChild(a);
+          }
         }
       } catch (e) {
         // Annotations are a nice-to-have; never let them break rendering.
         console.warn('Annotation render failed for page', ref.pageNum, e);
       }
 
-      // Auto-link bare URLs in the text layer. Many PDFs render URLs as
-      // styled text without an explicit link annotation, so they look like
-      // links but aren't clickable. We scan the text-layer DOM for URL
-      // patterns and overlay invisible <a> hotspots positioned over them.
+      // Auto-link bare URLs in the text layer.
       try {
         addAutoLinks(ref);
       } catch (e) {
@@ -1670,12 +1661,14 @@
   //   pan  — left-drag scrolls the document
   //   text — left-drag selects text → highlight popup
   //   rect — left-drag draws a rectangle bookmark
+  //   note — click or drag to add an inline text note
   //   shot — left-drag selects a region → PNG download + clipboard
   let currentMode = 'pan';
   const modeBtns = {
     pan:  $('panMode'),
     text: $('textMode'),
     rect: $('rectMode'),
+    note: $('noteMode'),
     shot: $('shotMode'),
   };
 
@@ -1684,6 +1677,7 @@
   let shotModeOn = false;
   let panModeOn  = false;
   let textModeOn = false;
+  let noteModeOn = false;
 
   function setMode(mode) {
     if (!modeBtns[mode]) return;
@@ -1692,10 +1686,12 @@
     shotModeOn = (mode === 'shot');
     panModeOn  = (mode === 'pan');
     textModeOn = (mode === 'text');
+    noteModeOn = (mode === 'note');
     canvasArea.classList.toggle('rect-mode', rectModeOn);
     canvasArea.classList.toggle('shot-mode', shotModeOn);
     canvasArea.classList.toggle('pan-mode',  panModeOn);
     canvasArea.classList.toggle('text-mode', textModeOn);
+    canvasArea.classList.toggle('note-mode', noteModeOn);
     Object.entries(modeBtns).forEach(([m, btn]) => {
       btn.classList.toggle('toggled', m === mode);
     });
