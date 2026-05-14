@@ -157,7 +157,7 @@ async function files_upload_assemble(req, res)
     const rel = fs_path_safe_relative(files_root, file_path);
     if (should_overwrite) {
         const meta_root = path.resolve(req.user_dir, 'notes.meta');
-        await file_meta_cache.remove_file_meta_cache(meta_root, `${note_uid}/files/${rel}`);
+        await file_meta_cache.remove_file_meta_cache(meta_root, `${note_uid}/files/${rel}`, path.resolve(req.user_dir, 'thumbnails'));
     }
     await cache_api_notes_invalidate(req, note_uid);
     const url = `/r/${note_uid}/files/${rel}`;

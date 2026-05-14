@@ -11,6 +11,7 @@ const express_run = require('./helpers/express/express_run');
 const file_meta_cache = require('./helpers/file_meta_cache');
 const fs_exists = require('@vbarbarosh/node-helpers/src/fs_exists');
 const fs_mkdirp = require('@vbarbarosh/node-helpers/src/fs_mkdirp');
+const fs_path_dirname = require('@vbarbarosh/node-helpers/src/fs_path_dirname');
 const fs_path_resolve = require('@vbarbarosh/node-helpers/src/fs_path_resolve');
 const fs_path_safe_resolve = require('./helpers/fs_path_safe_resolve');
 const make = require('@vbarbarosh/type-helpers');
@@ -138,30 +139,32 @@ async function thumbnail(req, res)
     const size = make(req.params.size, {type: 'int', min: 32, max: 2048, default: 1024});
     const rel = make(req.params['0'], {type: 'str', default: ''});
 
-    const base = `${req.user_dir}/notes`;
+    const meta = await file_meta_cache({
+        notes_root: `${req.user_dir}/notes`,
+        notes_meta_root: `${req.user_dir}/notes.meta`,
+        relative: rel,
+    });
 
-    let image_file;
-    try {
-        image_file = fs_path_safe_resolve(base, rel);
-    }
-    catch {
-        res.status(400).send('Invalid path');
+    if (meta.type !== 'image') {
+        res.status(400).send('Not an image');
         return;
     }
 
-    if (!await fs_exists(image_file)) {
-        res.status(404).send('Not Found');
+    const source_file = `${req.user_dir}/notes/${meta.source.relative}`;
+    if (meta.mime === 'image/svg+xml') {
+        res.type(meta.mime).sendFile(source_file);
         return;
     }
 
-    const meta = await sharp(image_file).metadata();
-    if (meta.format === 'svg') {
-        res.type('svg').sendFile(image_file);
+    const thumbnail_file = `${req.user_dir}/thumbnails/${size}/notes/${meta.source.relative}`;
+    if (await fs_exists(thumbnail_file)) {
+        res.type(meta.mime).sendFile(thumbnail_file);
         return;
     }
 
-    const buf = await sharp(image_file).resize(size).toBuffer();
-    res.type(meta.format).send(buf);
+    await fs_mkdirp(fs_path_dirname(thumbnail_file));
+    await sharp(source_file).resize(size).toFile(thumbnail_file);
+    res.type(meta.mime).sendFile(thumbnail_file);
 }
 
 async function error_handler(error, req, res, next)
@@ -185,6 +188,6 @@ async function error_handler(error, req, res, next)
         res.status(400).send({error: error.message});
     }
     else {
-        res.status(400).send({error: 'An error occurred'})
+        res.status(400).send({error: error.message})
     }
 }

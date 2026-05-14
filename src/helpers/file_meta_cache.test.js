@@ -9,11 +9,13 @@ describe('file_meta_cache', function () {
     let root;
     let notes_root;
     let notes_meta_root;
+    let notes_thumbnails_root;
 
     beforeEach(async function () {
         root = await fs.mkdtemp(path.join(os.tmpdir(), 'notes-file-meta-'));
         notes_root = path.join(root, 'notes');
         notes_meta_root = path.join(root, 'notes.meta');
+        notes_thumbnails_root = path.join(root, 'thumbnails');
         await fs.mkdir(path.join(notes_root, '20260509_121542', 'files'), {recursive: true});
     });
 
@@ -62,6 +64,30 @@ describe('file_meta_cache', function () {
         assert.equal(meta.sha256, sha256('xyz'));
     });
 
+    it('reuses fresh cached metadata', async function () {
+        const file = path.join(notes_root, '20260509_121542', 'files', 'a.txt');
+        await fs.writeFile(file, 'abc');
+
+        await file_meta_cache({
+            notes_root,
+            notes_meta_root,
+            relative: '20260509_121542/files/a.txt',
+        });
+
+        const meta_file = path.join(notes_meta_root, '20260509_121542', 'files', 'a.txt.json');
+        const cached = JSON.parse(await fs.readFile(meta_file, 'utf8'));
+        cached.cached_marker = true;
+        await fs.writeFile(meta_file, JSON.stringify(cached));
+
+        const meta = await file_meta_cache({
+            notes_root,
+            notes_meta_root,
+            relative: '20260509_121542/files/a.txt',
+        });
+
+        assert.equal(meta.cached_marker, true);
+    });
+
     it('removes empty cache directories up to notes.meta', async function () {
         const file = path.join(notes_root, '20260509_121542', 'files', 'nested', 'a.txt');
         await fs.mkdir(path.dirname(file), {recursive: true});
@@ -102,6 +128,30 @@ describe('file_meta_cache', function () {
         assert.equal(await exists(path.join(notes_meta_root, '20260509_121542', 'files', 'nested')), false);
         assert.equal(await exists(path.join(notes_meta_root, '20260509_121542', 'files')), true);
         assert.equal(await exists(path.join(notes_meta_root, '20260509_121542', 'files', 'b.txt.json')), true);
+    });
+
+    it('removes thumbnails for a removed cache entry', async function () {
+        const relative = '20260509_121542/files/nested/a.txt';
+        const file = path.join(notes_root, relative);
+        const thumb_512 = path.join(notes_thumbnails_root, '512', 'notes', relative);
+        const thumb_1024 = path.join(notes_thumbnails_root, '1024', 'notes', relative);
+        await fs.mkdir(path.dirname(file), {recursive: true});
+        await fs.mkdir(path.dirname(thumb_512), {recursive: true});
+        await fs.mkdir(path.dirname(thumb_1024), {recursive: true});
+        await fs.writeFile(file, 'abc');
+        await fs.writeFile(thumb_512, 'old 512 thumbnail');
+        await fs.writeFile(thumb_1024, 'old 1024 thumbnail');
+
+        await file_meta_cache({
+            notes_root,
+            notes_meta_root,
+            relative,
+        });
+
+        await file_meta_cache.remove_file_meta_cache(notes_meta_root, relative, notes_thumbnails_root);
+
+        assert.equal(await exists(thumb_512), false);
+        assert.equal(await exists(thumb_1024), false);
     });
 
     it('removes a note cache directory and prunes empty parents', async function () {

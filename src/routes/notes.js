@@ -114,7 +114,7 @@ async function notes_upload_file(req, res)
     const lstat = await fs_lstat(file_path);
     const path = fs_path_safe_relative(files_root, file_path);
     if (overwrite) {
-        await file_meta_cache.remove_file_meta_cache(meta_root, `${note_uid}/files/${path}`);
+        await file_meta_cache.remove_file_meta_cache(meta_root, `${note_uid}/files/${path}`, `${req.user_dir}/thumbnails`);
     }
     await cache_api_notes_invalidate(req, note_uid);
     const url = `/r/${note_uid}/files/${path}`;
@@ -155,7 +155,7 @@ async function notes_remove(req, res)
     const meta_root = `${req.user_dir}/notes.meta`;
     await fs_mkdirp(`${req.user_dir}/trash-bin`);
     await fs_rename(`${req.user_dir}/notes/${note_uid}`, `${req.user_dir}/trash-bin/${now_fs()}-${note_uid}`);
-    await file_meta_cache.remove_dir_meta_cache(meta_root, note_uid);
+    await file_meta_cache.remove_dir_meta_cache(meta_root, note_uid, `${req.user_dir}/thumbnails`);
     await cache_api_notes_invalidate(req, note_uid);
 
     res.send();
@@ -180,7 +180,7 @@ async function notes_remove_file(req, res)
 
     await fs_mkdirp(fs_path_dirname(target));
     await fs_rename(source, target);
-    await file_meta_cache.remove_file_meta_cache(meta_root, `${note_uid}/files/${relative}`);
+    await file_meta_cache.remove_file_meta_cache(meta_root, `${note_uid}/files/${relative}`, `${req.user_dir}/thumbnails`);
     await cache_api_notes_invalidate(req, note_uid);
     res.send();
 }
