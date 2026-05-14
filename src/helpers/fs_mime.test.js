@@ -21,4 +21,11 @@ describe('fs_mime', function () {
 
         assert.equal(await fs_mime(file), 'image/svg+xml');
     });
+
+    it('falls back to audio/mpeg for mp3 files when content detection fails', async function () {
+        const file = path.join(root, 'audio.mp3');
+        await fs.writeFile(file, '');
+
+        assert.equal(await fs_mime(file), 'audio/mpeg');
+    });
 });
