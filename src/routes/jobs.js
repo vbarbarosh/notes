@@ -13,8 +13,12 @@ const fs_write_json = require('@vbarbarosh/node-helpers/src/fs_write_json');
 const make = require('@vbarbarosh/type-helpers');
 const path = require('path');
 
+const jobs_events = new Map();
+let shutdown_hooks_bound = false;
+
 const routes = [
     {req: 'GET /api/v1/jobs', fn: jobs_list},
+    {req: 'GET /api/v1/jobs/events', fn: jobs_events_stream},
     {req: 'POST /api/v1/jobs/:job_name', fn: jobs_create},
     {req: 'POST /api/v1/jobs/:job_uid/confirm', fn: jobs_confirm},
 ];
@@ -62,6 +66,41 @@ async function jobs_list(req, res)
     res.send({items});
 }
 
+// GET /api/v1/jobs/events
+async function jobs_events_stream(req, res)
+{
+    bind_shutdown_hooks();
+    await ensure_jobs_dirs(req);
+    await recover_active_jobs(req);
+
+    const user_key = jobs_event_user_key(req.user_uid);
+    const clients = jobs_events.get(user_key) || new Set();
+    jobs_events.set(user_key, clients);
+
+    res.set({
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache, no-transform',
+        'Connection': 'keep-alive',
+        'X-Accel-Buffering': 'no',
+    });
+    res.flushHeaders?.();
+    res.write('retry: 2500\n\n');
+    res.write('event: jobs_connected\ndata: {}\n\n');
+
+    clients.add(res);
+    const heartbeat = setInterval(function () {
+        res.write(': heartbeat\n\n');
+    }, 25000);
+
+    req.on('close', function () {
+        clearInterval(heartbeat);
+        clients.delete(res);
+        if (clients.size === 0) {
+            jobs_events.delete(user_key);
+        }
+    });
+}
+
 // POST /api/v1/jobs/:job_name body={note_uid}
 async function jobs_create(req, res)
 {
@@ -103,6 +142,7 @@ async function jobs_create(req, res)
     await fs_mkdirp(fs_path_resolve(job_root, 'tmp'));
     await write_job_status(job_root, status);
     spawn_job_process({job_root, run_file, note_root, status});
+    emit_jobs_changed(req.user_uid);
 
     res.status(201).send(status);
 }
@@ -132,6 +172,7 @@ async function jobs_confirm(req, res)
 
         const target = fs_path_resolve(jobs_bucket_root(req, 'confirmed'), job_uid);
         await fs_rename(source, target);
+        emit_jobs_changed(req.user_uid);
         res.send({...status, bucket: 'confirmed'});
         return;
     }
@@ -198,6 +239,7 @@ function spawn_job_process({job_root, run_file, note_root, status})
     const stderr_file = fs.openSync(fs_path_resolve(job_root, 'stderr.log'), 'a');
     let failed_to_start = false;
     let files_closed = false;
+    const status_watcher = watch_job_status(job_root, status.user_uid);
     const proc = child_process.spawn(process.execPath, [run_file, note_root], {
         cwd: job_root,
         detached: false,
@@ -210,18 +252,22 @@ function spawn_job_process({job_root, run_file, note_root, status})
             return;
         }
         files_closed = true;
+        status_watcher.close();
         fs.closeSync(stdout_file);
         fs.closeSync(stderr_file);
     }
 
     proc.once('spawn', function () {
-        write_job_status(job_root, {
+        const running_status = {
             ...status,
             pid: proc.pid,
             status: 'running',
             user_friendly_status: 'Running',
             started_at: new Date().toJSON(),
-        }).catch(console.error);
+        };
+        write_job_status(job_root, running_status)
+            .then(() => emit_jobs_changed(running_status.user_uid))
+            .catch(console.error);
     });
 
     proc.once('error', function (error) {
@@ -290,6 +336,7 @@ async function finish_job(job_root, status, error)
     }
     await cache_api_notes_invalidate({user_dir: job_root_user_dir(job_root)}, status.note_uid);
     await fs_rename(job_root, target);
+    emit_jobs_changed(status.user_uid);
 }
 
 function job_root_user_dir(job_root)
@@ -340,6 +387,63 @@ async function next_job_uid(req, job_name)
 function jobs_bucket_root(req, bucket)
 {
     return fs_path_resolve(req.user_dir, 'jobs', bucket);
+}
+
+function emit_jobs_changed(user_uid)
+{
+    emit_jobs_event(user_uid, 'jobs_changed', {});
+}
+
+function watch_job_status(job_root, user_uid)
+{
+    try {
+        return fs.watch(job_root, {persistent: false}, function (event, filename) {
+            if (filename === 'status.json') {
+                emit_jobs_changed(user_uid);
+            }
+        });
+    }
+    catch {
+        return {close: function () {}};
+    }
+}
+
+function emit_jobs_event(user_uid, event, data)
+{
+    const clients = jobs_events.get(jobs_event_user_key(user_uid));
+    if (!clients) {
+        return;
+    }
+
+    const message = `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
+    for (const res of clients) {
+        res.write(message);
+    }
+}
+
+function bind_shutdown_hooks()
+{
+    if (shutdown_hooks_bound) {
+        return;
+    }
+    shutdown_hooks_bound = true;
+    process.once('SIGINT', close_jobs_event_streams);
+    process.once('SIGTERM', close_jobs_event_streams);
+}
+
+function close_jobs_event_streams()
+{
+    for (const clients of jobs_events.values()) {
+        for (const res of clients) {
+            res.end();
+        }
+    }
+    jobs_events.clear();
+}
+
+function jobs_event_user_key(user_uid)
+{
+    return user_uid || '';
 }
 
 function job_root_bucket(job_root, bucket)

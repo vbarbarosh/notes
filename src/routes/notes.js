@@ -210,12 +210,16 @@ async function read_note(req, note_root_name)
     if (await fs_exists(`${d}/${note_root_name}/files`)) {
         await fs_walk(`${d}/${note_root_name}/files`, async function (lstat, path) {
             const url = `/r/${note_root_name}/files/${path}`;
-            const thumbnail_url = await is_image(`${d}/${note_root_name}/files/${path}`)
-                ? `/t/1024/${note_root_name}/files/${path}` : null;
+            const relative = `${note_root_name}/files/${path}`;
+            const media = await read_file_media_meta(req, relative);
+            const thumbnail_url = media.image ? `/t/1024/${note_root_name}/files/${path}` : null;
             files.push({
                 path,
                 url,
                 thumbnail_url,
+                image: media.image,
+                audio: media.audio,
+                video: media.video,
                 size: lstat.size,
                 created_at: lstat.birthtime,
                 updated_at: lstat.mtime,
@@ -282,6 +286,102 @@ async function is_image(path_or_buffer)
     catch (error) {
         return false;
     }
+}
+
+async function read_file_media_meta(req, relative)
+{
+    if (!is_media_file(relative)) {
+        return {};
+    }
+
+    try {
+        const meta = await file_meta_cache({
+            notes_root: `${req.user_dir}/notes`,
+            notes_meta_root: `${req.user_dir}/notes.meta`,
+            relative,
+        });
+        return {
+            image: image_meta_summary(meta),
+            audio: audio_meta_summary(meta),
+            video: video_meta_summary(meta),
+        };
+    }
+    catch {
+        return {};
+    }
+}
+
+function is_media_file(relative)
+{
+    return /\.(?:avif|gif|jpe?g|m4a|m4v|mkv|mov|mp3|mp4|oga|ogg|ogv|png|svg|webm)$/i.test(relative);
+}
+
+function image_meta_summary(meta)
+{
+    if (meta?.type !== 'image') {
+        return null;
+    }
+
+    return {
+        width: number_or_null(meta.image?.width),
+        height: number_or_null(meta.image?.height),
+        format: meta.image?.format || null,
+        pages: number_or_null(meta.image?.pages),
+    };
+}
+
+function audio_meta_summary(meta)
+{
+    if (meta?.type !== 'audio') {
+        return null;
+    }
+
+    const stream = (meta.audio?.streams || []).find(v => v.codec_type === 'audio') || {};
+    const format = meta.audio?.format || {};
+    return {
+        duration_seconds: number_or_null(format.duration ?? stream.duration),
+        bit_rate: number_or_null(format.bit_rate ?? stream.bit_rate),
+        sample_rate: number_or_null(stream.sample_rate),
+        channels: number_or_null(stream.channels),
+        channel_layout: stream.channel_layout || null,
+        codec_name: stream.codec_name || format.format_name || null,
+    };
+}
+
+function video_meta_summary(meta)
+{
+    if (meta?.type !== 'video') {
+        return null;
+    }
+
+    const video_stream = (meta.video?.streams || []).find(v => v.codec_type === 'video') || {};
+    const audio_stream = (meta.video?.streams || []).find(v => v.codec_type === 'audio') || {};
+    const format = meta.video?.format || {};
+    return {
+        duration_seconds: number_or_null(format.duration ?? video_stream.duration),
+        bit_rate: number_or_null(format.bit_rate ?? video_stream.bit_rate),
+        width: number_or_null(video_stream.width),
+        height: number_or_null(video_stream.height),
+        frame_rate: frame_rate_number(video_stream.avg_frame_rate || video_stream.r_frame_rate),
+        codec_name: video_stream.codec_name || format.format_name || null,
+        audio_codec_name: audio_stream.codec_name || null,
+    };
+}
+
+function number_or_null(value)
+{
+    const out = Number(value);
+    return Number.isFinite(out) ? out : null;
+}
+
+function frame_rate_number(value)
+{
+    const match = String(value || '').match(/^(\d+)\/(\d+)$/);
+    if (!match) {
+        return number_or_null(value);
+    }
+    const denom = Number(match[2]);
+    return denom ? Number(match[1]) / denom : null;
 }
 
 function fcmp_strings_ascii(a, b)
