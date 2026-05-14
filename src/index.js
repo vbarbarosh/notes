@@ -190,6 +190,6 @@ async function error_handler(error, req, res, next)
         res.status(400).send({error: error.message});
     }
     else {
-        res.status(400).send({error: error.message})
+        res.status(400).send({error: 'An error occurred'})
     }
 }
