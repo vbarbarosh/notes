@@ -17,7 +17,7 @@ const fs_path_safe_resolve = require('./helpers/fs_path_safe_resolve');
 const make = require('@vbarbarosh/type-helpers');
 const sharp = require('sharp');
 
-const THUMBNAIL_VERSION = 2;
+const THUMBNAIL_VERSION = 'v3';
 
 cli(main);
 
@@ -158,19 +158,14 @@ async function thumbnail(req, res)
         return;
     }
 
-    const thumbnail_file = `${req.user_dir}/thumbnails/v${THUMBNAIL_VERSION}/${size}/notes/${meta.source.relative}`;
+    const thumbnail_file = `${req.user_dir}/thumbnails/${THUMBNAIL_VERSION}/${size}/notes/${meta.source.relative}`;
     if (await fs_exists(thumbnail_file)) {
         res.type(meta.mime).sendFile(thumbnail_file);
         return;
     }
 
     await fs_mkdirp(fs_path_dirname(thumbnail_file));
-    await sharp(source_file).resize({
-        width: size,
-        height: size,
-        fit: 'inside',
-        withoutEnlargement: true,
-    }).toFile(thumbnail_file);
+    await sharp(source_file).resize({width: size, fit: 'inside', withoutEnlargement: true}).toFile(thumbnail_file);
     res.type(meta.mime).sendFile(thumbnail_file);
 }
 
