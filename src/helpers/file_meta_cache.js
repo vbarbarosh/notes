@@ -15,7 +15,7 @@ const json_stringify_stable = require('@vbarbarosh/node-helpers/src/json_stringi
 const sharp = require('sharp');
 const shell_json = require('@vbarbarosh/node-helpers/src/shell_json');
 
-const CACHE_VERSION = 1;
+const CACHE_VERSION = 2;
 
 async function file_meta_cache({notes_root, notes_meta_root, relative})
 {
@@ -45,6 +45,15 @@ async function file_meta_cache({notes_root, notes_meta_root, relative})
     };
 
     switch (out.mime) {
+    case 'video/mkv':
+    case 'video/mp4':
+    case 'video/ogv':
+    case 'video/webm':
+        out.type = 'audio';
+        out.audio = await shell_json(ffprobe(source_file));
+        out.audio.format.filename = source.relative;
+        break;
+    case 'audio/ogg':
     case 'audio/mpeg':
         out.type = 'audio';
         out.audio = await shell_json(ffprobe(source_file));
