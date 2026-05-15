@@ -943,6 +943,7 @@ css`
     .mini-player-cover {
         position: relative;
         height: 132px;
+        flex-shrink: 0;
         background: linear-gradient(135deg, #1f2640 0%, #2b3358 100%);
         cursor: move;
         user-select: none;
