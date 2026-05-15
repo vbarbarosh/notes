@@ -497,6 +497,7 @@ const app = Vue.createApp({
                     <template v-if="note.files.length">
                         <div v-for="file in filtered_note_files(note)"
                             v-bind:key="note.uid + ':' + file.path"
+                            v-bind:data-file-path="file.path"
                             v-on:mouseover="mouseover_note_table_row($event, note, file)"
                             v-on:mouseleave="mouseleave_note_table_row($event, note, file)"
                             v-bind:class="['note-files-row', 'note-files-body', {'system-file': is_system_file(file), highlight: (mouseover_note_uid === note.uid && mouseover_file_path === file.path)}]">
@@ -1443,6 +1444,14 @@ const app = Vue.createApp({
         set_hover_track: function (note_uid, file_path) {
             this.mouseover_note_uid = note_uid;
             this.mouseover_file_path = file_path;
+            if (!note_uid || !file_path) {
+                return;
+            }
+            this.$nextTick(() => {
+                const note_elem = this.note_refs[note_uid];
+                const row = note_elem?.querySelector(`[data-file-path="${CSS.escape(file_path)}"]`);
+                row?.scrollIntoView({block: 'nearest', behavior: 'smooth'});
+            });
         },
         mouseleave_note_image: function (event, note, file) {
             if (this.mouseover_note_uid === note.uid && this.mouseover_file_path === file.path) {
