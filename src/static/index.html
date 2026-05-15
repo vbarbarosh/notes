@@ -548,7 +548,13 @@ const app = Vue.createApp({
             </div>
         </div>
 
-        <mini-player v-on:select-note="select_notes_overview" v-on:heart="heart_track" v-bind:tracks="media_tracks" />
+        <mini-player
+            v-on:select-note="select_notes_overview"
+            v-on:heart="heart_track"
+            v-on:hover-track="set_hover_track"
+            v-bind:tracks="media_tracks"
+            v-bind:hovered-note-uid="mouseover_note_uid"
+            v-bind:hovered-file-path="mouseover_file_path" />
 
         <div v-if="youtube_player" class="youtube-player">
             <div class="youtube-player-head">
@@ -1431,6 +1437,10 @@ const app = Vue.createApp({
         mouseover_note_image: function (event, note, file) {
             this.mouseover_note_uid = note.uid;
             this.mouseover_file_path = file.path;
+        },
+        set_hover_track: function (note_uid, file_path) {
+            this.mouseover_note_uid = note_uid;
+            this.mouseover_file_path = file_path;
         },
         mouseleave_note_image: function (event, note, file) {
             if (this.mouseover_note_uid === note.uid && this.mouseover_file_path === file.path) {

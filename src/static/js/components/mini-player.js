@@ -14,8 +14,10 @@ const MINI_PLAYER_EDGE_MARGIN = 18;
 app.component('mini-player', {
     props: {
         tracks: { type: Array, required: true },
+        hoveredNoteUid: { type: String, default: null },
+        hoveredFilePath: { type: String, default: null },
     },
-    emits: ['select-note', 'heart'],
+    emits: ['select-note', 'heart', 'hover-track'],
     template: `
         <div
             v-if="snap_preview"
@@ -170,6 +172,8 @@ app.component('mini-player', {
                 <div
                     v-for="track in tracks"
                     v-bind:key="track.key"
+                    v-on:mouseenter="hover_row(track)"
+                    v-on:mouseleave="unhover_row(track)"
                     v-bind:class="list_row_class(track)">
                     <button
                         v-on:click="play(track.key)"
@@ -373,6 +377,12 @@ app.component('mini-player', {
         'state.key': function () {
             this.$nextTick(this.scroll_active_into_view);
         },
+        hoveredNoteUid: function () {
+            this.$nextTick(this.scroll_hovered_into_view);
+        },
+        hoveredFilePath: function () {
+            this.$nextTick(this.scroll_hovered_into_view);
+        },
         'state.volume': function (value) {
             if (this.$refs.media) {
                 this.$refs.media.volume = value;
@@ -380,8 +390,19 @@ app.component('mini-player', {
         },
     },
     methods: {
+        hover_row: function (track) {
+            this.$emit('hover-track', track.note_uid, track.file_path);
+        },
+        unhover_row: function (track) {
+            if (this.hoveredNoteUid === track.note_uid && this.hoveredFilePath === track.file_path) {
+                this.$emit('hover-track', null, null);
+            }
+        },
         list_row_class: function (track) {
-            return ['mini-player-list-row', {active: this.current_track?.key === track.key}];
+            return ['mini-player-list-row', {
+                active: this.current_track?.key === track.key,
+                hovered: (track.note_uid === this.hoveredNoteUid && track.file_path === this.hoveredFilePath),
+            }];
         },
         scroll_active_into_view: function () {
             const root = this.$refs.root;
@@ -389,6 +410,14 @@ app.component('mini-player', {
                 return;
             }
             const row = root.querySelector('.mini-player-list-row.active');
+            row?.scrollIntoView({block: 'nearest', behavior: 'smooth'});
+        },
+        scroll_hovered_into_view: function () {
+            const root = this.$refs.root;
+            if (!root || !this.hoveredNoteUid || !this.hoveredFilePath) {
+                return;
+            }
+            const row = root.querySelector('.mini-player-list-row.hovered');
             row?.scrollIntoView({block: 'nearest', behavior: 'smooth'});
         },
         heart_current: function () {
@@ -1205,6 +1234,7 @@ css`
 
     .mini-player-list {
         overflow: auto;
+        overscroll-behavior: contain;
         border-top: 1px solid #e4e7f0;
         flex-shrink: 0;
         min-height: 0;
@@ -1388,6 +1418,16 @@ css`
 
     .mini-player-list-row.active:hover {
         background: #c4dafa;
+    }
+
+    .mini-player-list-row.hovered {
+        background: #f4f8e8;
+        box-shadow: inset 3px 0 0 #5ba84a;
+    }
+
+    .mini-player-list-row.hovered.active {
+        background: #eef5ff;
+        box-shadow: inset 3px 0 0 #5ba84a;
     }
 
     .mini-player-list-main {
