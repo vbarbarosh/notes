@@ -49,3 +49,32 @@
           Save
       </button-void>
       ```
+
+* **Use `function name(...) {}` declarations for all top-level and local functions**
+
+    * Arrow functions are allowed **only when the entire arrow expression fits on a single line** (`v => v.uid`, `(a, b) => a + b`). The moment a callback needs a block body or wraps, it stops being eligible
+    * For any callback that spans multiple lines use the `function` keyword: `function (item, i) { … }`
+    * When such a multi-line `function (...)` callback needs the enclosing component's `this`, capture it as `const _this = this;` in the outer scope and reference `_this` inside. Do not switch to an arrow function just to inherit `this`
+    * Example:
+
+      ```
+      // BAD — multi-line arrow used to capture `this`
+      const out = items.map(item => {
+          return {
+              uid: item.uid,
+              label: this.format_label(item),
+          };
+      });
+
+      // GOOD — `function` keyword, explicit _this
+      const _this = this;
+      const out = items.map(function (item) {
+          return {
+              uid: item.uid,
+              label: _this.format_label(item),
+          };
+      });
+
+      // ALSO GOOD — single-line arrow stays an arrow
+      const uids = items.map(v => v.uid);
+      ```
