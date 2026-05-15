@@ -45,6 +45,7 @@
 <script src="https://unpkg.com/@vbarbarosh/dd@1.9.0/dist/dd.js"></script>
 <script src="https://unpkg.com/jquery@3.7.1/dist/jquery.js"></script>
 <script src="https://unpkg.com/bluebird@3.7.2/js/browser/bluebird.js"></script>
+<script>Promise.config({warnings: {wForgottenReturn: false}});</script>
 <script src="https://unpkg.com/vue@3.5.12/dist/vue.global.js"></script>
 <script src="js/utils.js"></script>
 <script src="js/apis.js"></script>
@@ -547,71 +548,7 @@ const app = Vue.createApp({
             </div>
         </div>
 
-        <div
-            v-if="mp3_tracks.length && !mp3_player.hidden"
-            ref="mp3_player"
-            class="mp3-player"
-            v-bind:style="mp3_player_style">
-            <div class="mp3-player-cover" v-on:pointerdown="mp3_player_drag_start">
-                <img v-if="current_mp3_track?.cover_url" v-bind:src="current_mp3_track.cover_url" alt="">
-                <div v-else class="mp3-player-cover-empty">
-                    <i class="ti ti-music" aria-hidden="true"></i>
-                </div>
-                <div class="mp3-player-cover-shade">
-                    <div class="mp3-player-title">{{ current_mp3_track?.title }}</div>
-                    <div class="mp3-player-subtitle">{{ current_mp3_track?.note_label }}</div>
-                </div>
-                <button type="button" class="mp3-player-hide" v-on:pointerdown.stop v-on:click="mp3_player_hide" title="Hide player">
-                    <i class="ti ti-x" aria-hidden="true"></i>
-                </button>
-            </div>
-            <div v-if="current_mp3_track?.audio" class="mp3-player-meta">{{ audio_file_summary(current_mp3_track.file) }}</div>
-            <audio
-                ref="mp3_player_audio"
-                v-bind:key="current_mp3_track?.url"
-                v-bind:src="current_mp3_track?.url"
-                preload="none"
-                controls
-                class="mp3-player-audio"></audio>
-            <div class="mp3-player-controls">
-                <button type="button" v-on:click="mp3_player_prev" title="Previous track">
-                    <i class="ti ti-player-track-prev" aria-hidden="true"></i>
-                </button>
-                <button type="button" v-on:click="mp3_player_next" title="Next track">
-                    <i class="ti ti-player-track-next" aria-hidden="true"></i>
-                </button>
-                <a v-bind:href="current_mp3_track?.url" target="_blank" title="Open in new tab">
-                    <i class="ti ti-external-link" aria-hidden="true"></i>
-                </a>
-                <button type="button" v-on:click="mp3_player_scroll_to_note(current_mp3_track)" title="Scroll to note">
-                    <i class="ti ti-notes" aria-hidden="true"></i>
-                </button>
-                <span class="mp3-player-count">{{ mp3_track_index + 1 }} / {{ mp3_tracks.length }}</span>
-            </div>
-            <div class="mp3-player-list">
-                <div
-                    v-for="track in mp3_tracks"
-                    v-bind:key="track.key"
-                    v-bind:class="['mp3-player-list-row', {active: current_mp3_track?.key === track.key}]">
-                    <button type="button" class="mp3-player-list-main" v-on:click="mp3_player_play(track.key)">
-                        <span class="mp3-player-list-title">{{ track.title }}</span>
-                        <span class="mp3-player-list-note">{{ track.note_label }}</span>
-                    </button>
-                    <button type="button" class="mp3-player-list-note-button" v-on:click="mp3_player_scroll_to_note(track)" title="Scroll to note">
-                        <i class="ti ti-notes" aria-hidden="true"></i>
-                    </button>
-                </div>
-            </div>
-        </div>
-        <button
-            v-else-if="mp3_tracks.length"
-            type="button"
-            class="mp3-player-restore"
-            v-on:click="mp3_player_show"
-            title="Show MP3 player">
-            <i class="ti ti-music" aria-hidden="true"></i>
-            <span>{{ mp3_tracks.length }}</span>
-        </button>
+        <mini-player v-bind:tracks="media_tracks" v-on:select-note="select_notes_overview" />
 
         <div v-if="youtube_player" class="youtube-player">
             <div class="youtube-player-head">
@@ -648,13 +585,6 @@ const app = Vue.createApp({
             jobs_poll_timer: null,
             jobs_event_source: null,
             jobs_refresh_timer: null,
-            mp3_player: {
-                key: null,
-                x: null,
-                y: null,
-                drag: null,
-                hidden: false,
-            },
             seen_terminal_job_uids: [],
             file_queries: {},
             pending_note_removals: [],
@@ -728,40 +658,29 @@ const app = Vue.createApp({
         has_any_filter: function () {
             return !!(this.has_tag_filter || this.note_query.trim());
         },
-        mp3_tracks: function () {
+        media_tracks: function () {
             return this.notes.flatMap(note => {
-                const cover = (note.files || []).find(file => file.thumbnail_url);
+                const note_cover = (note.files || []).find(file => file.thumbnail_url);
                 return (note.files || [])
-                    .filter(file => this.is_mp3_file(file))
-                    .map(file => ({
-                        key: `${note.uid}:${file.path}`,
-                        title: file.path.split('/').pop(),
-                        note_label: note.name || note.uid,
-                        url: file.url,
-                        cover_url: cover?.thumbnail_url || cover?.url || null,
-                        audio: file.audio,
-                        file,
-                        note,
-                    }));
+                    .filter(file => this.is_audio_file(file) || this.is_video_file(file))
+                    .map(file => {
+                        const is_video = this.is_video_file(file);
+                        return {
+                            key: `${note.uid}:${file.path}`,
+                            title: file.path.split('/').pop(),
+                            note_label: note.name || note.uid,
+                            url: file.url,
+                            kind: is_video ? 'video' : 'audio',
+                            cover_url: is_video
+                                ? (file.thumbnail_url || null)
+                                : (note_cover?.thumbnail_url || note_cover?.url || null),
+                            meta: is_video
+                                ? (file.video ? this.video_file_summary(file) : null)
+                                : (file.audio ? this.audio_file_summary(file) : null),
+                            note_uid: note.uid,
+                        };
+                    });
             });
-        },
-        mp3_track_index: function () {
-            const i = this.mp3_tracks.findIndex(track => track.key === this.mp3_player.key);
-            return i === -1 ? 0 : i;
-        },
-        current_mp3_track: function () {
-            return this.mp3_tracks[this.mp3_track_index] || null;
-        },
-        mp3_player_style: function () {
-            if (this.mp3_player.x === null || this.mp3_player.y === null) {
-                return null;
-            }
-            return {
-                left: `${this.mp3_player.x}px`,
-                top: `${this.mp3_player.y}px`,
-                right: 'auto',
-                bottom: 'auto',
-            };
         },
         filter_label: function () {
             return [
@@ -790,7 +709,6 @@ const app = Vue.createApp({
             const notes = await api_notes_list().then(v => v.items);
             this.notes = this.merge_notes_from_backend(notes);
             this.prune_selected_tags();
-            this.ensure_mp3_player_track();
         },
         merge_notes_from_backend: function (notes) {
             const local_by_uid = new Map(this.notes.map(note => [note.uid, note]));
@@ -911,8 +829,8 @@ const app = Vue.createApp({
         note_has_pdf: function (note) {
             return note.files.some(f => f.path.toLowerCase().endsWith('.pdf'));
         },
-        is_mp3_file: function (file) {
-            return String(file.path || '').toLowerCase().endsWith('.mp3');
+        is_audio_file: function (file) {
+            return /\.(mp3|m4a|wav|ogg|oga|flac|aac|opus)$/i.test(String(file.path || ''));
         },
         is_video_file: function (file) {
             return /\.(m4v|mkv|mov|mp4|ogv|webm)$/i.test(String(file.path || ''));
@@ -969,7 +887,7 @@ const app = Vue.createApp({
             if (path.endsWith('.zip')) {
                 return 'zip';
             }
-            if (path.endsWith('.mp3')) {
+            if (this.is_audio_file(file)) {
                 return 'audio';
             }
             if (this.is_video_file(file)) {
@@ -1057,91 +975,6 @@ const app = Vue.createApp({
                 return '';
             }
             return frame_rate >= 10 ? frame_rate.toFixed(0) : frame_rate.toFixed(2);
-        },
-        ensure_mp3_player_track: function () {
-            if (!this.mp3_tracks.length) {
-                this.mp3_player.key = null;
-                return;
-            }
-            if (!this.mp3_tracks.some(track => track.key === this.mp3_player.key)) {
-                this.mp3_player.key = this.mp3_tracks[0].key;
-            }
-        },
-        mp3_player_select: function (key) {
-            this.mp3_player.key = key;
-        },
-        mp3_player_play: function (key) {
-            this.mp3_player.key = key;
-            this.mp3_player.hidden = false;
-            this.$nextTick(() => this.$refs.mp3_player_audio?.play().catch(() => {}));
-        },
-        mp3_player_hide: function () {
-            this.$refs.mp3_player_audio?.pause();
-            this.mp3_player.hidden = true;
-        },
-        mp3_player_show: function () {
-            this.mp3_player.hidden = false;
-            this.ensure_mp3_player_track();
-        },
-        mp3_player_prev: function () {
-            this.mp3_player_step(-1);
-        },
-        mp3_player_next: function () {
-            this.mp3_player_step(1);
-        },
-        mp3_player_step: function (delta) {
-            if (!this.mp3_tracks.length) {
-                return;
-            }
-            const index = (this.mp3_track_index + delta + this.mp3_tracks.length) % this.mp3_tracks.length;
-            this.mp3_player.key = this.mp3_tracks[index].key;
-            this.$nextTick(() => this.$refs.mp3_player_audio?.play().catch(() => {}));
-        },
-        mp3_player_scroll_to_note: function (track) {
-            if (!track?.note?.uid) {
-                return;
-            }
-            this.select_notes_overview(track.note.uid);
-        },
-        mp3_player_drag_start: function (event) {
-            if (event.button !== undefined && event.button !== 0) {
-                return;
-            }
-            const elem = this.$refs.mp3_player;
-            const rect = elem.getBoundingClientRect();
-            this.mp3_player.x = rect.left;
-            this.mp3_player.y = rect.top;
-            this.mp3_player.drag = {
-                pointer_id: event.pointerId,
-                start_x: event.clientX,
-                start_y: event.clientY,
-                origin_x: rect.left,
-                origin_y: rect.top,
-                width: rect.width,
-                height: rect.height,
-            };
-            elem.setPointerCapture?.(event.pointerId);
-            document.addEventListener('pointermove', this.mp3_player_drag_move);
-            document.addEventListener('pointerup', this.mp3_player_drag_end);
-            event.preventDefault();
-        },
-        mp3_player_drag_move: function (event) {
-            const drag = this.mp3_player.drag;
-            if (!drag || event.pointerId !== drag.pointer_id) {
-                return;
-            }
-            const max_x = Math.max(0, window.innerWidth - drag.width);
-            const max_y = Math.max(0, window.innerHeight - drag.height);
-            this.mp3_player.x = Math.min(max_x, Math.max(0, drag.origin_x + event.clientX - drag.start_x));
-            this.mp3_player.y = Math.min(max_y, Math.max(0, drag.origin_y + event.clientY - drag.start_y));
-        },
-        mp3_player_drag_end: function (event) {
-            const drag = this.mp3_player.drag;
-            if (drag && event.pointerId === drag.pointer_id) {
-                this.mp3_player.drag = null;
-            }
-            document.removeEventListener('pointermove', this.mp3_player_drag_move);
-            document.removeEventListener('pointerup', this.mp3_player_drag_end);
         },
         job_label: function (job) {
             return [
@@ -1537,8 +1370,6 @@ const app = Vue.createApp({
     },
     unmounted: function () {
         document.removeEventListener('click', this.close_tag_picker_on_outside_click);
-        document.removeEventListener('pointermove', this.mp3_player_drag_move);
-        document.removeEventListener('pointerup', this.mp3_player_drag_end);
         this.disconnect_jobs_events();
     },
 });
@@ -1553,6 +1384,7 @@ app.mixin({
 
 <script src="js/components/notes-new.js"></script>
 <script src="js/components/notes-overview.js"></script>
+<script src="js/components/mini-player.js"></script>
 <script src="js/components/vendor/fancybox.js"></script>
 <script src="js/components/vendor/markdown.js"></script>
 <script src="js/directives/autofocus.js"></script>
