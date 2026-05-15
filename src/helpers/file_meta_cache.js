@@ -49,9 +49,9 @@ async function file_meta_cache({notes_root, notes_meta_root, relative})
     case 'video/mp4':
     case 'video/ogv':
     case 'video/webm':
-        out.type = 'audio';
-        out.audio = await shell_json(ffprobe(source_file));
-        out.audio.format.filename = source.relative;
+        out.type = 'video';
+        out.video = await shell_json(ffprobe(source_file));
+        out.video.format.filename = source.relative;
         break;
     case 'audio/ogg':
     case 'audio/mpeg':
