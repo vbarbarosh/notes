@@ -452,8 +452,6 @@ const app = Vue.createApp({
                                 v-on:mouseleave="mouseleave_note_image($event, note, file)"
                                 v-bind:src="file.thumbnail_url"
                                 v-bind:class="{highlight: (mouseover_note_uid === note.uid && mouseover_file_path === file.path)}"
-                                loading="lazy"
-                                decoding="async"
                                 alt=""
                                 class="flex-static max-ww checkerboard">
                         </a>
