@@ -548,7 +548,7 @@ const app = Vue.createApp({
             </div>
         </div>
 
-        <mini-player v-bind:tracks="media_tracks" v-on:select-note="select_notes_overview" />
+        <mini-player v-on:select-note="select_notes_overview" v-on:heart="heart_track" v-bind:tracks="media_tracks" />
 
         <div v-if="youtube_player" class="youtube-player">
             <div class="youtube-player-head">
@@ -589,17 +589,21 @@ const app = Vue.createApp({
             file_queries: {},
             pending_note_removals: [],
             pending_file_removals: [],
+            notes_hearts: {},
             uploads: uploads_list,
         };
     },
     computed: {
         decorated_notes: function () {
-            return this.notes.map(function (note) {
+            return this.notes.map(note => {
                 const parsed = parse_note_tags(note.body);
                 const youtube_items = extract_youtube_items(note.body);
                 const system_tags = [];
                 if (youtube_items.length) {
                     system_tags.push('#youtube');
+                }
+                if (this.note_has_hearts(note)) {
+                    system_tags.push('#hearted');
                 }
                 return {
                     ...note,
@@ -661,10 +665,12 @@ const app = Vue.createApp({
         media_tracks: function () {
             return this.notes.flatMap(note => {
                 const note_cover = (note.files || []).find(file => file.thumbnail_url);
+                const note_hearts = this.notes_hearts[note.uid]?.tracks || {};
                 return (note.files || [])
                     .filter(file => this.is_audio_file(file) || this.is_video_file(file))
                     .map(file => {
                         const is_video = this.is_video_file(file);
+                        const hearts = note_hearts[file.path]?.hearts || [];
                         return {
                             key: `${note.uid}:${file.path}`,
                             title: file.path.split('/').pop(),
@@ -678,6 +684,9 @@ const app = Vue.createApp({
                                 ? (file.video ? this.video_file_summary(file) : null)
                                 : (file.audio ? this.audio_file_summary(file) : null),
                             note_uid: note.uid,
+                            file_path: file.path,
+                            sha256: file.sha256 || null,
+                            heart_count: hearts.length,
                         };
                     });
             });
@@ -705,10 +714,90 @@ const app = Vue.createApp({
         },
     },
     methods: {
+        hearts_path_for_note: function () {
+            return 'apps/mini-player/hearts.json';
+        },
+        hearts_url_for_note: function (note_uid) {
+            const path = this.hearts_path_for_note().split('/').map(encodeURIComponent).join('/');
+            return `/r/${encodeURIComponent(note_uid)}/files/${path}`;
+        },
+        fetch_note_hearts: async function (note_uid) {
+            try {
+                const res = await fetch(this.hearts_url_for_note(note_uid));
+                if (!res.ok) {
+                    return null;
+                }
+                const data = await res.json();
+                if (!data || typeof data !== 'object' || typeof data.tracks !== 'object') {
+                    return null;
+                }
+                return data;
+            }
+            catch (error) {
+                return null;
+            }
+        },
+        load_all_hearts: async function () {
+            const media_notes = this.notes.filter(note => {
+                return (note.files || []).some(file => this.is_audio_file(file) || this.is_video_file(file));
+            });
+            const results = await Promise.all(media_notes.map(note => this.fetch_note_hearts(note.uid)));
+            const next = {};
+            media_notes.forEach((note, i) => {
+                next[note.uid] = results[i] || {version: 1, tracks: {}};
+            });
+            this.notes_hearts = next;
+        },
+        save_note_hearts: async function (note_uid, data) {
+            const payload = JSON.stringify({version: 1, tracks: data.tracks || {}});
+            const blob = new Blob([payload], {type: 'application/json'});
+            const fd = new FormData();
+            fd.append('file', blob, this.hearts_path_for_note());
+            try {
+                await fetch(`/api/v1/notes/${encodeURIComponent(note_uid)}/files?overwrite=1`, {
+                    method: 'POST',
+                    body: fd,
+                });
+            }
+            catch (error) {
+                console.warn('hearts save error', error);
+            }
+        },
+        heart_track: async function (note_uid, file_path, position, sha256) {
+            const current = this.notes_hearts[note_uid] || {version: 1, tracks: {}};
+            const existing_track = current.tracks[file_path] || {sha256: null, hearts: []};
+            const entry = {
+                at: new Date().toISOString(),
+                position: Number.isFinite(position) ? Number(position) : 0,
+            };
+            const updated_track = {
+                sha256: sha256 || existing_track.sha256 || null,
+                hearts: [...(existing_track.hearts || []), entry],
+            };
+            const updated = {
+                version: 1,
+                tracks: {
+                    ...current.tracks,
+                    [file_path]: updated_track,
+                },
+            };
+            this.notes_hearts = {...this.notes_hearts, [note_uid]: updated};
+            await this.save_note_hearts(note_uid, updated);
+        },
+        note_has_hearts: function (note) {
+            const tracks = this.notes_hearts[note.uid]?.tracks || {};
+            for (const entry of Object.values(tracks)) {
+                if (entry?.hearts?.length > 0) {
+                    return true;
+                }
+            }
+            return false;
+        },
         refresh: async function () {
             const notes = await api_notes_list().then(v => v.items);
             this.notes = this.merge_notes_from_backend(notes);
             this.prune_selected_tags();
+            this.load_all_hearts();
         },
         merge_notes_from_backend: function (notes) {
             const local_by_uid = new Map(this.notes.map(note => [note.uid, note]));

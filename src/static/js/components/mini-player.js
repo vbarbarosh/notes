@@ -15,7 +15,7 @@ app.component('mini-player', {
     props: {
         tracks: { type: Array, required: true },
     },
-    emits: ['select-note'],
+    emits: ['select-note', 'heart'],
     template: `
         <div
             v-if="snap_preview"
@@ -71,7 +71,6 @@ app.component('mini-player', {
                 </button>
             </div>
             <div v-on:pointerdown="resize_start($event, 'cover')" class="mini-player-divider"></div>
-            <div v-if="current_track?.meta" class="mini-player-meta">{{ current_track.meta }}</div>
             <audio
                 v-if="(current_track && current_track.kind !== 'video')"
                 v-on:ended="next"
@@ -140,6 +139,32 @@ app.component('mini-player', {
                 </div>
                 <span class="mini-player-spacer"></span>
                 <span class="mini-player-count">{{ track_index + 1 }} / {{ tracks.length }}</span>
+                <button
+                    v-on:click="heart_current"
+                    v-bind:disabled="!current_track"
+                    v-bind:title="heart_button_title"
+                    class="mini-player-btn mini-player-btn-small mini-player-heart"
+                    type="button">
+                    <svg v-bind:class="heart_icon_class" viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M12 21s-7.2-4.35-9.55-8.85C.25 7.95 2.85 4 6.85 4c2.1 0 3.85 1.15 5.15 3.05C13.3 5.15 15.05 4 17.15 4c4 0 6.6 3.95 4.4 8.15C19.2 16.65 12 21 12 21z"/>
+                    </svg>
+                    <template v-for="p in particles" v-bind:key="p.id">
+                        <span
+                            v-if="(p.kind === 'ring')"
+                            class="mini-player-particle mini-player-particle-ring"
+                            aria-hidden="true"></span>
+                        <span
+                            v-else-if="(p.kind === 'particle')"
+                            v-bind:style="p.style"
+                            class="mini-player-particle mini-player-particle-dot"
+                            aria-hidden="true"></span>
+                        <span
+                            v-else-if="(p.kind === 'plus')"
+                            v-bind:style="p.style"
+                            class="mini-player-particle mini-player-particle-plus"
+                            aria-hidden="true">{{ p.text }}</span>
+                    </template>
+                </button>
             </div>
             <div v-bind:style="list_style" class="mini-player-list">
                 <div
@@ -151,8 +176,18 @@ app.component('mini-player', {
                         type="button"
                         class="mini-player-list-main">
                         <span class="mini-player-list-title">{{ track.title }}</span>
-                        <span class="mini-player-list-note">{{ track.note_label }}</span>
+                        <span v-if="track.meta" class="mini-player-list-note">{{ track.meta }}</span>
                     </button>
+                    <span
+                        v-if="(track.heart_count > 0)"
+                        v-bind:title="(track.heart_count + ' hearts')"
+                        class="mini-player-list-heart">
+                        <svg class="mini-player-list-heart-icon" viewBox="0 0 24 24" aria-hidden="true">
+                            <path d="M12 21s-7.2-4.35-9.55-8.85C.25 7.95 2.85 4 6.85 4c2.1 0 3.85 1.15 5.15 3.05C13.3 5.15 15.05 4 17.15 4c4 0 6.6 3.95 4.4 8.15C19.2 16.65 12 21 12 21z"/>
+                        </svg>
+                        <span>{{ track.heart_count }}</span>
+                    </span>
+                    <span v-else class="mini-player-list-heart mini-player-list-heart-empty"></span>
                     <button
                         v-on:click="scroll_to_note(track)"
                         type="button"
@@ -193,6 +228,8 @@ app.component('mini-player', {
             duration: 0,
             pre_mute_volume: null,
             snap_preview: null,
+            particles: [],
+            heart_popping: false,
         };
     },
     computed: {
@@ -278,6 +315,38 @@ app.component('mini-player', {
         play_icon_class: function () {
             return ['ti', this.playing ? 'ti-player-pause' : 'ti-player-play'];
         },
+        heart_count: function () {
+            return this.current_track?.heart_count || 0;
+        },
+        heart_icon_class: function () {
+            const classes = ['mini-player-heart-icon'];
+            if (this.heart_count >= 1) {
+                classes.push('liked');
+            }
+            if (this.heart_count >= 5) {
+                classes.push('tier-2');
+            }
+            if (this.heart_count >= 10) {
+                classes.push('tier-3');
+            }
+            if (this.heart_popping) {
+                classes.push('popping');
+            }
+            return classes;
+        },
+        heart_button_title: function () {
+            if (!this.current_track) {
+                return 'Heart this moment';
+            }
+            const count = this.heart_count;
+            if (count === 0) {
+                return 'Heart this moment';
+            }
+            if (count === 1) {
+                return '1 heart · click to add another';
+            }
+            return `${count} hearts · click to add another`;
+        },
         seek_style: function () {
             return {'--progress': `${this.seek_progress_pct}%`};
         },
@@ -321,6 +390,75 @@ app.component('mini-player', {
             }
             const row = root.querySelector('.mini-player-list-row.active');
             row?.scrollIntoView({block: 'nearest', behavior: 'smooth'});
+        },
+        heart_current: function () {
+            if (!this.current_track) {
+                return;
+            }
+            this.spawn_celebration();
+            this.heart_popping = false;
+            this.$nextTick(() => {
+                this.heart_popping = true;
+            });
+            this.$emit(
+                'heart',
+                this.current_track.note_uid,
+                this.current_track.file_path,
+                this.current_time,
+                this.current_track.sha256,
+            );
+        },
+        next_particle_id: function () {
+            this._part_seq = (this._part_seq || 0) + 1;
+            return this._part_seq;
+        },
+        spawn_celebration: function () {
+            const spawned_ids = [];
+            const palette = ['#f472b6', '#fb7185', '#facc15', '#f9a8d4', '#fde68a', '#ec4899'];
+            const base_offsets = [
+                {x: -34, y: -22, delay: 0},
+                {x: -16, y: -36, delay: 20},
+                {x: 14,  y: -38, delay: 40},
+                {x: 36,  y: -20, delay: 30},
+                {x: 30,  y: 20,  delay: 60},
+                {x: -28, y: 22,  delay: 50},
+            ];
+
+            const ring_id = this.next_particle_id();
+            spawned_ids.push(ring_id);
+            this.particles.push({id: ring_id, kind: 'ring'});
+
+            base_offsets.forEach((offset, i) => {
+                const jitter_x = Math.round((Math.random() - 0.5) * 10);
+                const jitter_y = Math.round((Math.random() - 0.5) * 10);
+                const id = this.next_particle_id();
+                spawned_ids.push(id);
+                this.particles.push({
+                    id,
+                    kind: 'particle',
+                    style: {
+                        '--x': `${offset.x + jitter_x}px`,
+                        '--y': `${offset.y + jitter_y}px`,
+                        '--color': palette[i % palette.length],
+                        animationDelay: `${offset.delay}ms`,
+                    },
+                });
+            });
+
+            const plus_x = Math.round((Math.random() - 0.5) * 26);
+            const plus_id = this.next_particle_id();
+            const next_count = (this.current_track?.heart_count || 0) + 1;
+            spawned_ids.push(plus_id);
+            this.particles.push({
+                id: plus_id,
+                kind: 'plus',
+                text: `+${next_count}`,
+                style: {'--x': `${plus_x}px`},
+            });
+
+            setTimeout(() => {
+                this.particles = this.particles.filter(p => !spawned_ids.includes(p.id));
+            }, 1400);
         },
         persist_state: function () {
             const v = this.state;
@@ -1074,10 +1212,165 @@ css`
     .mini-player-list-row {
         width: 100%;
         display: grid;
-        grid-template-columns: minmax(0, 1fr) 34px;
+        grid-template-columns: minmax(0, 1fr) auto 34px;
         border-bottom: 1px solid #eef0f7;
         background: #fff;
         transition: background 0.12s;
+    }
+
+    .mini-player-list-heart {
+        display: inline-flex;
+        align-items: center;
+        gap: 3px;
+        padding: 0 8px;
+        color: #e0427a;
+        font-size: 11px;
+        font-weight: 700;
+        align-self: center;
+    }
+
+    .mini-player-list-heart-icon {
+        width: 13px;
+        height: 13px;
+        fill: #e0427a;
+        display: block;
+    }
+
+    .mini-player-list-heart-empty {
+        width: 0;
+        padding: 0;
+    }
+
+    .mini-player-heart {
+        position: relative;
+        overflow: visible;
+    }
+
+    .mini-player-heart-icon {
+        width: 15px;
+        height: 15px;
+        display: block;
+        overflow: visible;
+        transition: transform 0.18s ease-out;
+    }
+
+    .mini-player-heart-icon path {
+        fill: transparent;
+        stroke: #b6bfd5;
+        stroke-width: 2.2;
+        stroke-linejoin: round;
+        transition: fill 0.2s, stroke 0.2s;
+    }
+
+    .mini-player-heart:hover .mini-player-heart-icon path {
+        stroke: #ec4899;
+    }
+
+    .mini-player-heart-icon.liked path {
+        fill: #ec4899;
+        stroke: #ec4899;
+    }
+
+    .mini-player-heart-icon.tier-2 {
+        filter: drop-shadow(0 0 4px rgba(236, 72, 153, 0.55));
+    }
+
+    .mini-player-heart-icon.tier-3 {
+        filter: drop-shadow(0 0 7px rgba(236, 72, 153, 0.85));
+        animation: mini-player-heart-glow 2.4s ease-in-out infinite;
+    }
+
+    @keyframes mini-player-heart-glow {
+        0%, 100% { transform: scale(1); }
+        50%      { transform: scale(1.1); }
+    }
+
+    .mini-player-heart-icon.popping {
+        animation: mini-player-heart-pop 420ms cubic-bezier(0.2, 0.9, 0.35, 1);
+    }
+
+    @keyframes mini-player-heart-pop {
+        0%   { transform: scale(1); }
+        35%  { transform: scale(1.32); }
+        100% { transform: scale(1); }
+    }
+
+    .mini-player-particle {
+        position: absolute;
+        left: 50%;
+        top: 50%;
+        pointer-events: none;
+    }
+
+    .mini-player-particle-ring {
+        width: 26px;
+        height: 26px;
+        margin: -13px 0 0 -13px;
+        border: 2px solid rgba(236, 72, 153, 0.7);
+        border-radius: 999px;
+        opacity: 0;
+        animation: mini-player-ring 540ms ease-out forwards;
+    }
+
+    @keyframes mini-player-ring {
+        0%   { opacity: 0.85; transform: scale(0.45); }
+        100% { opacity: 0;    transform: scale(2.1); }
+    }
+
+    .mini-player-particle-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 999px;
+        background: var(--color, #f472b6);
+        opacity: 0;
+        transform: translate(-50%, -50%);
+        animation: mini-player-dot 650ms ease-out forwards;
+    }
+
+    @keyframes mini-player-dot {
+        0% {
+            opacity: 1;
+            transform: translate(-50%, -50%) scale(0.3);
+        }
+        70% {
+            opacity: 1;
+        }
+        100% {
+            opacity: 0;
+            transform: translate(calc(-50% + var(--x, 0px)), calc(-50% + var(--y, 0px))) scale(0.9);
+        }
+    }
+
+    .mini-player-particle-plus {
+        font-size: 18px;
+        font-weight: 800;
+        line-height: 1;
+        color: #f9a8d4;
+        text-shadow: 0 4px 14px rgba(236, 72, 153, 0.5);
+        font-variant-numeric: tabular-nums;
+        white-space: nowrap;
+        opacity: 0;
+        transform: translate(-50%, -50%);
+        animation: mini-player-plus 1200ms cubic-bezier(0.18, 0.9, 0.3, 1) forwards;
+    }
+
+    @keyframes mini-player-plus {
+        0% {
+            opacity: 0;
+            transform: translate(-50%, -50%) scale(0.65);
+        }
+        15% {
+            opacity: 1;
+            transform: translate(calc(-50% + var(--x, 0px) * 0.2), calc(-50% - 18px)) scale(1.15);
+        }
+        62% {
+            opacity: 1;
+            transform: translate(calc(-50% + var(--x, 0px) * 0.72), calc(-50% - 58px)) scale(1);
+        }
+        100% {
+            opacity: 0;
+            transform: translate(calc(-50% + var(--x, 0px)), calc(-50% - 82px)) scale(0.92);
+        }
     }
 
     .mini-player-list-row:hover {
