@@ -53,14 +53,14 @@ async function file_meta_cache({notes_root, notes_meta_root, relative})
     case 'video/quicktime':
         out.type = 'video';
         out.video = await shell_json(ffprobe(source_file));
-        out.video.format.filename = source.relative;
+        delete out.video.format.filename;
         break;
     case 'audio/mpeg':
     case 'audio/mp4':
     case 'audio/ogg':
         out.type = 'audio';
         out.audio = await shell_json(ffprobe(source_file));
-        out.audio.format.filename = source.relative;
+        delete out.audio.format.filename;
         break;
     case 'image/svg+xml':
     case 'image/gif':

@@ -61,7 +61,6 @@ app.component('mini-player', {
                 </template>
                 <div class="mini-player-cover-shade">
                     <div class="mini-player-title">{{ current_track?.title }}</div>
-                    <div class="mini-player-subtitle">{{ current_track?.note_label }}</div>
                 </div>
                 <button
                     v-on:pointerdown.stop
