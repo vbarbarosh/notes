@@ -361,7 +361,8 @@ const app = Vue.createApp({
                  v-on:drop="drop_note($event, note)"
                  v-bind:class="{dropping: dropping_note_uid === note.uid, active: (active_note?.uid === note.uid)}"
                  class="note-card">
-                <h2 class="flex-row-center gap5">
+                <h2 class="rel flex-row-center gap5">
+                    <note-calendar v-bind:value="note.uid" v-bind:data-u="note.uid" class="abs w64 h64" style="top:-32px;left:-96px;" />
                     <span class="note-date">{{ format_note_uid_date(note.uid) }}</span>
                     <span v-if="note_header_has_buttons(note)" class="note-header-separator">•</span>
                     <span v-if="note.name" class="note-name">{{ note.name }}</span>
@@ -1526,6 +1527,7 @@ app.mixin({
 <script src="js/components/notes-new.js"></script>
 <script src="js/components/notes-overview.js"></script>
 <script src="js/components/mini-player.js"></script>
+<script src="js/components/note-calendar.js"></script>
 <script src="js/components/terminal-panel.js"></script>
 <script src="js/components/vendor/fancybox.js"></script>
 <script src="js/components/vendor/markdown.js"></script>
