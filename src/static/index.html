@@ -6,6 +6,7 @@
     <link href="https://unpkg.com/@vbarbarosh/smcss@1.2.0/dist/reset.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.43.0/dist/tabler-icons.min.css" rel="stylesheet">
     <link href="css/theme.css" rel="stylesheet">
+    <link href="https://unpkg.com/@xterm/xterm@5.5.0/css/xterm.css" rel="stylesheet">
     <link id="smcss" href="https://unpkg.com/@vbarbarosh/smcss@1.2.0/dist/sm.css" rel="stylesheet">
     <title>notes</title>
     <style>
@@ -47,6 +48,8 @@
 <script src="https://unpkg.com/bluebird@3.7.2/js/browser/bluebird.js"></script>
 <script>Promise.config({warnings: {wForgottenReturn: false}});</script>
 <script src="https://unpkg.com/vue@3.5.12/dist/vue.global.js"></script>
+<script src="https://unpkg.com/@xterm/xterm@5.5.0/lib/xterm.js"></script>
+<script src="https://unpkg.com/@xterm/addon-fit@0.10.0/lib/addon-fit.js"></script>
 <script src="js/utils.js"></script>
 <script src="js/apis.js"></script>
 <script>
@@ -383,6 +386,11 @@ const app = Vue.createApp({
                         title="Extract YouTube MP3">
                         🎵
                     </button>
+                    <button
+                        v-on:click.stop="click_terminal(note)"
+                        title="Open a terminal in this note">
+                        🖥️
+                    </button>
                     <a
                         v-if="note_has_pdf(note)"
                         v-bind:href="'/pdf.html?note=' + note.uid"
@@ -397,6 +405,13 @@ const app = Vue.createApp({
                 <div v-if="note_jobs(note).length" class="job-list">
                     <div v-for="job in note_jobs(note)" v-bind:key="job.uid" class="job-row">
                         <span v-bind:class="['job-status', job.bucket]">{{ job_label(job) }}</span>
+                        <button
+                            v-if="(job.job_kind === 'terminal' && job.bucket === 'active')"
+                            v-on:click="open_terminal(job)"
+                            type="button"
+                            title="Open terminal">
+                            Open
+                        </button>
                         <button
                             v-if="job.bucket === 'finished' || job.bucket === 'failed'"
                             type="button"
@@ -569,6 +584,11 @@ const app = Vue.createApp({
                 allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
                 allowfullscreen></iframe>
         </div>
+
+        <terminal-panel
+            v-if="terminal_job"
+            v-on:close="close_terminal"
+            v-bind:job="terminal_job" />
     `,
     data: function () {
         return {
@@ -593,6 +613,7 @@ const app = Vue.createApp({
             jobs_event_source: null,
             jobs_refresh_timer: null,
             seen_terminal_job_uids: [],
+            terminal_job: null,
             file_queries: {},
             pending_note_removals: [],
             pending_file_removals: [],
@@ -932,7 +953,8 @@ const app = Vue.createApp({
             return /\.(m4v|mkv|mov|mp4|ogv|webm)$/i.test(String(file.path || ''));
         },
         note_header_has_buttons: function (note) {
-            return !!(note.youtube_items.length || this.note_has_pdf(note));
+            // The terminal button is always shown, so the header always has buttons.
+            return true;
         },
         format_note_uid_date: function (uid) {
             const match = String(uid || '').match(/^(\d{4})(\d{2})(\d{2})_(\d{2})(\d{2})(\d{2})/);
@@ -1405,6 +1427,17 @@ const app = Vue.createApp({
             await api_jobs_create({job_name: 'youtube-mp3', note_uid: note.uid});
             await this.refresh_jobs();
         },
+        click_terminal: async function (note) {
+            const job = await api_jobs_create({job_name: 'terminal', note_uid: note.uid});
+            this.terminal_job = job;
+            await this.refresh_jobs();
+        },
+        open_terminal: function (job) {
+            this.terminal_job = job;
+        },
+        close_terminal: function () {
+            this.terminal_job = null;
+        },
         click_job_confirm: async function (job) {
             await api_jobs_confirm({job_uid: job.uid});
             await this.refresh_jobs();
@@ -1493,6 +1526,7 @@ app.mixin({
 <script src="js/components/notes-new.js"></script>
 <script src="js/components/notes-overview.js"></script>
 <script src="js/components/mini-player.js"></script>
+<script src="js/components/terminal-panel.js"></script>
 <script src="js/components/vendor/fancybox.js"></script>
 <script src="js/components/vendor/markdown.js"></script>
 <script src="js/directives/autofocus.js"></script>

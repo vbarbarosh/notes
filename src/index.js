@@ -52,20 +52,22 @@ async function main()
         next();
     });
 
+    const jobs_routes = require('./routes/jobs');
+
     express_routes(app, [
         {req: 'GET /', fn: echo},
         {req: 'GET /r/*.meta', fn: data_meta},
         {req: 'GET /r/*', fn: data_fetch},
         {req: 'GET /t/:size/*', fn: thumbnail},
         ...require('./routes/notes'),
-        ...require('./routes/jobs'),
+        ...jobs_routes,
         ...require('./routes/files'),
         {req: 'ALL *', fn: page404},
     ]);
 
     app.use(error_handler);
 
-    await express_run(app, 3000, process.env.LISTEN || 'localhost');
+    await express_run(app, 3000, process.env.LISTEN || 'localhost', jobs_routes.attach_ws);
 }
 
 async function echo(req, res)

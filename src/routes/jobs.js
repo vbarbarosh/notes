@@ -11,9 +11,14 @@ const fs_rename = require('@vbarbarosh/node-helpers/src/fs_rename');
 const fs_write = require('@vbarbarosh/node-helpers/src/fs_write');
 const fs_write_json = require('@vbarbarosh/node-helpers/src/fs_write_json');
 const make = require('@vbarbarosh/type-helpers');
+const node_pty = require('node-pty');
 const path = require('path');
+const {WebSocketServer, WebSocket} = require('ws');
+
+const TERMINAL_SCROLLBACK_MAX = 256 * 1024;
 
 const jobs_events = new Map();
+const terminal_sessions = new Map();
 let shutdown_hooks_bound = false;
 
 const routes = [
@@ -114,6 +119,12 @@ async function jobs_create(req, res)
 
     const note_root_name = await resolve_note_root_name(req, note_uid);
     const note_root = fs_path_resolve(req.user_dir, 'notes', note_root_name);
+
+    if (job_name === 'terminal') {
+        await jobs_create_terminal(req, res, note_root_name, note_root);
+        return;
+    }
+
     const run_file = fs_path_resolve(__dirname, '..', 'jobs', job_name, 'bin', 'run');
 
     if (!await fs_exists(run_file)) {
@@ -295,6 +306,258 @@ function spawn_job_process({job_root, run_file, note_root, status})
     });
 }
 
+// Terminal jobs deviate from the batch `bin/run` contract: instead of a
+// spawn-and-redirect process, they keep an interactive bash PTY alive as a
+// child of this server process. The PTY is reached over a WebSocket (see
+// `attach_ws`), so the session has to be tracked in memory.
+async function jobs_create_terminal(req, res, note_root_name, note_root)
+{
+    bind_shutdown_hooks();
+    await ensure_jobs_dirs(req);
+
+    const uid = await next_job_uid(req, 'terminal');
+    const job_root = fs_path_resolve(jobs_bucket_root(req, 'active'), uid);
+    const now = new Date().toJSON();
+    const status = {
+        pid: null,
+        uid,
+        user_uid: req.user_uid,
+        note_uid: note_root_name,
+        job_name: 'terminal',
+        job_kind: 'terminal',
+        status: 'queued',
+        user_friendly_status: 'Starting terminal',
+        created_at: now,
+        started_at: null,
+        finished_at: null,
+    };
+
+    await fs_mkdirp(fs_path_resolve(job_root, 'tmp'));
+    await write_job_status(job_root, status);
+    spawn_terminal_session({job_root, note_root, status});
+    emit_jobs_changed(req.user_uid);
+
+    res.status(201).send(await read_job_status(job_root));
+}
+
+function spawn_terminal_session({job_root, note_root, status})
+{
+    const shell = process.env.SHELL || 'bash';
+    const pty = node_pty.spawn(shell, [], {
+        name: 'xterm-256color',
+        cols: 80,
+        rows: 24,
+        cwd: note_root,
+        env: {...process.env, TERM: 'xterm-256color'},
+    });
+
+    const session = {
+        uid: status.uid,
+        user_uid: status.user_uid,
+        job_root,
+        pty,
+        sockets: new Set(),
+        scrollback: [],
+        scrollback_size: 0,
+        finished: false,
+    };
+    terminal_sessions.set(session_key(status.user_uid, status.uid), session);
+
+    const running_status = {
+        ...status,
+        pid: pty.pid,
+        status: 'running',
+        user_friendly_status: 'Terminal running',
+        started_at: new Date().toJSON(),
+    };
+    write_job_status(job_root, running_status)
+        .then(() => emit_jobs_changed(running_status.user_uid))
+        .catch(console.error);
+
+    pty.onData(function (data) {
+        // Keep a bounded scrollback so a socket that connects (or reconnects)
+        // after the shell already printed something still sees recent output.
+        session.scrollback.push(data);
+        session.scrollback_size += data.length;
+        while (session.scrollback_size > TERMINAL_SCROLLBACK_MAX && session.scrollback.length > 1) {
+            session.scrollback_size -= session.scrollback.shift().length;
+        }
+        for (const ws of session.sockets) {
+            ws_send_output(ws, data);
+        }
+    });
+
+    pty.onExit(function ({exitCode, signal}) {
+        finish_terminal_session(session, exitCode, signal).catch(console.error);
+    });
+}
+
+async function finish_terminal_session(session, exit_code, signal)
+{
+    if (session.finished) {
+        return;
+    }
+    session.finished = true;
+    terminal_sessions.delete(session_key(session.user_uid, session.uid));
+
+    for (const ws of session.sockets) {
+        try {
+            ws.close(1000, 'terminal exited');
+        }
+        catch (error) {
+        }
+    }
+    session.sockets.clear();
+
+    const ok = !exit_code;
+    let current;
+    try {
+        current = await read_job_status(session.job_root);
+    }
+    catch (error) {
+        current = {
+            uid: session.uid,
+            user_uid: session.user_uid,
+            job_name: 'terminal',
+            job_kind: 'terminal',
+        };
+    }
+
+    await finish_job(session.job_root, {
+        ...current,
+        status: ok ? 'finished' : 'failed',
+        user_friendly_status: ok
+            ? 'Terminal closed'
+            : `Terminal exited (code ${exit_code}${signal ? `, signal ${signal}` : ''})`,
+        finished_at: current.finished_at || new Date().toJSON(),
+    }, ok ? null : new Error(`Terminal exited with code ${exit_code}${signal ? ` and signal ${signal}` : ''}`));
+}
+
+// WebSocket transport for terminal jobs. Attached to the HTTP server in
+// `index.js` via `express_run`'s on_server hook.
+function attach_ws(server)
+{
+    bind_shutdown_hooks();
+
+    const wss = new WebSocketServer({noServer: true});
+
+    server.on('upgrade', function (req, socket, head) {
+        let pathname;
+        try {
+            pathname = new URL(req.url, 'http://localhost').pathname;
+        }
+        catch (error) {
+            socket.destroy();
+            return;
+        }
+
+        const match = pathname.match(/^\/api\/v1\/jobs\/([^/]+)\/tty$/);
+        if (!match) {
+            socket.destroy();
+            return;
+        }
+
+        const uid = decodeURIComponent(match[1]);
+        if (!is_safe_job_uid(uid)) {
+            socket.destroy();
+            return;
+        }
+
+        const user_uid = resolve_ws_user(req);
+        if (user_uid === false) {
+            socket.destroy();
+            return;
+        }
+
+        const session = terminal_sessions.get(session_key(user_uid, uid));
+        if (!session || session.finished) {
+            socket.destroy();
+            return;
+        }
+
+        wss.handleUpgrade(req, socket, head, function (ws) {
+            attach_terminal_socket(session, ws);
+        });
+    });
+}
+
+function attach_terminal_socket(session, ws)
+{
+    session.sockets.add(ws);
+
+    // Replay recent output so the terminal is not blank right after connecting.
+    if (session.scrollback.length) {
+        ws_send_output(ws, session.scrollback.join(''));
+    }
+
+    ws.on('message', function (raw) {
+        let msg;
+        try {
+            msg = JSON.parse(raw.toString());
+        }
+        catch (error) {
+            return;
+        }
+
+        if (msg.type === 'input' && typeof msg.data === 'string') {
+            if (!session.finished) {
+                session.pty.write(msg.data);
+            }
+        }
+        else if (msg.type === 'resize') {
+            const cols = Math.max(1, Math.min(1000, msg.cols | 0));
+            const rows = Math.max(1, Math.min(1000, msg.rows | 0));
+            if (!session.finished) {
+                try {
+                    session.pty.resize(cols, rows);
+                }
+                catch (error) {
+                }
+            }
+        }
+    });
+
+    ws.on('close', function () {
+        session.sockets.delete(ws);
+    });
+    ws.on('error', function () {
+        session.sockets.delete(ws);
+    });
+}
+
+function ws_send_output(ws, data)
+{
+    if (ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({type: 'output', data}));
+    }
+}
+
+// Resolves the user a WebSocket upgrade belongs to. The browser WebSocket API
+// can not set custom headers, so the user is read from the `user` query param
+// (falling back to the `x-auth-user` header for non-browser clients). Returns
+// `false` when an explicit value is malformed so the upgrade can be rejected.
+function resolve_ws_user(req)
+{
+    let user = req.headers['x-auth-user'];
+    if (!user) {
+        try {
+            user = new URL(req.url, 'http://localhost').searchParams.get('user');
+        }
+        catch (error) {
+            user = null;
+        }
+    }
+    if (user && /[^0-9a-zA-Z_-]/.test(user)) {
+        return false;
+    }
+    return user || null;
+}
+
+function session_key(user_uid, uid)
+{
+    return `${user_uid || ''}::${uid}`;
+}
+
 async function finish_job_process(job_root, code, signal)
 {
     const current = await read_job_status(job_root);
@@ -439,6 +702,14 @@ function close_jobs_event_streams()
         }
     }
     jobs_events.clear();
+
+    for (const session of terminal_sessions.values()) {
+        try {
+            session.pty.kill();
+        }
+        catch (error) {
+        }
+    }
 }
 
 function jobs_event_user_key(user_uid)
@@ -492,3 +763,4 @@ function fcmp_strings_ascii(a, b)
 }
 
 module.exports = routes;
+module.exports.attach_ws = attach_ws;

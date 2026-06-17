@@ -1,9 +1,13 @@
-function express_run(app, port = 3000, host = 'localhost')
+function express_run(app, port = 3000, host = 'localhost', on_server = null)
 {
     const server = app.listen(port, host, function () {
         const {address, port} = this.address();
         console.log(`[express_run] Listening to ${address}:${port}`);
     });
+
+    if (on_server) {
+        on_server(server);
+    }
 
     process.on('SIGTERM', sigterm);
     process.on('SIGINT', sigint);

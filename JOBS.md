@@ -278,6 +278,84 @@ data/jobs/active/<job_uid>/tmp/<video_id>.mp3
 The job should be idempotent at the output-file level. If the final MP3 already
 exists, the job should skip it instead of creating a duplicate.
 
+## Terminal Job
+
+Job name:
+
+```text
+terminal
+```
+
+The terminal job is an **interactive** job. Unlike the batch jobs above, it does
+not run a `src/jobs/<job_name>/bin/run` handler to completion. Instead it keeps
+an interactive `bash` shell alive and lets the user drive it from the browser
+like a normal terminal.
+
+Because of this, the terminal job intentionally deviates from the standard
+handler execution contract:
+
+- There is no `src/jobs/terminal/bin/run` file.
+- The shell runs in a real pseudo-terminal (PTY), not with redirected pipes, so
+  it has a prompt, line editing, colors, and job control.
+- The shell process is a child of the app server process (not a fully detached
+  process), because the server pipes terminal I/O to the browser.
+
+Everything else still follows the jobs model: the job gets its own directory
+under `data/jobs/active/<job_uid>/`, has a required `status.json`, and is moved
+through the lifecycle buckets.
+
+### Status
+
+`status.json` for a terminal job carries an extra field:
+
+```json
+{
+  "job_name": "terminal",
+  "job_kind": "terminal",
+  "status": "running",
+  "user_friendly_status": "Terminal running"
+}
+```
+
+`job_kind: "terminal"` lets the UI tell interactive jobs apart from batch jobs.
+
+### Working Directory
+
+The shell starts with its current working directory set to the note path:
+
+```text
+data/notes/<note_uid>/
+```
+
+### Transport
+
+Terminal I/O travels over a WebSocket, since the existing job event stream
+(`GET /api/v1/jobs/events`) is one-directional and can not carry keystrokes.
+
+```text
+WS /api/v1/jobs/<job_uid>/tty
+```
+
+Messages are JSON:
+
+- client → server: `{"type": "input", "data": "..."}` — keystrokes.
+- client → server: `{"type": "resize", "cols": <n>, "rows": <n>}` — terminal size.
+- server → client: `{"type": "output", "data": "..."}` — shell output.
+
+The server keeps a bounded scrollback per session and replays it when a socket
+connects, so a reattaching client is not greeted by a blank screen.
+
+### Lifecycle
+
+- Created with `POST /api/v1/jobs/terminal` (body `{note_uid}`), like other jobs.
+- Closing the browser panel only detaches the WebSocket; the shell keeps running
+  and the job stays `active`, so it can be reopened from its job row.
+- Typing `exit` (or Ctrl-D) ends the shell. The job is then moved to `finished`
+  (or `failed` on a non-zero exit code).
+- If the server stops, its in-memory PTY sessions can not survive. A terminal
+  job left in `active/` with a dead `pid` is recovered as a finished/failed job
+  on the next jobs scan.
+
 ## Safety Rules
 
 - Every job must have `status.json`.
