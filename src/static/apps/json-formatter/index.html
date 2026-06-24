@@ -1,0 +1,426 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>JSON Auto Formatter</title>
+  <style>
+    :root {
+      --bg: #f6f8ff;
+      --panel: #ffffff;
+      --muted: #667085;
+      --text: #0f172a;
+      --accent: #3b82f6;
+      --danger: #ef4444;
+      --ok: #16a34a;
+      --border: #e5eaf2;
+      --focus: #3a60ff33;
+      --radius: 14px;
+    }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; }
+    body {
+      margin: 0;
+      font: 14px/1.4 system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, "Helvetica Neue", Arial;
+      color: var(--text);
+      background: linear-gradient(120deg, #f7f9ff, #f2f5ff 60%, #eef2ff);
+    }
+    header { position: sticky; top: 0; z-index: 5; backdrop-filter: saturate(140%) blur(8px); background: #ffffffcc; border-bottom: 1px solid var(--border); }
+    .bar { max-width: 1200px; margin: 0 auto; padding: 12px 16px; display: grid; grid-template-columns: 1fr auto; gap: 12px; align-items: center; }
+    .title { font-weight: 700; letter-spacing: .3px; }
+
+    .actions { display: flex; flex-wrap: wrap; gap: 8px; }
+    button, select, .chip { height: 34px; padding: 0 12px; border-radius: 10px; border: 1px solid var(--border); background: #ffffff; color: var(--text); cursor: pointer; display: inline-flex; align-items: center; gap: 8px; font-weight: 600; transition: transform .06s ease, background .2s ease, border-color .2s ease; }
+    button:hover { background: #eef2ff; }
+    button:active { transform: translateY(1px); }
+    button.primary { background: linear-gradient(180deg, #2b51ff, #2a3df0); border-color: #2a44ff; color: #fff; }
+    button.primary:hover { filter: brightness(1.08); }
+    button.warn { background: #fff5f6; border-color: #ffd6dc; }
+
+    select { cursor: default; }
+
+    .wrap { max-width: 1200px; margin: 16px auto; padding: 0 16px 20px; }
+    .panes { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    @media (max-width: 900px) { .panes { grid-template-columns: 1fr; } }
+
+    .panel { display: grid; grid-template-rows: auto 1fr auto; gap: 10px; background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px; min-height: 42vh; box-shadow: 0 8px 24px #00000012; }
+    .panel h2 { margin: 0; font-size: 13px; font-weight: 700; color: var(--muted); letter-spacing: .4px; }
+
+    textarea, pre.output { width: 100%; height: 50vh; resize: vertical; overflow: auto; background: #ffffff; color: var(--text); border: 1px solid var(--border); border-radius: 12px; padding: 12px 14px; font: 12.5px/1.5 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace; outline: none; tab-size: 2; white-space: pre-wrap; word-break: break-word; }
+    textarea:focus { box-shadow: 0 0 0 3px var(--focus); }
+    pre.output { margin: 0; white-space: pre; }
+
+    .status { display: flex; justify-content: space-between; gap: 10px; color: var(--muted); font-size: 12px; }
+    .status .err { color: var(--danger); }
+    .status .ok { color: var(--ok); }
+
+    .opts { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+    label.opt { display: inline-flex; gap: 6px; align-items: center; font-size: 12.5px; color: var(--muted); }
+    input[type="checkbox"] { width: 16px; height: 16px; }
+
+    .gutter { font-size: 12px; color: var(--muted); }
+
+    .footer { text-align: center; margin-top: 16px; color: #6b7280; font-size: 12px; }
+    .kbd { padding: 2px 6px; border: 1px solid var(--border); border-bottom-width: 2px; border-radius: 6px; background: #f3f4f6; font-family: ui-monospace, monospace; }
+    .selfcheck { margin-top: 6px; font-size: 12px; color: #6b7280; }
+    .selfcheck b.pass { color: #16a34a; }
+    .selfcheck b.fail { color: #ef4444; }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="bar">
+      <div class="title">🧩 JSON Auto Formatter</div>
+      <div class="actions">
+        <button id="btnFormat" class="primary" title="Format (Ctrl/Cmd+Enter)">Format</button>
+        <button id="btnMinify" title="Minify JSON">Minify</button>
+        <button id="btnCopy" title="Copy formatted JSON">Copy</button>
+        <button id="btnDownload" title="Download formatted JSON">Download</button>
+        <button id="btnLoadSample" title="Load a sample">Sample</button>
+        <label class="opt" title="Drop a .json file or click to load">
+          <input id="fileInput" type="file" accept="application/json,.json,.txt" style="display:none" />
+          <button id="btnOpen">Open…</button>
+        </label>
+        <button id="btnClear" class="warn" title="Clear input">Clear</button>
+      </div>
+    </div>
+  </header>
+
+  <div class="wrap">
+    <div class="panes">
+      <section class="panel" id="left">
+        <h2>Input</h2>
+        <textarea id="input" spellcheck="false" placeholder='Paste JSON here…'></textarea>
+        <div class="status">
+          <div class="gutter">Chars: <span id="inChars">0</span> · Lines: <span id="inLines">0</span></div>
+          <div class="err" id="errBox" hidden></div>
+        </div>
+      </section>
+
+      <section class="panel" id="right">
+        <div style="display:flex; justify-content:space-between; align-items:center; gap:10px">
+          <h2>Output</h2>
+          <div class="opts">
+            <label class="opt">Indent
+              <select id="indentSel">
+                <option value="4" selected>4</option>
+                <option value="2">2</option>
+                <option value="tab">Tab</option>
+              </select>
+            </label>
+            <label class="opt" title="Sort object keys alphabetically (deep)"><input id="optSort" type="checkbox" />Sort keys</label>
+            <label class="opt" title="Produce compact JSON without spaces"><input id="optMin" type="checkbox" />Minify</label>
+            <label class="opt" title="Automatically reformat on input change"><input id="optAuto" type="checkbox" checked />Auto</label>
+            <label class="opt" title="Be tolerant: strip //comments, /*block comments*/, trailing commas; accept single-quoted strings & unquoted keys"><input id="optTolerant" type="checkbox" />Tolerant</label>
+            <label class="opt" title="Output JS-style keys without quotes where safe (identifiers only)"><input id="optUnquoteKeys" type="checkbox" />Unquote keys</label>
+            <label class="opt" title="Arrays of plain objects → one object per line (pretty mode only)"><input id="optOnePerLine" type="checkbox" />One‑per‑line</label>
+          </div>
+        </div>
+        <pre class="output" id="output" aria-live="polite"></pre>
+        <div class="status">
+          <div class="gutter">Bytes: <span id="outBytes">0</span> · Lines: <span id="outLines">0</span></div>
+          <div class="ok" id="okBox" hidden>Formatted ✓</div>
+        </div>
+      </section>
+    </div>
+
+    <div class="footer">
+      Tips: <span class="kbd">Ctrl/⌘ + Enter</span> to format · drop a file onto the input · settings persist locally
+      <div class="selfcheck" id="selfcheck"></div>
+    </div>
+  </div>
+
+  <script>
+  (function(){
+    // ========= DOM refs =========
+    var input = document.getElementById('input');
+    var output = document.getElementById('output');
+    var errBox = document.getElementById('errBox');
+    var okBox = document.getElementById('okBox');
+    var inChars = document.getElementById('inChars');
+    var inLines = document.getElementById('inLines');
+    var outBytes = document.getElementById('outBytes');
+    var outLines = document.getElementById('outLines');
+
+    var indentSel = document.getElementById('indentSel');
+    var optSort = document.getElementById('optSort');
+    var optMin = document.getElementById('optMin');
+    var optAuto = document.getElementById('optAuto');
+    var optTolerant = document.getElementById('optTolerant');
+    var optUnquoteKeys = document.getElementById('optUnquoteKeys');
+    var optOnePerLine = document.getElementById('optOnePerLine');
+
+    var btnFormat = document.getElementById('btnFormat');
+    var btnMinify = document.getElementById('btnMinify');
+    var btnCopy = document.getElementById('btnCopy');
+    var btnDownload = document.getElementById('btnDownload');
+    var btnLoadSample = document.getElementById('btnLoadSample');
+    var btnOpen = document.getElementById('btnOpen');
+    var btnClear = document.getElementById('btnClear');
+    var fileInput = document.getElementById('fileInput');
+
+    // ========= init =========
+    loadPrefs();
+    updateInputStats();
+    if (optAuto.checked) scheduleFormat();
+
+    // ========= events =========
+    input.addEventListener('input', function(){ updateInputStats(); if (optAuto.checked) scheduleFormat(); });
+    input.addEventListener('dragover', function(e){ e.preventDefault(); });
+    input.addEventListener('drop', function(e){ e.preventDefault(); var f = e.dataTransfer.files && e.dataTransfer.files[0]; if (f) readFileAsText(f, function(text){ input.value = text; updateInputStats(); if (optAuto.checked) formatNow(); }); });
+
+    indentSel.addEventListener('change', function(){ savePrefs(); if (optAuto.checked) scheduleFormat(); });
+    optSort.addEventListener('change', function(){ savePrefs(); if (optAuto.checked) scheduleFormat(); });
+    optMin.addEventListener('change', function(){ savePrefs(); if (optAuto.checked) scheduleFormat(); });
+    optAuto.addEventListener('change', function(){ savePrefs(); });
+    optTolerant.addEventListener('change', function(){ savePrefs(); if (optAuto.checked) scheduleFormat(); });
+    optUnquoteKeys.addEventListener('change', function(){ savePrefs(); if (optAuto.checked) scheduleFormat(); });
+    optOnePerLine.addEventListener('change', function(){ savePrefs(); if (optAuto.checked) scheduleFormat(); });
+
+    btnFormat.addEventListener('click', function(){ formatNow(); });
+    btnMinify.addEventListener('click', function(){ optMin.checked = true; savePrefs(); formatNow(); });
+    btnCopy.addEventListener('click', function(){ copyOutput(); });
+    btnDownload.addEventListener('click', function(){ downloadOutput(); });
+    btnLoadSample.addEventListener('click', function(){ loadSample(); });
+    btnOpen.addEventListener('click', function(){ fileInput.click(); });
+    btnClear.addEventListener('click', function(){ input.value=''; updateInputStats(); output.textContent=''; updateOutputStats(); showOk(false); showErr(''); });
+
+    fileInput.addEventListener('change', function(){ if (!fileInput.files || !fileInput.files[0]) return; readFileAsText(fileInput.files[0], function(text){ input.value = text; updateInputStats(); if (optAuto.checked) formatNow(); }); fileInput.value = ''; });
+
+    document.addEventListener('keydown', function(e){ if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); formatNow(); } });
+
+    var debounceTimer = null; function scheduleFormat(){ clearTimeout(debounceTimer); debounceTimer = setTimeout(formatNow, 250); }
+
+    // ========= core =========
+    function formatNow(){
+      showOk(false); showErr('');
+      var text = input.value;
+      if (!text.trim()) { output.textContent = ''; updateOutputStats(); return; }
+      try {
+        var parsed = optTolerant.checked ? parseTolerant(text) : JSON.parse(text);
+        if (optSort.checked) parsed = sortDeep(parsed);
+        var indent = optMin.checked ? 0 : (indentSel.value === 'tab' ? '\t' : Number(indentSel.value));
+        var formatted = (optOnePerLine.checked && !optMin.checked) ? stringifyOnePerLine(parsed, indent) : JSON.stringify(parsed, null, indent);
+        if (optUnquoteKeys.checked) { formatted = unquoteKeys(formatted); formatted = addDanglingCommas(formatted); }
+        output.textContent = formatted + (formatted && !optMin.checked ? '\n' : '');
+        updateOutputStats();
+        showOk(true);
+      } catch (err) {
+        updateOutputStats();
+        var loc = findErrorPosition(err, text);
+        var msg = err && err.message ? String(err.message) : 'Invalid JSON';
+        if (loc) msg += ' (line ' + loc.line + ', col ' + loc.col + ')';
+        showErr(msg);
+        if (loc && typeof input.setSelectionRange === 'function') { try { input.setSelectionRange(loc.index, loc.index + 1); input.focus(); } catch(_){} }
+      }
+    }
+
+    function findErrorPosition(err, text){ try { var m = /position (\d+)/i.exec(err && err.message ? String(err.message) : ''); if (!m) return null; var idx = Number(m[1]); if (!(idx >= 0)) return null; var pre = text.slice(0, idx); var lines = pre.split(/\n/); return { index: idx, line: lines.length, col: lines[lines.length-1].length + 1 }; } catch(_) { return null; } }
+
+    function copyOutput(){ var txt = output.textContent || ''; if (!txt) return; if (navigator.clipboard && navigator.clipboard.writeText) { navigator.clipboard.writeText(txt).then(function(){ flashOk(); }).catch(function(){ fallbackCopy(txt); }); } else fallbackCopy(txt); }
+    function fallbackCopy(txt){ var t = document.createElement('textarea'); t.value = txt; document.body.appendChild(t); t.select(); try { document.execCommand('copy'); flashOk(); } catch(_){} document.body.removeChild(t); }
+    function flashOk(){ okBox.hidden = false; okBox.textContent = 'Copied ✓'; setTimeout(function(){ okBox.hidden = true; okBox.textContent = 'Formatted ✓'; }, 700); }
+
+    function downloadOutput(){ var txt = output.textContent || ''; if (!txt) return; var blob = new Blob([txt], {type:'application/json'}); var url = URL.createObjectURL(blob); var a = document.createElement('a'); a.href = url; a.download = 'formatted.json'; document.body.appendChild(a); a.click(); setTimeout(function(){ URL.revokeObjectURL(url); document.body.removeChild(a); }, 0); }
+
+    function readFileAsText(file, cb){ var fr = new FileReader(); fr.onload = function(){ cb(String(fr.result || '')); }; fr.onerror = function(){ showErr('Failed to read file'); }; fr.readAsText(file); }
+
+    function loadSample(){ var sample = { id: 123, name: "Acme Shop", created_at: "2025-08-09T12:00:00Z", features: ["search", "checkout", "analytics"], users: [{id:1,name:"Alice"},{id:2,name:"Bob"}], meta: { currency: "USD", locales: ["en-US", "fr-FR"], active: true } }; input.value = JSON.stringify(sample, null, 4); updateInputStats(); if (optAuto.checked) scheduleFormat(); }
+
+    function updateInputStats(){ var t = input.value || ''; inChars.textContent = t.length; inLines.textContent = t ? (t.match(/\n/g)||[]).length + 1 : 0; }
+    function updateOutputStats(){ var t = output.textContent || ''; outBytes.textContent = new Blob([t]).size; outLines.textContent = t ? (t.match(/\n/g)||[]).length + 1 : 0; }
+
+    function showErr(msg){ errBox.textContent = msg || ''; errBox.hidden = !msg; }
+    function showOk(v){ okBox.hidden = !v; if (v) okBox.textContent = 'Formatted ✓'; }
+
+    function savePrefs(){ try { var prefs = { indent: indentSel.value, sort: !!optSort.checked, min: !!optMin.checked, auto: !!optAuto.checked, tolerant: !!optTolerant.checked, unquote: !!optUnquoteKeys.checked, onePerLine: !!optOnePerLine.checked }; localStorage.setItem('jsonfmt:prefs', JSON.stringify(prefs)); } catch(_){} }
+    function loadPrefs(){ try { var s = localStorage.getItem('jsonfmt:prefs'); if (!s) return; var p = JSON.parse(s); if (p && typeof p === 'object') { if (p.indent) indentSel.value = String(p.indent); optSort.checked = !!p.sort; optMin.checked = !!p.min; optAuto.checked = p.auto !== false; optTolerant.checked = !!p.tolerant; optUnquoteKeys.checked = !!p.unquote; optOnePerLine.checked = !!p.onePerLine; } } catch(_){} }
+
+    function sortDeep(v){ if (Array.isArray(v)) { var out = new Array(v.length); for (var i=0;i<v.length;i++) out[i] = sortDeep(v[i]); return out; } if (v && typeof v === 'object') { var keys = Object.keys(v).sort(); var obj = {}; for (var k=0;k<keys.length;k++) { var key = keys[k]; obj[key] = sortDeep(v[key]); } return obj; } return v; }
+
+    // =====================
+    // Tolerant JSON parsing
+    // =====================
+    function parseTolerant(text){ var cleaned = toStrictJson(String(text || '')); return JSON.parse(cleaned); }
+    function _isWS(ch){ var c = ch && ch.charCodeAt ? ch.charCodeAt(0) : 0; return c === 9 || c === 10 || c === 11 || c === 12 || c === 13 || c === 32; }
+
+    function toStrictJson(s){
+      // Removes comments, normalizes strings to double quotes, quotes unquoted keys, and strips trailing commas
+      if (s && s.charCodeAt && s.charCodeAt(0) === 0xFEFF) s = s.slice(1);
+      var out = '';
+      var i = 0, n = s.length;
+      var inStr = false, q = '"', esc = false;
+      var inLine = false, inBlock = false;
+      var raw = '';
+      while (i < n) {
+        var ch = s[i];
+        var next = (i + 1 < n) ? s[i + 1] : '';
+        if (inLine) { if (ch === '\n') { inLine = false; out += ch; } i++; continue; }
+        if (inBlock) { if (ch === '*' && next === '/') { inBlock = false; i += 2; continue; } i++; continue; }
+        if (inStr) {
+          if (esc) { raw += ch; esc = false; i++; continue; }
+          if (ch === '\\') { raw += ch; esc = true; i++; continue; }
+          if (ch === q) { out += '"' + (q === "'" ? singleToDouble(raw) : raw) + '"'; inStr = false; raw = ''; i++; continue; }
+          raw += ch; i++; continue;
+        }
+        if (ch === '"' || ch === "'") { inStr = true; q = ch; raw = ''; i++; continue; }
+        if (ch === '/' && next === '/') { inLine = true; i += 2; continue; }
+        if (ch === '/' && next === '*') { inBlock = true; i += 2; continue; }
+        out += ch; i++;
+      }
+      // quote unquoted keys
+      var src = out; out = ''; i = 0; n = src.length; inStr = false; esc = false;
+      while (i < n) {
+        var c = src[i];
+        if (inStr) { out += c; if (esc) { esc = false; } else if (c === '\\') { esc = true; } else if (c === '"') { inStr = false; } i++; continue; }
+        if (c === '"') { inStr = true; out += c; i++; continue; }
+        if (c === '{' || c === ',') {
+          out += c; i++;
+          while (i < n && _isWS(src[i])) { out += src[i]; i++; }
+          if (src[i] === '"') { continue; }
+          var j = i; var ch0 = src[i] || '';
+          var isId = /[A-Za-z_$]/.test(ch0); var isNum = !isId && /[0-9-]/.test(ch0);
+          if (isId) { j++; while (j < n && /[A-Za-z0-9_$]/.test(src[j])) j++; }
+          else if (isNum) { j++; while (j < n && /[0-9._eE+-]/.test(src[j])) j++; }
+          if (j > i) { var k = j; while (k < n && _isWS(src[k])) k++; if (src[k] === ':') { out += '"' + src.slice(i, j) + '"' + src.slice(j, k + 1); i = k + 1; continue; } }
+          continue;
+        }
+        out += c; i++;
+      }
+      // remove trailing commas
+      src = out; out = ''; i = 0; n = src.length; inStr = false; esc = false;
+      while (i < n) {
+        var d = src[i];
+        if (inStr) { out += d; if (esc) { esc = false; } else if (d === '\\') { esc = true; } else if (d === '"') { inStr = false; } i++; continue; }
+        if (d === '"') { inStr = true; out += d; i++; continue; }
+        if (d === ',') { var j2 = i + 1, nxt = ''; while (j2 < n) { var t = src[j2]; if (!/\s/.test(t)) { nxt = t; break; } j2++; } if (nxt === '}' || nxt === ']') { i++; continue; } }
+        out += d; i++;
+      }
+      return out;
+
+      function singleToDouble(content){ var res = ''; var i2 = 0, n2 = content.length, e2 = false; while (i2 < n2) { var c2 = content[i2]; if (e2) { if (c2 === "'") res += "'"; else if (c2 === '"') res += '\\"'; else res += '\\' + c2; e2 = false; i2++; continue; } if (c2 === '\\') { e2 = true; i2++; continue; } if (c2 === '"') res += '\\"'; else res += c2; i2++; } if (e2) res += '\\'; return res; }
+    }
+
+    // ========= output helpers =========
+    function unquoteKeys(s){ var out = ''; var i = 0, n = s.length; var inStr = false, esc = false; while (i < n) { var ch = s[i]; if (inStr) { out += ch; if (esc) { esc = false; } else if (ch === '\\') { esc = true; } else if (ch === '"') { inStr = false; } i++; continue; } if (ch === '"') { var j = i + 1, raw = '', hadEsc = false, e = false; while (j < n) { var c = s[j]; if (e) { raw += c; e = false; hadEsc = true; j++; continue; } if (c === '\\') { raw += c; e = true; j++; continue; } if (c === '"') break; raw += c; j++; } if (j >= n) { out += s.slice(i); break; } var k = j + 1; while (k < n && /\s/.test(s[k])) k++; if (!hadEsc && /^[A-Za-z_$][A-Za-z0-9_$]*$/.test(raw) && s[k] === ':') { out += raw + s.slice(j + 1, k + 1); i = k + 1; continue; } out += s.slice(i, j + 1); i = j + 1; continue; } out += ch; i++; } return out; }
+
+    function stringifyOnePerLine(value, space){ var unit = (typeof space === 'number') ? ' '.repeat(space) : (space || ''); function isPlainObject(o){ return o && typeof o === 'object' && !Array.isArray(o); } function addIndent(ind, s){ return ind ? s.replace(/\n/g, '\n' + ind) : s; } function emit(v, level){ var ind = unit.repeat(level); var ind1 = unit.repeat(level + 1); if (Array.isArray(v)) { if (v.length === 0) return '[]'; var allPO = true; for (var i=0;i<v.length;i++){ if (!isPlainObject(v[i])) { allPO = false; break; } } if (allPO) { var lines = new Array(v.length); for (var j=0;j<v.length;j++){ lines[j] = ind1 + jsonInline(v[j]); } return '[\n' + lines.join(',\n') + '\n' + ind + ']'; } var js = JSON.stringify(v, null, unit); if (level>0) js = addIndent(ind, js); return js; } if (isPlainObject(v)){ var jo = JSON.stringify(v, null, unit); if (level>0) jo = addIndent(ind, jo); return jo; } return JSON.stringify(v); } return emit(value, 0); }
+
+    function jsonInline(obj){ var s = JSON.stringify(obj); var out = ''; var inStr = false, esc = false; for (var i=0; i<s.length; i++){ var ch = s[i]; if (inStr){ out += ch; if (esc) { esc = false; } else if (ch === '\\') { esc = true; } else if (ch === '"') { inStr = false; } continue; } if (ch === '"') { inStr = true; out += ch; continue; } if (ch === ':' || ch === ','){ out += ch; var next = s[i+1]; if (next !== ' ') out += ' '; continue; } out += ch; } return out; }
+
+    // Add trailing commas to multiline arrays when the closing ']' is on its own line
+    function addDanglingCommas(s){
+      var inserts = [];
+      var inStr = false, esc = false;
+      var stack = [];
+      function isWS(ch){ return ch === ' ' || ch === '\t' || ch === '\r' || ch === '\n'; }
+      for (var i = 0; i < s.length; i++){
+        var ch = s[i];
+        // inside string: track closing quote as last significant for arrays
+        if (inStr){
+          if (esc) { esc = false; continue; }
+          if (ch === '\\') { esc = true; continue; }
+          if (ch === '"') {
+            inStr = false;
+            if (stack.length && stack[stack.length-1].type === 'array') {
+              stack[stack.length-1].lastSig = i; // mark end of string element
+            }
+          }
+          continue;
+        }
+        // BEFORE entering a string, record that we've seen a significant char in arrays
+        if (ch === '"') {
+          if (stack.length && stack[stack.length-1].type === 'array') {
+            stack[stack.length-1].lastSig = i; // opening quote significant (helps 1-char strings)
+          }
+          inStr = true;
+          continue;
+        }
+        var top = stack.length ? stack[stack.length-1] : null;
+        if (ch === '[') { stack.push({type:'array', sawNL:false, lastSig:-1}); continue; }
+        if (ch === '{') { stack.push({type:'object'}); continue; }
+        if (ch === ']'){
+          var frame = stack.pop();
+          if (frame && frame.type === 'array' && frame.lastSig >= 0 && frame.sawNL){
+            var last = frame.lastSig;
+            var lastChar = s[last];
+            if (lastChar !== '[' && lastChar !== ','){
+              // verify only whitespace between lastSig and closing bracket
+              var onlyWS = true;
+              for (var j=last+1; j<i; j++){
+                if (!isWS(s[j])) { onlyWS = false; break; }
+              }
+              if (onlyWS) inserts.push(last+1);
+            }
+          }
+          if (stack.length && stack[stack.length-1].type === 'array') stack[stack.length-1].lastSig = i;
+          continue;
+        }
+        if (ch === '}'){
+          stack.pop();
+          if (stack.length && stack[stack.length-1].type === 'array') stack[stack.length-1].lastSig = i;
+          continue;
+        }
+        if (top && top.type === 'array'){
+          if (ch === '\n') top.sawNL = true;
+          if (!isWS(ch)) top.lastSig = i; // numbers, literals, brackets, braces
+        }
+      }
+      if (inserts.length === 0) return s;
+      var out = '', cur = 0;
+      for (var k=0; k<inserts.length; k++){ var p = inserts[k]; out += s.slice(cur, p) + ','; cur = p; }
+      out += s.slice(cur);
+      return out;
+    }
+
+    // ============ self‑tests ============
+    (function runSelfTests(){
+      var el = document.getElementById('selfcheck');
+      var tests = []; function t(name, fn){ tests.push({name: name, fn: fn}); }
+      function eq(a,b){ return JSON.stringify(a) === JSON.stringify(b); }
+
+      t('tolerant: {foo:111}', function(){ var o = parseTolerant('{foo:111}'); if (!eq(o,{foo:111})) throw new Error('parsed = '+JSON.stringify(o)); });
+      t('tolerant: single quoted strings', function(){ var o = parseTolerant("{a:'x',b:'y\\'z'}"); if (!eq(o,{a:'x',b:"y'z"})) throw new Error(JSON.stringify(o)); });
+      t('tolerant: comments', function(){ var o = parseTolerant('/* a */{ //b\n x:1, y:2 }'); if (!eq(o,{x:1,y:2})) throw new Error(JSON.stringify(o)); });
+      t('tolerant: trailing commas', function(){ var o = parseTolerant('{a:1, b:2,}'); if (!eq(o,{a:1,b:2})) throw new Error(JSON.stringify(o)); var a = parseTolerant('[1,2,]'); if (!eq(a,[1,2])) throw new Error(JSON.stringify(a)); });
+      t('tolerant: numeric key', function(){ var o = parseTolerant('{1:"a", 2:"b"}'); if (!eq(o,{"1":"a","2":"b"})) throw new Error(JSON.stringify(o)); });
+
+      t('one-per-line inline', function(){ var s = stringifyOnePerLine([{a:1},{b:2,c:{d:3}}], 2); var lines = s.trim().split('\n'); var objs = lines.slice(1, -1); for (var i=0;i<objs.length;i++){ var L = objs[i]; if (L.indexOf('\n') !== -1) throw new Error('newline inside object line'); var tr = L.trim(); if (!(tr[0] === '{' && (tr.endsWith('},') || tr.endsWith('}')))) throw new Error('not object line: '+tr); } });
+
+      t('unquote keys', function(){ var js = '{\n  "alpha": 1,\n  "beta-gamma": 2,\n  "delta": 3\n}'; var u = unquoteKeys(js); if (u.indexOf('alpha: 1') === -1 || u.indexOf('delta: 3') === -1 || u.indexOf('beta-gamma: 2') !== -1) throw new Error('unexpected: '+u); });
+
+      t('sortDeep', function(){ var o = sortDeep({b:1,a:{d:1,c:2}}); if (!eq(o,{a:{c:2,d:1},b:1})) throw new Error(JSON.stringify(o)); });
+
+      // extra: minify disables one-per-line
+      t('minify disables one-per-line', function(){ var v=[{a:1},{b:2}]; var s=JSON.stringify(v); var sp=stringifyOnePerLine(v,2); if (s.length>=sp.length) throw new Error('min form should be shorter'); });
+
+      // dangling comma tests
+      t('dangling comma: multiline array', function(){
+        var s = [11,22,33].map(String).join('\n  ');
+        s = '[\n  ' + s + '\n]';
+        var u = addDanglingCommas(s);
+        if (u.indexOf('33,\n]') === -1) throw new Error('no trailing comma: '+u);
+      });
+      t('dangling comma: array of objects', function(){
+        var s='[\n  {"a": 1},\n  {"b": 2}\n]';
+        var u=addDanglingCommas(s);
+        if (u.indexOf('{"b": 2},\n]') === -1) throw new Error('missing trailing comma after last object');
+      });
+      t('dangling comma: single-line unchanged', function(){ var s='[1,2,3]'; var u=addDanglingCommas(s); if (u !== s) throw new Error('should not change single-line arrays'); });
+      t('dangling comma: multiline array of strings', function(){
+        var pretty = JSON.stringify(["ab","aa","zz","apple","banana","xx"], null, 2);
+        var u = addDanglingCommas(pretty);
+        if (u.indexOf('\"xx\",\n]') === -1) throw new Error('no trailing comma on string array');
+      });
+
+      var passed = 0, messages = [];
+      for (var i=0;i<tests.length;i++){ try { tests[i].fn(); passed++; } catch(e){ messages.push('✗ '+tests[i].name+': '+(e && e.message ? e.message : e)); } }
+      if (messages.length === 0) el.innerHTML = '<b class="pass">Self‑check: '+passed+'/'+tests.length+' passed</b>';
+      else el.innerHTML = '<b class="fail">Self‑check: '+passed+'/'+tests.length+' passed</b><br><code>'+messages.join('<br>')+'</code>';
+      console.log('[JSON Auto Formatter] self‑check:', passed+'/'+tests.length, messages);
+    })();
+
+  })();
+  </script>
+</body>
+</html>

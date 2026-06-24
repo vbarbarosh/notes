@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="light dark" />
+    <link href="https://unpkg.com/@picocss/pico@2.0.6/css/pico.css" rel="stylesheet">
+    <link href="https://unpkg.com/@vbarbarosh/smcss@0.10.0/dist/sm.css" rel="stylesheet">
+    <title>Title of the Page</title>
+</head>
+<body>
+
+<main id="app" class="container">
+
+    <input v-model="url">
+
+    <button v-on:click="click_reload">reload</button>
+    <br>
+    <br>
+    <button v-on:click="click_resize(200, 400)">200x400</button>
+    <button v-on:click="click_resize(400, 400)">400x400</button>
+    <button v-on:click="click_resize(600, 400)">600x400</button>
+    <button v-on:click="click_resize(800, 400)">800x400</button>
+    <strong>{{ width }},{{ height }}</strong>
+    <br>
+    <br>
+
+    <div v-bind:style="{width: px(width), height: px(height)}" class="oa w400 h400 resize">
+        <iframe ref="iframe" v-on:load="load_iframe" v-bind:src="url" class="db ww hh"></iframe>
+    </div>
+
+</main>
+
+<script src="https://unpkg.com/jquery@3.7.1/dist/jquery.js"></script>
+<script src="https://unpkg.com/bluebird@3.7.2/js/browser/bluebird.js"></script>
+<script src="https://unpkg.com/vue@2.7.16/dist/vue.js"></script>
+<script>
+new Vue({
+    el: '#app',
+    data: {
+        url: 'https://example.com/',
+        width: 400,
+        height: 400,
+    },
+    methods: {
+        px: function (value) {
+            return value ? `${value}px` : '0';
+        },
+        load_iframe: function (event) {
+            console.log('load_iframe');
+            console.log(this.$refs.iframe);
+        },
+        resize_iframe: function (event) {
+            console.log('resize_iframe', event);
+        },
+        click_reload: function () {
+            this.$refs.iframe.src = 'about:blank';
+            this.$refs.iframe.src = this.url;
+        },
+        click_resize: function (width, height) {
+            this.width = width;
+            this.height = height;
+        },
+    },
+    mounted: function () {
+        const _this = this;
+        const observer = new ResizeObserver(function (items) {
+            const {width, height} = items[0].contentRect;
+            _this.width = width;
+            _this.height = height;
+        });
+        observer.observe(this.$refs.iframe);
+    },
+});
+</script>
+
+</body>
+</html>

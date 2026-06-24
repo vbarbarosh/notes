@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="light dark" />
+    <link href="https://unpkg.com/@picocss/pico@2.0.6/css/pico.css" rel="stylesheet">
+    <link href="https://unpkg.com/@vbarbarosh/smcss@0.10.0/dist/sm.css" rel="stylesheet">
+    <title>base64-encode-decode</title>
+</head>
+<body>
+
+<main id="app" class="container">
+
+<section>
+    <mark v-if="error" class="abs-ct">⚠️ {{ error }}</mark>
+    <fieldset>
+        <label>
+            base64.decoded
+            <textarea v-on:input="input_decoded" v-bind:value="decoded" rows="5"></textarea>
+        </label>
+    </fieldset>
+    <fieldset>
+        <label>
+            base64.encoded
+            <textarea v-on:input="input_encoded" v-bind:value="encoded" rows="5"></textarea>
+        </label>
+    </fieldset>
+    <template v-if="decoded.match(/^https?:/)">
+        <a v-bind:href="decoded" target="_blank">{{ decoded }}</a>
+    </template>
+</section>
+</main>
+
+<script src="https://unpkg.com/jquery@3.7.1/dist/jquery.js"></script>
+<script src="https://unpkg.com/bluebird@3.7.2/js/browser/bluebird.js"></script>
+<script src="https://unpkg.com/vue@2.7.16/dist/vue.js"></script>
+<script src="https://unpkg.com/he@1.2.0/he.js"></script>
+<script>
+new Vue({
+    el: '#app',
+    data: {
+        encoded: '',
+        decoded: '',
+        error: null,
+    },
+    methods: {
+        input_encoded: function (event) {
+            try {
+                const {value} = event.currentTarget;
+                this.encoded = value;
+                this.decoded = atob(value);
+                this.error = null;
+            }
+            catch (error) {
+                this.error = error;
+            }
+        },
+        input_decoded: function (event) {
+            try {
+                const {value} = event.currentTarget;
+                this.encoded = btoa(value);
+                this.decoded = value;
+                this.error = null;
+            }
+            catch (error) {
+                this.error = error;
+            }
+        },
+    },
+    created: function () {
+        this.input_decoded({currentTarget: {value: 'https://example.com/path/to/page.html?a=1&b=2&c=3'}});
+    }
+});
+</script>
+
+</body>
+</html>

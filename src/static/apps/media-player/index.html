@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+    <link href="https://unpkg.com/@vbarbarosh/smcss@1.2.0/dist/reset.css" rel="stylesheet">
+    <link href="https://unpkg.com/@vbarbarosh/smcss@1.2.0/dist/sm.css" rel="stylesheet">
+    <title>media-player.html</title>
+</head>
+<body>
+
+<div id="app" class="fix-f flex-row-center">
+
+<div class="w400 h400 bs50">
+    <p>Nunc quis nisi eu nisi vestibulum elementum. Donec ornare ornare mauris vitae molestie. Mauris quis diam aliquet, pretium est at, finibus risus. Aenean dapibus urna vitae risus convallis, ut posuere nulla condimentum. Fusce leo tellus, tristique quis nulla sed, maximus laoreet lorem. Suspendisse eget elit a leo luctus consectetur quis vel dolor. Duis vestibulum erat vitae felis tempus, sit amet posuere justo bibendum.</p>
+    <p>Sed molestie quam sem, vitae porttitor felis elementum nec. Proin quis odio purus. Cras at lorem ornare, viverra ante quis, vulputate ex. Morbi neque nisl, gravida ac leo eu, efficitur scelerisque lectus. Sed tortor nisl, consequat nec ornare eu, vulputate nec elit. Vivamus ligula nibh, faucibus nec vestibulum ut, blandit in magna. Phasellus non luctus ligula, a feugiat libero.</p>
+    <p>Sed molestie, elit nec ullamcorper imperdiet, odio est semper massa, ut auctor dolor leo ut nisi. Vivamus elementum scelerisque urna, sit amet dignissim massa viverra ac. Donec hendrerit metus quis elit sollicitudin convallis. Sed maximus leo pulvinar, accumsan turpis eget, rhoncus libero. Aenean dignissim nisi iaculis tortor vehicula pharetra. Donec in quam id elit ultricies fringilla. Fusce pretium, mi id rutrum feugiat, tellus lorem interdum tortor, sit amet rutrum elit dolor ac purus. Lorem ipsum dolor sit amet, consectetur adipiscing elit. Cras mauris sapien, egestas nec odio sit amet, tempor imperdiet justo.</p>
+    <p>Pellentesque rutrum odio sed lacus dictum vestibulum. Suspendisse potenti. Proin vel finibus nisl, ut ullamcorper leo. Duis id ligula vel sapien consequat molestie vitae vitae magna. Curabitur tincidunt vitae libero maximus facilisis. Cras magna magna, luctus vitae malesuada et, ultricies ac est. Sed urna erat, blandit sed feugiat a, pharetra non nibh. Sed consequat suscipit diam, eget dignissim odio tristique vel. Vivamus maximus ex quis lacus blandit, eu tincidunt ipsum dictum. Cras non odio ut lorem viverra facilisis quis ut libero.</p>
+    <p>Proin consectetur mattis quam, sit amet pellentesque turpis. Mauris nisi libero, interdum nec est at, interdum scelerisque magna. Suspendisse tempus at justo vitae laoreet. Proin non augue ac eros molestie dictum a eu purus. Phasellus vulputate eget erat quis aliquam. Donec mauris arcu, pellentesque in mi id, dictum laoreet neque. Etiam at metus vel neque placerat pretium.</p>
+</div>
+
+<!--
+Resources
+https://codepen.io/harryheman/pen/abzKLvM?editors=0010
+https://codepen.io/agalliat/pen/PoZLBxP
+-->
+
+</div>
+
+<script src="https://unpkg.com/jquery@3.7.1/dist/jquery.js"></script>
+<script src="https://unpkg.com/bluebird@3.7.2/js/browser/bluebird.js"></script>
+<script src="https://unpkg.com/vue@2.7.16/dist/vue.js"></script>
+<script>
+new Vue({
+    el: '#app',
+    data: {
+        prop1: 'hello',
+        rows: [
+            {no: 1, first: 'Mark', last: 'Otto', handle: '@mdo'},
+            {no: 2, first: 'Jacob', last: 'Thornton', handle: '@fat'},
+            {no: 3, first: 'Larry', last: 'the Bird', handle: '@twitter'}
+        ]
+    },
+});
+</script>
+
+</body>
+</html>

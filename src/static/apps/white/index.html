@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en" class="hh">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="light dark" />
+    <link href="https://unpkg.com/@picocss/pico@2.0.6/css/pico.css" rel="stylesheet">
+    <link href="https://unpkg.com/@vbarbarosh/smcss@1.2.0/dist/sm.css" rel="stylesheet">
+    <title>White</title>
+</head>
+<body class="hh">
+
+<main id="app" class="vsplit hh container">
+
+    <section class="grid">
+        <input v-model="color" type="text">
+        <input v-model="color" type="color">
+    </section>
+    <div>
+        <label>
+            Brigthness:
+            <input v-model="brightness" type="range" min="0" max="100">
+        </label>
+    </div>
+
+    <div ref="canvas"
+         v-on:click="click_canvas"
+         v-bind:style="{background: final_color}"
+         class="fluid br5 min-h100"></div>
+
+    <p>&nbsp;</p>
+    <p>&nbsp;</p>
+</main>
+
+<script src="https://unpkg.com/jquery@3.7.1/dist/jquery.js"></script>
+<script src="https://unpkg.com/bluebird@3.7.2/js/browser/bluebird.js"></script>
+<script src="https://unpkg.com/vue@2.7.16/dist/vue.js"></script>
+<script src="https://unpkg.com/tinycolor2@1.6.0/cjs/tinycolor.js"></script>
+<script>
+new Vue({
+    el: '#app',
+    data: {
+        color: '#ffffff',
+        brightness: 100,
+    },
+    computed: {
+        final_color: function () {
+            return tinycolor(this.color).darken(100 - this.brightness).toString();
+        },
+    },
+    methods: {
+        click_canvas: function () {
+            if (document.fullscreenElement) {
+                document.exitFullscreen();
+            }
+            else {
+                this.$refs.canvas.requestFullscreen();
+            }
+        },
+    },
+});
+</script>
+
+</body>
+</html>

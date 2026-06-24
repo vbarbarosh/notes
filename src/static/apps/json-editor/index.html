@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>json-editor</title>
+    <link href="https://unpkg.com/jsoneditor@9.5.0/dist/jsoneditor.css" rel="stylesheet" />
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.54.0/codemirror.css" rel="stylesheet" />
+    <link href="https://unpkg.com/@vbarbarosh/smcss@1.2.0/dist/sm.css" rel="stylesheet">
+    <style>
+        .CodeMirror {
+            border: 1px solid #eee;
+            height: auto;
+        }
+        .CodeMirror-scroll {
+            min-height: 100px;
+        }
+        table { border-collapse: collapse; }
+        table, th, td { border: 1px solid; }
+    </style>
+</head>
+<body>
+
+<main id="app" class="abs-f vsplit">
+    <ul class="xls xm xp flex-row flex-align-center mi15 white pv10 ph15 bs5 sticky-t">
+        <li v-for="tab in tabs" v-bind:key="tab.name">
+            <strong v-if="tab.is_active">
+                {{ tab.title }}
+            </strong>
+            <a v-else v-on:click.prevent="click_tab(tab)" href="#">
+                {{ tab.title }}
+            </a>
+        </li>
+        <li>
+            <button v-on:click="click_copy_selection" v-bind:disabled="(selection.length == 0)">
+                copy to clipboard [{{ selection.length }}]
+            </button>
+        </li>
+    </ul>
+    <div v-show="tabs_map.json.is_active" class="fluid oa">
+        <jsoneditor ref="jsoneditor" v-model="items" class="hh"></jsoneditor>
+    </div>
+    <div v-show="tabs_map.table.is_active" class="fluid oa">
+        <codemirror ref="codemirror" v-model="columns_str"></codemirror>
+        <table v-on:mousedown.prevent>
+            <thead>
+            <tr>
+                <th><input v-on:click="click_all" v-bind:checked="(selection.length == items.length)" type="checkbox"></th>
+                <th v-for="column in columns">
+                    {{ column.title }}
+                </th>
+            </tr>
+            </thead>
+            <tbody>
+            <tr v-for="item in items" v-on:mousedown="mousedown($event, item)" v-on:mouseover="mouseover(item, $event)" v-bind:class="{green: selection.includes(item)}">
+                <td><input v-bind:checked="selection.includes(item)" type="checkbox"></td>
+                <td v-for="column in columns">
+                    <div v-if="column.html" v-html="render_column(column, item)"></div>
+                    <template v-else-if="column.str">
+                        {{ render_column(column, item) }}
+                    </template>
+                </td>
+            </tr>
+            </tbody>
+        </table>
+    </div>
+</main>
+
+<script src="https://unpkg.com/vue@2.6.14/dist/vue.js"></script>
+<script src="https://unpkg.com/jsoneditor@9.5.0/dist/jsoneditor.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.54.0/codemirror.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.54.0/mode/javascript/javascript.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.54.0/mode/clike/clike.min.js"></script>
+<script>
+Vue.component('jsoneditor', {
+    props: ['value'],
+    template: '<div v-once />',
+    data: function () {
+        return {
+            _jsoneditor: null,
+            _jsoneditor_value: null,
+        };
+    },
+    watch: {
+        value: function () {
+            if (this._jsoneditor && this._jsoneditor_value !== this.value) {
+                this._jsoneditor_value = value;
+                this._jsoneditor.set(value);
+            }
+        },
+    },
+    methods: {
+        // public apis
+        jsoneditor_focus: function () {
+            this._jsoneditor.focus();
+        },
+    },
+    mounted: function () {
+        const _this = this;
+        this._jsoneditor = new JSONEditor(this.$el, {
+            modes: ['code', 'tree'],
+            indentation: 4,
+            onChange: function () {
+                try {
+                    const tmp = _this._jsoneditor.get();
+                    _this._jsoneditor_value = tmp;
+                    _this.$emit('input', tmp);
+                }
+                catch (error) {
+                }
+            },
+            onBlur: function () {
+            },
+        });
+        this._jsoneditor_value = this.value;
+        this._jsoneditor.set(this.value);
+    },
+});
+
+    Vue.component('codemirror', {
+        props: ['value'],
+        template: '<div v-once />',
+        data: function () {
+            return {
+                _codemirror: null,
+                _codemirror_value: null,
+            };
+        },
+        watch: {
+            value: function () {
+                if (this._codemirror && this._codemirror_value !== this.value) {
+                    this._codemirror_value = this.value;
+                    this._codemirror.setValue(this.value);
+                }
+            },
+        },
+        methods: {
+            // public apis
+            codemirror_focus: function () {
+                this._codemirror.focus();
+            },
+            codemirror_refresh: function () {
+                this._codemirror.refresh();
+            },
+        },
+        mounted: function () {
+            const _this = this;
+            this._codemirror = CodeMirror(this.$el, {
+                mode: 'text/javascript',
+                indentUnit: 4,
+                tabSize: 4,
+                indentWithTabs: false,
+                lineNumbers: true,
+                // autofocus: true,
+                viewportMargin: Infinity,
+                readOnly: false,
+                extraKeys: {
+                    'Tab': 'indentMore',
+                    'Shift-Tab': 'indentLess',
+                    'Ctrl-Enter': function () {
+                        // document.querySelector('form').submit();
+                    },
+                },
+            });
+            this._codemirror.on('blur', function () {
+                _this.$emit('input', _this._codemirror.getValue());
+            });
+            this._codemirror_value = this.value;
+            this._codemirror.setValue(this.value);
+        },
+    });
+
+    new Vue({
+        el: '#app',
+        data: {
+            tabs: [
+                {name: 'json', title: 'json', is_active: true},
+                {name: 'table', title: 'table', is_active: false},
+            ],
+            items: json_parse_nothrow(localStorage_read('render_as_table_items', `[
+    {"id": 1, "title": "Ti paj damdasu ih"},
+    {"id": 2, "title": "Edutip nogud zumdo deza"},
+    {"id": 3, "title": "Fatob"},
+    {"id": 4, "title": "Op hew liz"},
+    {"id": 5, "title": "Ezud pa be bidezan mu"},
+    {"id": 6, "title": "Ujojoowo usalor"},
+    {"id": 7, "title": "Teztontek seakez cujeka inilo"},
+    {"id": 8, "title": "Kajdak ba"},
+    {"id": 9, "title": "Vasoiba"},
+    {"id": 10, "title": "Guni dimhoz imiliv hamioto"},
+    {"id": 11, "title": "Peze evanachum"},
+    {"id": 12, "title": "Ivopid"},
+    {"id": 13, "title": "Vogvevu igogejnef"}
+]
+`)),
+            columns_str: localStorage_read('render_as_table_columns', `[
+    {title: 'id', str: v => v.id},
+    {title: 'title', str: v => v.title},
+]
+`),
+            selection: [],
+            mouseover_add: false,
+            mouseover_remove: false,
+        },
+        computed: {
+            tabs_map: function () {
+                return array_index(this.tabs, v => v.name);
+            },
+            columns: function () {
+                try {
+                    return eval(this.columns_str);
+                }
+                catch (error) {
+                    console.log(error);
+                    return [];
+                }
+            },
+        },
+        watch: {
+            items: function () {
+                localStorage_write('render_as_table_items',  JSON.stringify(this.items));
+            },
+            columns_str: function (next) {
+                localStorage_write('render_as_table_columns', next);
+            },
+            items: function () {
+                if (this.selection) {
+                    const selection_map = array_index(this.selection, v => JSON.stringify(v));
+                    this.selection = this.items.filter(v => selection_map[JSON.stringify(v)]);
+                }
+            },
+        },
+        methods: {
+            click_tab: function (tab) {
+                const _this = this;
+                this.tabs.forEach(v => v.is_active = (v === tab));
+                switch (tab.name) {
+                case 'json':
+                    this.$nextTick(() => this.$refs.jsoneditor.jsoneditor_focus());
+                    break;
+                case 'table':
+                    this.$nextTick(function () {
+                        _this.$refs.codemirror.codemirror_refresh();
+                        _this.$refs.codemirror.codemirror_focus();
+                    });
+                    break;
+                }
+            },
+            click_copy_selection: function () {
+                navigator.clipboard.writeText(JSON.stringify(this.selection));
+            },
+            render_column: function (column, item) {
+                try {
+                    if (column.str) {
+                        return column.str(item);
+                    }
+                    if (column.html) {
+                        return column.html(item);
+                    }
+                }
+                catch (error) {
+                    return error;
+                }
+            },
+            mousedown: function (event, item) {
+                if (event.target.tagName == 'A') {
+                    return;
+                }
+                const i = this.selection.indexOf(item);
+                if (i == -1) {
+                    this.selection.push(item);
+                    this.mouseover_add = true;
+                    this.mouseover_remove = false;
+                }
+                else {
+                    this.selection.splice(i, 1);
+                    this.mouseover_add = false;
+                    this.mouseover_remove = true;
+                }
+            },
+            mouseover: function (item, event) {
+                if (event.buttons != 1) {
+                    return;
+                }
+                const i = this.selection.indexOf(item);
+                if (this.mouseover_add && i == -1) {
+                    this.selection.push(item);
+                }
+                if (this.mouseover_remove && i != -1) {
+                    this.selection.splice(i, 1);
+                }
+            },
+            click_all: function () {
+                if (this.selection.length == this.items.length) {
+                    this.selection = [];
+                }
+                else {
+                    this.selection = this.items.slice();
+                }
+            },
+        },
+    });
+
+    function json_parse_nothrow(s, default_value = null)
+    {
+        try {
+            return JSON.parse(s);
+        }
+        catch (error) {
+            return default_value;
+        }
+    }
+
+    // Uncaught DOMException: Failed to read the 'localStorage' property from 'Window': Access is denied for this document.
+    function localStorage_read(prop, default_value = null)
+    {
+        try {
+            return localStorage[prop] || default_value;
+        }
+        catch (error) {
+            console.log(error);
+            return default_value;
+        }
+    }
+
+    // Uncaught DOMException: Failed to read the 'localStorage' property from 'Window': Access is denied for this document.
+    function localStorage_write(prop, value)
+    {
+        try {
+            localStorage[prop] = value;
+        }
+        catch (error) {
+            console.log(error);
+        }
+    }
+
+    /**
+     * Convert an array of items into a hash map
+     *
+     * @param items
+     * @param fn
+     * @returns {{}}
+     * @link https://stackoverflow.com/questions/26264956/convert-object-array-to-hash-map-indexed-by-an-attribute-value-of-the-object
+     */
+    function array_index(items, fn)
+    {
+        const out = {};
+        items.forEach(v => out[fn(v)] = v);
+        return out;
+    }
+</script>
+
+
+</body>
+</html>

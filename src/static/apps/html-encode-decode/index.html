@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="light dark" />
+    <link href="https://unpkg.com/@picocss/pico@2.0.6/css/pico.css" rel="stylesheet">
+    <link href="https://unpkg.com/@vbarbarosh/smcss@0.10.0/dist/sm.css" rel="stylesheet">
+    <title>html-encode-decode</title>
+</head>
+<body>
+
+<main id="app" class="container">
+
+<section>
+    <fieldset>
+        <label>
+            html.decoded
+            <textarea v-on:input="input_decoded" v-bind:value="decoded" rows="5"></textarea>
+        </label>
+    </fieldset>
+    <fieldset>
+        <label>
+            html.encoded
+            <textarea v-on:input="input_encoded" v-bind:value="encoded" rows="5"></textarea>
+        </label>
+    </fieldset>
+    <template v-if="decoded.match(/^https?:/)">
+        <a v-bind:href="decoded" target="_blank">{{ decoded }}</a>
+    </template>
+</section>
+</main>
+
+<script src="https://unpkg.com/jquery@3.7.1/dist/jquery.js"></script>
+<script src="https://unpkg.com/bluebird@3.7.2/js/browser/bluebird.js"></script>
+<script src="https://unpkg.com/vue@2.7.16/dist/vue.js"></script>
+<script src="https://unpkg.com/he@1.2.0/he.js"></script>
+<script>
+new Vue({
+    el: '#app',
+    data: {
+        encoded: '',
+        decoded: '',
+    },
+    methods: {
+        input_encoded: function (event) {
+            const {value} = event.currentTarget;
+            this.encoded = value;
+            this.decoded = he.decode(value);
+        },
+        input_decoded: function (event) {
+            const {value} = event.currentTarget;
+            this.encoded = he.encode(value, {useNamedReferences: true});
+            this.decoded = value;
+        },
+    },
+    created: function () {
+        this.input_decoded({currentTarget: {value: '<div>Hello</div>\n'}});
+    }
+});
+</script>
+
+</body>
+</html>

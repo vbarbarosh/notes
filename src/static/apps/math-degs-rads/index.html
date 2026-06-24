@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="light dark" />
+    <link href="https://unpkg.com/@picocss/pico@2.0.6/css/pico.css" rel="stylesheet">
+    <link href="https://unpkg.com/@vbarbarosh/smcss@0.10.0/dist/sm.css" rel="stylesheet">
+    <title>math-degs-rads</title>
+</head>
+<body>
+
+<main id="app" class="container">
+
+<section>
+    <fieldset>
+        <label>
+            degs
+            <textarea v-on:input="input_degs" v-bind:value="degs" rows="5"></textarea>
+        </label>
+    </fieldset>
+    <fieldset>
+        <label>
+            rads
+            <textarea v-on:input="input_rads" v-bind:value="rads" rows="5"></textarea>
+        </label>
+    </fieldset>
+</section>
+</main>
+
+<script src="https://unpkg.com/jquery@3.7.1/dist/jquery.js"></script>
+<script src="https://unpkg.com/bluebird@3.7.2/js/browser/bluebird.js"></script>
+<script src="https://unpkg.com/vue@2.7.16/dist/vue.js"></script>
+<script src="https://unpkg.com/he@1.2.0/he.js"></script>
+<script>
+new Vue({
+    el: '#app',
+    data: {
+        degs: '',
+        rads: '',
+    },
+    methods: {
+        input_rads: function (event) {
+            let {value} = event.currentTarget;
+            this.rads = value;
+            value = value.replace(/(\d*)(pi|𝜋)/ig, function (m, p1) {
+                return (p1||1) * Math.PI;
+            });
+            this.degs = value.split('\n').map(v => degs_norm(degs_from_rads(v)).toFixed(2).replace(/[.]?0+$/, '')).join('\n');
+        },
+        input_degs: function (event) {
+            let {value} = event.currentTarget;
+            this.rads = value.split('\n').map(v => rads_from_degs(v).toFixed(12)).join('\n');
+            this.degs = value;
+        },
+    },
+    created: function () {
+        this.input_degs({currentTarget: {value: '45\n90\n180\n270'}});
+    }
+});
+function degs_from_rads(rads)
+{
+    return rads*180/Math.PI;
+}
+function rads_from_degs(degs)
+{
+    return degs*Math.PI/180;
+}
+function degs_norm(degs)
+{
+    let out = degs % 360;
+    if (out < 0) {
+        out += 360;
+    }
+    if (out === -0) {
+        return 0;
+    }
+    return out;
+}
+</script>
+
+</body>
+</html>

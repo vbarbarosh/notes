@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="light dark" />
+    <link href="https://unpkg.com/@picocss/pico@2.0.6/css/pico.css" rel="stylesheet">
+    <link href="https://unpkg.com/@vbarbarosh/smcss@0.10.0/dist/sm.css" rel="stylesheet">
+    <title>lipsum-shuffle</title>
+</head>
+<body>
+
+<main id="app" class="fix-f mb90 container">
+
+<section class="hh grid">
+    <div class="hh mr30">
+        <textarea v-model="input" class="hh"></textarea>
+    </div>
+    <div class="hh ml30">
+        <textarea v-bind:value="output" class="hh"></textarea>
+    </div>
+</section>
+
+<button v-on:click="click_refresh" class="fix-c">→</button>
+
+</main>
+
+<script src="https://unpkg.com/jquery@3.7.1/dist/jquery.js"></script>
+<script src="https://unpkg.com/bluebird@3.7.2/js/browser/bluebird.js"></script>
+<script src="https://unpkg.com/vue@2.7.16/dist/vue.js"></script>
+<script>
+new Vue({
+    el: '#app',
+    data: {
+        input: `
+Lorem ipsum — классический текст-«рыба» (условный, зачастую бессмысленный текст-заполнитель, вставляемый в макет страницы, используемый для образца шрифта и текста, поля размещения на странице). Очень условное значение. На самом деле, часть фразы: «...dolorem ipsum dolor sit amet», что переводится «...сама боль, потому что это боль». Смысловая нагрузка значения: пустой тщеты и напрасных, тяжелых усилий. При заполнении страницы, выражает сарказм, боль обесценивания труда исполнителя.
+
+Иногда используется «dolorem ipsum», как аналог «жизнь боль», для добавления лоска беседе и налёта интеллектуальности.
+
+При более глубоком понимании, может быть гиперссылкой к оригинальному тексту, выглядит так: «Neque porro quisquam est qui dolorem ipsum quia dolor sit amet, consectetur, adipisci velit ...», и переводится как «Нет никого, кто любил бы свою боль, кто искал бы ее и хотел бы чтобы она была у него». Исходник: трактат Цицерона «О пределах добра и зла», написанного в 45 году, до нашей эры на латинском языке.
+        `.trim(),
+    },
+    computed: {
+        output: function () {
+            return lipsum_shuffle(this.input);
+        },
+    },
+    methods: {
+        click_refresh: function () {
+            const tmp = this.input;
+            this.input = '';
+            this.input = tmp;
+        }
+    },
+});
+
+/**
+ * Shuffle characters in words, preserving everything spaces and puncutation.
+ *
+ * @link https://stackoverflow.com/a/66765539/1478566
+ */
+function lipsum_shuffle(s)
+{
+    return s.replace(/[\p{L}\p{N}]+/gu, function (m) {
+        return array_shuffle(m.toLowerCase().split('')).map(uc).join('');
+        function uc(ch, i) {
+            if (m[i].toUpperCase() === m[i]) {
+                return ch.toUpperCase();
+            }
+            return ch;
+        }
+    });
+}
+
+/**
+ * Shuffles an array using Durstenfeld shuffle algorithm.
+ *
+ * Note: This function performs shuffle in-place. In order
+ * to get a shuffled copy use call slice before calling, e.g.
+ * array_shuffle(items.slice()).
+ *
+ * @param array
+ * @returns array
+ * @link https://stackoverflow.com/a/6274381/1478566
+ * @link https://en.wikipedia.org/wiki/Fisher%E2%80%93Yates_shuffle
+ */
+function array_shuffle(array)
+{
+    for (let i = array.length; --i > 0; ) {
+        const j = Math.floor(Math.random() * (i + 1));
+        const x = array[i];
+        array[i] = array[j];
+        array[j] = x;
+    }
+    return array;
+}
+</script>
+
+</body>
+</html>

@@ -1,0 +1,138 @@
+[
+  {
+    "id": "notes",
+    "name": "Notes",
+    "desc": "Notes, files, media, and background jobs.",
+    "icon": "ti ti-notes",
+    "emoji": "📝",
+    "url": "/"
+  },
+  {
+    "id": "pdf",
+    "name": "PDF Vault",
+    "desc": "Read, highlight, and bookmark PDF documents.",
+    "icon": "ti ti-file-type-pdf",
+    "emoji": "📕",
+    "url": "/pdf.html"
+  },
+  {
+    "id": "base64-encode-decode",
+    "name": "Base64 Encode/Decode",
+    "desc": "UTF-8 safe encoder/decoder.",
+    "icon": "ti ti-binary",
+    "emoji": "🔤",
+    "url": "/apps/base64-encode-decode/"
+  },
+  {
+    "id": "html-encode-decode",
+    "name": "HTML Encode/Decode",
+    "desc": "Escape and unescape HTML.",
+    "icon": "ti ti-code",
+    "emoji": "🔣",
+    "url": "/apps/html-encode-decode/"
+  },
+  {
+    "id": "iframe",
+    "name": "IFrame Viewer",
+    "desc": "Embed a URL in an iframe.",
+    "icon": "ti ti-browser",
+    "emoji": "🪟",
+    "url": "/apps/iframe/"
+  },
+  {
+    "id": "json-editor",
+    "name": "JSON Editor",
+    "desc": "Format and outline keys.",
+    "icon": "ti ti-braces",
+    "emoji": "🧾",
+    "url": "/apps/json-editor/"
+  },
+  {
+    "id": "json-formatter",
+    "name": "JSON Formatter",
+    "desc": "Fix and format JSON-ish input.",
+    "icon": "ti ti-json",
+    "emoji": "🧩",
+    "url": "/apps/json-formatter/"
+  },
+  {
+    "id": "lipsum-shuffle",
+    "name": "Lipsum Shuffle",
+    "desc": "Random lorem ipsum filler text.",
+    "icon": "ti ti-align-left",
+    "emoji": "🪄",
+    "url": "/apps/lipsum-shuffle/"
+  },
+  {
+    "id": "math-degs-rads",
+    "name": "Degrees / Radians",
+    "desc": "Convert angles both ways.",
+    "icon": "ti ti-angle",
+    "emoji": "📐",
+    "url": "/apps/math-degs-rads/"
+  },
+  {
+    "id": "media-player",
+    "name": "Media Player",
+    "desc": "Play audio/video from a file or URL.",
+    "icon": "ti ti-player-play",
+    "emoji": "🎬",
+    "url": "/apps/media-player/"
+  },
+  {
+    "id": "url-encode-decode",
+    "name": "URL Encode/Decode",
+    "desc": "Encode and decode URL parts.",
+    "icon": "ti ti-link",
+    "emoji": "🔗",
+    "url": "/apps/url-encode-decode/"
+  },
+  {
+    "id": "white",
+    "name": "White (Lamp)",
+    "desc": "Full white screen for brightness.",
+    "icon": "ti ti-bulb",
+    "emoji": "💡",
+    "url": "/apps/white/"
+  },
+  {
+    "id": "todo",
+    "name": "To-Do",
+    "desc": "Tasks with checkboxes.",
+    "icon": "ti ti-checklist",
+    "emoji": "✅",
+    "url": "/apps/todo/"
+  },
+  {
+    "id": "calc",
+    "name": "Calculator",
+    "desc": "Evaluate arithmetic expressions.",
+    "icon": "ti ti-calculator",
+    "emoji": "🧮",
+    "url": "/apps/calc/"
+  },
+  {
+    "id": "stopwatch",
+    "name": "Stopwatch",
+    "desc": "Start, pause, and reset.",
+    "icon": "ti ti-stopwatch",
+    "emoji": "⏱️",
+    "url": "/apps/stopwatch/"
+  },
+  {
+    "id": "json",
+    "name": "JSON Tools",
+    "desc": "Format, minify, and sort keys.",
+    "icon": "ti ti-tool",
+    "emoji": "{ }",
+    "url": "/apps/json/"
+  },
+  {
+    "id": "pwd",
+    "name": "Password Generator",
+    "desc": "Generate random passwords.",
+    "icon": "ti ti-key",
+    "emoji": "🔐",
+    "url": "/apps/pwd/"
+  }
+]
