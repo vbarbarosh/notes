@@ -4,6 +4,7 @@ services:
     restart: unless-stopped
     environment:
       AUTHWALL_UPSTREAM_URL: http://notes:3000
+      AUTHWALL_WEBSOCKETS: true
       AUTHWALL_SEED: foo:foo
     ports:
       - 3000:3000
@@ -11,6 +12,7 @@ services:
       - ./data-authwall:/app/data
 
   notes:
+    build: .
     image: vbarbarosh/notes
     restart: unless-stopped
     volumes:

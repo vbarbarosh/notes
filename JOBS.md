@@ -353,8 +353,8 @@ connects, so a reattaching client is not greeted by a blank screen.
 - Typing `exit` (or Ctrl-D) ends the shell. The job is then moved to `finished`
   (or `failed` on a non-zero exit code).
 - If the server stops, its in-memory PTY sessions can not survive. A terminal
-  job left in `active/` with a dead `pid` is recovered as a finished/failed job
-  on the next jobs scan.
+  job left in `active/` without a matching in-memory terminal session is
+  recovered as failed on the next jobs scan.
 
 ## Safety Rules
 

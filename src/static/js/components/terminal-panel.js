@@ -105,7 +105,12 @@ app.component('terminal-panel', {
         },
         connect: function () {
             const proto = location.protocol === 'https:' ? 'wss' : 'ws';
-            const url = `${proto}://${location.host}/api/v1/jobs/${encodeURIComponent(this.job.uid)}/tty`;
+            const params = new URLSearchParams();
+            if (this.job.user_uid) {
+                params.set('user', this.job.user_uid);
+            }
+            const query = params.toString();
+            const url = `${proto}://${location.host}/api/v1/jobs/${encodeURIComponent(this.job.uid)}/tty${query ? `?${query}` : ''}`;
             const ws = new WebSocket(url);
             this.ws = ws;
 

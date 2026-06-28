@@ -226,6 +226,16 @@ async function recover_active_jobs(req)
             return;
         }
 
+        if (status.job_kind === 'terminal' && !terminal_sessions.has(session_key(status.user_uid, status.uid))) {
+            await finish_job(job_root, {
+                ...status,
+                status: 'failed',
+                user_friendly_status: 'Terminal session lost',
+                finished_at: status.finished_at || new Date().toJSON(),
+            }, new Error('Terminal PTY session is no longer available'));
+            return;
+        }
+
         if (status.pid && !pid_exists(status.pid)) {
             const checked_at = Date.now();
             const touched_at = Date.parse(status.started_at || status.created_at || '') || checked_at;
