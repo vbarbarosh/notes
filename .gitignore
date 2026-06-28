@@ -1,3 +1,5 @@
 /.claude
 /data
+/data-authwall/
+/data-notes/
 /node_modules
