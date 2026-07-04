@@ -4,6 +4,13 @@ body {
     color: #232634;
 }
 
+.max-w600 { max-width: 600px; }
+.gap5 { gap: 5px; }
+.gap10 { gap: 10px; }
+.gap15 { gap: 15px; }
+.gap20 { gap: 20px; }
+.gap25 { gap: 25px; }
+
 .note-card {
     background: #f7f8fb;
     border-radius: 10px;
@@ -73,6 +80,11 @@ body {
     font-weight: 600;
     color: #3b4273;
     font-variant-numeric: tabular-nums;
+    text-decoration: none;
+}
+
+.note-date:hover {
+    text-decoration: underline;
 }
 
 .note-header-separator {

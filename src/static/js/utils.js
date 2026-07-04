@@ -464,6 +464,93 @@ function format_thousands(x)
     return x.toString().replace(/\B(?<!\.\d*)(?=(\d{3})+(?!\d))/g, ',');
 }
 
+function is_audio_file(file)
+{
+    return /\.(mp3|m4a|wav|ogg|oga|flac|aac|opus)$/i.test(String(file.path || ''));
+}
+
+function is_video_file(file)
+{
+    return /\.(m4v|mkv|mov|mp4|ogv|webm)$/i.test(String(file.path || ''));
+}
+
+function image_file_summary(file)
+{
+    const image = file.image || {};
+    return [
+        image.width && image.height ? `${image.width}×${image.height}` : '',
+        image.format ? image.format.toUpperCase() : '',
+        image.pages && image.pages > 1 ? `${image.pages} frames` : '',
+    ].filter(Boolean).join(' · ');
+}
+
+function audio_file_summary(file)
+{
+    const audio = file.audio || {};
+    return [
+        format_audio_duration(audio.duration_seconds),
+        format_audio_bitrate(audio.bit_rate),
+        audio.channel_layout || format_audio_channels(audio.channels),
+        audio.sample_rate ? `${Math.round(audio.sample_rate / 1000)} kHz` : '',
+        audio.codec_name ? audio.codec_name.toUpperCase() : '',
+    ].filter(Boolean).join(' · ');
+}
+
+function video_file_summary(file)
+{
+    const video = file.video || {};
+    return [
+        format_audio_duration(video.duration_seconds),
+        video.width && video.height ? `${video.width}×${video.height}` : '',
+        video.frame_rate ? `${format_frame_rate(video.frame_rate)} fps` : '',
+        format_audio_bitrate(video.bit_rate),
+        video.codec_name ? video.codec_name.toUpperCase() : '',
+        video.audio_codec_name ? `${video.audio_codec_name.toUpperCase()} audio` : '',
+    ].filter(Boolean).join(' · ');
+}
+
+function format_audio_duration(seconds)
+{
+    seconds = Math.floor(Number(seconds));
+    if (!Number.isFinite(seconds) || seconds < 0) {
+        return '';
+    }
+    const h = Math.floor(seconds / 3600);
+    const m = Math.floor(seconds % 3600 / 60);
+    const s = seconds % 60;
+    if (h) {
+        return `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+    }
+    return `${m}:${String(s).padStart(2, '0')}`;
+}
+
+function format_audio_bitrate(bit_rate)
+{
+    bit_rate = Number(bit_rate);
+    if (!Number.isFinite(bit_rate) || bit_rate <= 0) {
+        return '';
+    }
+    return `${Math.round(bit_rate / 1000)} kbps`;
+}
+
+function format_audio_channels(channels)
+{
+    channels = Number(channels);
+    if (!Number.isFinite(channels) || channels <= 0) {
+        return '';
+    }
+    return channels === 1 ? 'mono' : channels === 2 ? 'stereo' : `${channels} ch`;
+}
+
+function format_frame_rate(frame_rate)
+{
+    frame_rate = Number(frame_rate);
+    if (!Number.isFinite(frame_rate) || frame_rate <= 0) {
+        return '';
+    }
+    return frame_rate >= 10 ? frame_rate.toFixed(0) : frame_rate.toFixed(2);
+}
+
 
 
 
@@ -479,6 +566,112 @@ function format_thousands(x)
 function array_index(items, fn)
 {
     return Object.fromEntries(items.map(v => [fn(v), v]));
+}
+
+const TAG_FILTER_STORAGE_KEY = 'notes.selected_tags';
+const TAG_EXCLUDE_STORAGE_KEY = 'notes.excluded_tags';
+const TAG_PATTERN = /#[A-Za-z0-9][A-Za-z0-9_-]*/g;
+const URL_PATTERN = /https?:\/\/[^\s<>"'`]+/g;
+
+function parse_note_tags(body)
+{
+    const value = String(body || '');
+    const lines = value.split(/\r?\n/);
+    const first_line = lines[0] || '';
+    const matches = first_line.match(TAG_PATTERN) || [];
+    if (!matches.length) {
+        return {tags: [], display_body: value};
+    }
+
+    const non_tag_text = first_line.replace(TAG_PATTERN, '').trim();
+    if (/[A-Za-z0-9]/.test(non_tag_text)) {
+        return {tags: [], display_body: value};
+    }
+
+    const tags = Array.from(new Set(matches.map(tag => tag.toLowerCase())));
+    return {tags, display_body: lines.slice(1).join('\n').trimStart()};
+}
+
+function load_selected_tags()
+{
+    return load_tag_list(TAG_FILTER_STORAGE_KEY);
+}
+
+function load_excluded_tags()
+{
+    return load_tag_list(TAG_EXCLUDE_STORAGE_KEY);
+}
+
+function load_tag_list(key)
+{
+    try {
+        const tags = JSON.parse(localStorage.getItem(key) || '[]');
+        return Array.isArray(tags) ? tags.filter(tag => typeof tag === 'string') : [];
+    }
+    catch (error) {
+        return [];
+    }
+}
+
+function extract_youtube_items(body)
+{
+    const urls = String(body || '').match(URL_PATTERN) || [];
+    const seen = new Set();
+    const out = [];
+
+    urls.forEach(function (raw_url) {
+        const url = raw_url.replace(/[)\].,!?;:]+$/g, '');
+        const id = parse_youtube_id(url);
+        if (!id || seen.has(id)) {
+            return;
+        }
+        seen.add(id);
+        out.push({
+            id,
+            url,
+            label: `YouTube ${out.length + 1}`,
+            embed_url: `https://www.youtube.com/embed/${id}?autoplay=1&rel=0`,
+        });
+    });
+
+    return out;
+}
+
+function parse_youtube_id(url)
+{
+    try {
+        const parsed = new URL(url);
+        const host = parsed.hostname.replace(/^www\./, '');
+
+        if (host === 'youtu.be') {
+            return clean_youtube_id(parsed.pathname.split('/').filter(Boolean)[0]);
+        }
+
+        const is_youtube = host === 'youtube.com' || host.endsWith('.youtube.com');
+        const is_youtube_nocookie = host === 'youtube-nocookie.com' || host.endsWith('.youtube-nocookie.com');
+        if (!is_youtube && !is_youtube_nocookie) {
+            return null;
+        }
+
+        if (parsed.pathname === '/watch') {
+            return clean_youtube_id(parsed.searchParams.get('v'));
+        }
+
+        const parts = parsed.pathname.split('/').filter(Boolean);
+        if (['embed', 'shorts', 'live'].includes(parts[0])) {
+            return clean_youtube_id(parts[1]);
+        }
+    }
+    catch (error) {
+    }
+
+    return null;
+}
+
+function clean_youtube_id(value)
+{
+    const id = String(value || '').trim();
+    return /^[A-Za-z0-9_-]{6,}$/.test(id) ? id : null;
 }
 
 async function get_event_files(event, options = {})

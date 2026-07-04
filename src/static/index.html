@@ -10,32 +10,7 @@
     <link id="smcss" href="https://unpkg.com/@vbarbarosh/smcss@1.2.0/dist/sm.css" rel="stylesheet">
     <title>notes</title>
     <style>
-        .max-w600 { max-width: 600px; }
-        .gap5 { gap: 5px; }
-        .gap10 { gap: 10px; }
-        .gap15 { gap: 15px; }
-        .gap20 { gap: 20px; }
-        .gap25 { gap: 25px; }
         .bucket { font-size: 50px; line-height: 1em; }
-        .upload-progress-panel {
-            position: fixed;
-            bottom: 20px;
-            right: 20px;
-            background: #fff;
-            border: 1px solid #c7cde2;
-            border-radius: 10px;
-            padding: 12px 16px;
-            min-width: 280px;
-            box-shadow: 0 4px 16px rgba(0,0,0,0.15);
-            z-index: 1000;
-        }
-        .upload-progress-title { font-weight: 600; margin-bottom: 8px; font-size: 13px; color: #555; }
-        .upload-progress-item { display: flex; align-items: center; gap: 8px; margin-bottom: 5px; }
-        .upload-progress-item:last-child { margin-bottom: 0; }
-        .upload-progress-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
-        .upload-progress-bar-wrap { width: 90px; height: 5px; background: #e3e6ee; border-radius: 3px; flex-shrink: 0; }
-        .upload-progress-bar { height: 100%; background: #2486fd; border-radius: 3px; transition: width 0.1s linear; }
-        .upload-progress-pct { width: 34px; text-align: right; font-size: 12px; color: #888; flex-shrink: 0; }
     </style>
 </head>
 <body>
@@ -53,174 +28,6 @@
 <script src="js/utils.js"></script>
 <script src="js/apis.js"></script>
 <script>
-const uploads_list = Vue.reactive([]);
-let uploads_uid_seq = 0;
-
-const CHUNKED_UPLOAD_THRESHOLD = 50 * 1024 * 1024; // 50 MB
-const CHUNK_SIZE = 10 * 1024 * 1024; // 10 MB per chunk
-
-async function do_upload_file(note_uid, file)
-{
-    const uid = ++uploads_uid_seq;
-    const name = file.name || String(file.fullPath || '').split('/').filter(Boolean).pop() || 'file';
-    uploads_list.push({uid, name, progress: 0});
-    try {
-        if (file.size > CHUNKED_UPLOAD_THRESHOLD) {
-            await do_upload_file_chunked(note_uid, file, uid);
-        }
-        else {
-            await api_notes_upload_file({
-                note_uid,
-                file,
-                onProgress: function (event) {
-                    const item = uploads_list.find(u => u.uid === uid);
-                    if (item && event.total) {
-                        item.progress = Math.round(event.loaded / event.total * 100);
-                    }
-                },
-            });
-        }
-    }
-    finally {
-        const i = uploads_list.findIndex(u => u.uid === uid);
-        if (i !== -1) {
-            uploads_list.splice(i, 1);
-        }
-    }
-}
-
-async function do_upload_file_chunked(note_uid, file, uid)
-{
-    const total_chunks = Math.ceil(file.size / CHUNK_SIZE);
-    const filename = file.name || String(file.fullPath || '').split('/').filter(Boolean).pop() || 'file';
-
-    const { upload_id } = await api_files_upload_start({ filename, total_chunks, total_size: file.size });
-
-    for (let i = 0; i < total_chunks; i++) {
-        const start = i * CHUNK_SIZE;
-        const chunk = file.slice(start, start + CHUNK_SIZE);
-        await api_files_upload_chunk({
-            upload_id,
-            chunk_index: i,
-            chunk,
-            onProgress: function (event) {
-                const item = uploads_list.find(u => u.uid === uid);
-                if (item && event.total) {
-                    item.progress = Math.round((i + event.loaded / event.total) / total_chunks * 100);
-                }
-            },
-        });
-    }
-
-    return api_files_upload_assemble({ upload_id, note_uid });
-}
-
-const TAG_FILTER_STORAGE_KEY = 'notes.selected_tags';
-const TAG_EXCLUDE_STORAGE_KEY = 'notes.excluded_tags';
-const TAG_PATTERN = /#[A-Za-z0-9][A-Za-z0-9_-]*/g;
-const URL_PATTERN = /https?:\/\/[^\s<>"'`]+/g;
-
-function parse_note_tags(body)
-{
-    const value = String(body || '');
-    const lines = value.split(/\r?\n/);
-    const first_line = lines[0] || '';
-    const matches = first_line.match(TAG_PATTERN) || [];
-    if (!matches.length) {
-        return {tags: [], display_body: value};
-    }
-
-    const non_tag_text = first_line.replace(TAG_PATTERN, '').trim();
-    if (/[A-Za-z0-9]/.test(non_tag_text)) {
-        return {tags: [], display_body: value};
-    }
-
-    const tags = Array.from(new Set(matches.map(tag => tag.toLowerCase())));
-    return {tags, display_body: lines.slice(1).join('\n').trimStart()};
-}
-
-function load_selected_tags()
-{
-    return load_tag_list(TAG_FILTER_STORAGE_KEY);
-}
-
-function load_excluded_tags()
-{
-    return load_tag_list(TAG_EXCLUDE_STORAGE_KEY);
-}
-
-function load_tag_list(key)
-{
-    try {
-        const tags = JSON.parse(localStorage.getItem(key) || '[]');
-        return Array.isArray(tags) ? tags.filter(tag => typeof tag === 'string') : [];
-    }
-    catch (error) {
-        return [];
-    }
-}
-
-function extract_youtube_items(body)
-{
-    const urls = String(body || '').match(URL_PATTERN) || [];
-    const seen = new Set();
-    const out = [];
-
-    urls.forEach(function (raw_url) {
-        const url = raw_url.replace(/[)\].,!?;:]+$/g, '');
-        const id = parse_youtube_id(url);
-        if (!id || seen.has(id)) {
-            return;
-        }
-        seen.add(id);
-        out.push({
-            id,
-            url,
-            label: `YouTube ${out.length + 1}`,
-            embed_url: `https://www.youtube.com/embed/${id}?autoplay=1&rel=0`,
-        });
-    });
-
-    return out;
-}
-
-function parse_youtube_id(url)
-{
-    try {
-        const parsed = new URL(url);
-        const host = parsed.hostname.replace(/^www\./, '');
-
-        if (host === 'youtu.be') {
-            return clean_youtube_id(parsed.pathname.split('/').filter(Boolean)[0]);
-        }
-
-        const is_youtube = host === 'youtube.com' || host.endsWith('.youtube.com');
-        const is_youtube_nocookie = host === 'youtube-nocookie.com' || host.endsWith('.youtube-nocookie.com');
-        if (!is_youtube && !is_youtube_nocookie) {
-            return null;
-        }
-
-        if (parsed.pathname === '/watch') {
-            return clean_youtube_id(parsed.searchParams.get('v'));
-        }
-
-        const parts = parsed.pathname.split('/').filter(Boolean);
-        if (['embed', 'shorts', 'live'].includes(parts[0])) {
-            return clean_youtube_id(parts[1]);
-        }
-    }
-    catch (error) {
-    }
-
-    return null;
-}
-
-function clean_youtube_id(value)
-{
-    const id = String(value || '').trim();
-    return /^[A-Za-z0-9_-]{6,}$/.test(id) ? id : null;
-}
-
 const app = Vue.createApp({
     template: `
 <!--        <div class="fix-br m15 bucket">🗑️</div>-->
@@ -350,222 +157,32 @@ const app = Vue.createApp({
             </div>
 -->
 
-            <div v-for="note in visible_notes"
-                 v-bind:key="note.uid"
-                 v-bind:ref="elem => note_refs[note.uid] = elem"
-                 v-on:paste="paste_note($event, note)"
-                 v-on:mouseover="mouseover_note($event, note)"
-                 v-on:mouseleave="mouseleave_note($event, note)"
-                 v-on:dragover="dragover_note($event, note)"
-                 v-on:dragleave="dragleave_note($event, note)"
-                 v-on:drop="drop_note($event, note)"
-                 v-bind:class="{dropping: dropping_note_uid === note.uid, active: (active_note?.uid === note.uid)}"
-                 class="note-card">
-                <h2 class="rel flex-row-center gap5">
-                    <note-calendar v-bind:value="note.uid" v-bind:data-u="note.uid" class="abs w64 h64" style="top:-32px;left:-96px;" />
-                    <span class="note-date">{{ format_note_uid_date(note.uid) }}</span>
-                    <span v-if="note_header_has_buttons(note)" class="note-header-separator">•</span>
-                    <span v-if="note.name" class="note-name">{{ note.name }}</span>
-                    <button
-                        v-if="note.youtube_items.length"
-                        v-on:click.stop="play_youtube(note, note.youtube_items[0])"
-                        class="note-play-button"
-                        title="Play YouTube">
-                        ▶️
-                    </button>
-                    <button
-                        v-if="note.youtube_items.length"
-                        v-on:click.stop="click_youtube_thumbnails(note)"
-                        v-bind:disabled="!!note_active_job(note, 'youtube-thumbnails')"
-                        title="Extract YouTube thumbnails">
-                        🖼️
-                    </button>
-                    <button
-                        v-if="note.youtube_items.length"
-                        v-on:click.stop="click_youtube_mp3(note)"
-                        v-bind:disabled="!!note_active_job(note, 'youtube-mp3')"
-                        title="Extract YouTube MP3">
-                        🎵
-                    </button>
-                    <button
-                        v-on:click.stop="click_terminal(note)"
-                        title="Open a terminal in this note">
-                        🖥️
-                    </button>
-                    <a
-                        v-if="note_has_pdf(note)"
-                        v-bind:href="'/pdf.html?note=' + note.uid"
-                        target="_blank"
-                        class="note-pdf-link">PDF</a>
-                    <button v-on:click="click_h2_copy($event, note)" class="mla">📋️</button>
-                    <button v-on:click="click_h2_paste(note)">📥</button>
-                    <button v-on:click="click_h2_edit(note)">✏️</button>
-                    <button v-on:click="click_h2_remove(note)">🗑️</button>
-                </h2>
-
-                <div v-if="note_jobs(note).length" class="job-list">
-                    <div v-for="job in note_jobs(note)" v-bind:key="job.uid" class="job-row">
-                        <span v-bind:class="['job-status', job.bucket]">{{ job_label(job) }}</span>
-                        <button
-                            v-if="(job.job_kind === 'terminal' && job.bucket === 'active')"
-                            v-on:click="open_terminal(job)"
-                            type="button"
-                            title="Open terminal">
-                            Open
-                        </button>
-                        <button
-                            v-if="job.bucket === 'finished' || job.bucket === 'failed'"
-                            type="button"
-                            v-on:click="click_job_confirm(job)"
-                            title="Confirm job">
-                            OK
-                        </button>
-                    </div>
-                </div>
-
-                <div v-if="note.display_tags.length" class="note-tags">
-                    <button
-                        v-for="tag in note.display_tags"
-                        v-bind:key="tag"
-                        type="button"
-                        v-on:click.stop="toggle_include_tag(tag)"
-                        v-bind:class="['note-tag', {active: selected_tags.includes(tag), excluded: excluded_tags.includes(tag)}]"
-                        v-bind:title="tag">
-                        {{ tag }}
-                    </button>
-                </div>
-
-                <div v-if="editing_note?.uid === note.uid" class="mb20">
-                    <textarea v-autosize v-autofocus v-model="editing_note.body" class="note-input-card-textarea"></textarea>
-                    <div class="flex-row gap10 mt5">
-                        <button v-on:click="click_editing_save">💾 Save</button>
-                        <button v-on:click="click_editing_cancel">🚫 Cancel</button>
-                    </div>
-                </div>
-                <markdown v-else-if="note.display_body" v-bind:value="note.display_body" v-bind:prefix="note.prefix" />
-
-                <div v-if="note.youtube_items.length > 1" class="youtube-links">
-                    <button
-                        v-for="item in note.youtube_items"
-                        v-bind:key="item.id"
-                        type="button"
-                        v-on:click="play_youtube(note, item)"
-                        v-bind:class="['youtube-link', {active: youtube_player?.id === item.id}]">
-                        ▶ {{ item.label }}
-                    </button>
-                </div>
-
-                <fancybox>
-                    <div class="note-images">
-                        <a
-                            v-for="file in note.files.filter(v => v.thumbnail_url)"
-                            v-bind:key="note.uid + ':' + file.path"
-                            v-bind:href="(file.url)"
-                            v-bind:class="{highlight: (mouseover_note_uid === note.uid && mouseover_file_path === file.path)}"
-                            target="_blank">
-                            <img
-                                v-on:mouseover="mouseover_note_image($event, note, file)"
-                                v-on:mouseleave="mouseleave_note_image($event, note, file)"
-                                v-bind:src="file.thumbnail_url"
-                                v-bind:class="{highlight: (mouseover_note_uid === note.uid && mouseover_file_path === file.path)}"
-                                alt=""
-                                loading="lazy"
-                                decoding="async"
-                                class="flex-static max-ww checkerboard">
-                        </a>
-                    </div>
-                </fancybox>
-
-                <div v-bind:class="['note-files', {empty: !note.files.length}]">
-                    <div class="note-files-toolbar">
-                        <div class="note-files-toolbar-left">
-                            <div class="note-files-folder">
-                                <i class="ti ti-folder" aria-hidden="true"></i>
-                            </div>
-                            <div class="note-files-meta">
-                                <div class="note-files-title">{{ note.files.length ? 'Files' : 'No files' }}</div>
-                                <div v-if="note.files.length" class="note-files-summary">{{ note_file_summary(note) }}</div>
-                            </div>
-                        </div>
-                        <div class="note-files-tools">
-                            <label v-if="note.files.length" class="note-files-search">
-                                <i class="ti ti-search" aria-hidden="true"></i>
-                                <input
-                                    type="search"
-                                    v-model="file_queries[note.uid]"
-                                    placeholder="Search files">
-                            </label>
-                            <label class="note-files-upload">
-                                <i class="ti ti-upload" aria-hidden="true"></i>
-                                Upload
-                                <input
-                                    type="file"
-                                    multiple
-                                    v-on:change="change_note_files($event, note)">
-                            </label>
-                        </div>
-                    </div>
-                    <div v-if="note.files.length" class="note-files-row note-files-head">
-                        <div class="note-files-name">Name <i class="ti ti-arrows-sort" aria-hidden="true"></i></div>
-                        <div class="note-files-size">Size</div>
-                        <div class="note-files-actions">Actions</div>
-                    </div>
-                    <template v-if="note.files.length">
-                        <div v-for="file in filtered_note_files(note)"
-                            v-bind:key="note.uid + ':' + file.path"
-                            v-bind:data-file-path="file.path"
-                            v-on:mouseover="mouseover_note_table_row($event, note, file)"
-                            v-on:mouseleave="mouseleave_note_table_row($event, note, file)"
-                            v-bind:class="['note-files-row', 'note-files-body', {'system-file': is_system_file(file), highlight: (mouseover_note_uid === note.uid && mouseover_file_path === file.path)}]">
-                            <div class="note-file-name-cell">
-                                <div v-bind:class="['note-file-icon', file_type(file)]">
-                                    <i v-bind:class="['ti', file_icon_class(file)]" aria-hidden="true"></i>
-                                </div>
-                                <div class="note-file-main">
-                                    <span class="note-file-name">{{ file.path }}</span>
-                                    <div v-if="file.image" class="note-file-media-meta">{{ image_file_summary(file) }}</div>
-                                    <div v-if="file.audio" class="note-file-audio-meta">{{ audio_file_summary(file) }}</div>
-                                    <div v-if="file.video" class="note-file-media-meta">{{ video_file_summary(file) }}</div>
-                                </div>
-                            </div>
-                            <div class="note-file-size">{{ format_bytes(file.size) }}</div>
-                            <div class="note-file-actions">
-                                <button
-                                    type="button"
-                                    class="note-file-button open"
-                                    v-on:click="click_file_save(note, file)"
-                                    v-bind:aria-label="'Open ' + file.path + ' in new tab'"
-                                    title="Open in new tab">
-                                    <i class="ti ti-external-link" aria-hidden="true"></i>
-                                </button>
-                                <button
-                                    type="button"
-                                    class="note-file-button delete"
-                                    v-on:click="click_file_remove(note, file)"
-                                    v-bind:aria-label="'Delete ' + file.path"
-                                    title="Delete">
-                                    <i class="ti ti-trash" aria-hidden="true"></i>
-                                </button>
-                            </div>
-                        </div>
-                    </template>
-                    <div v-if="note.files.length && !filtered_note_files(note).length" class="note-files-empty">
-                        No matching files
-                    </div>
-                </div>
-            </div>
+            <notes-list ref="list"
+                        v-bind:notes="filtered_notes"
+                        v-bind:jobs="jobs"
+                        v-bind:active-uid="active_note?.uid"
+                        v-bind:editing="editing_note"
+                        v-bind:selected-tags="selected_tags"
+                        v-bind:excluded-tags="excluded_tags"
+                        v-bind:hovered-note-uid="mouseover_note_uid"
+                        v-bind:hovered-file-path="mouseover_file_path"
+                        v-bind:playing-youtube-id="youtube_player?.id"
+                        v-on:activate="activate_note"
+                        v-on:deactivate="deactivate_note"
+                        v-on:toggle-tag="toggle_include_tag"
+                        v-on:play-youtube="play_youtube"
+                        v-on:open-terminal="open_terminal"
+                        v-on:refresh-jobs="refresh_jobs"
+                        v-on:edit="edit_note"
+                        v-on:edit-save="save_note_edit"
+                        v-on:edit-cancel="cancel_note_edit"
+                        v-on:remove="remove_note"
+                        v-on:remove-file="remove_note_file"
+                        v-on:hover-file="hover_file"
+                        v-on:uploaded="refresh_preserving_note_files" />
         </div>
 
-        <div v-if="uploads.length" class="upload-progress-panel">
-            <div class="upload-progress-title">Uploading {{ uploads.length }} file{{ uploads.length !== 1 ? 's' : '' }}</div>
-            <div v-for="upload in uploads" v-bind:key="upload.uid" class="upload-progress-item">
-                <div class="upload-progress-name" v-bind:title="upload.name">{{ upload.name }}</div>
-                <div class="upload-progress-bar-wrap">
-                    <div class="upload-progress-bar" v-bind:style="{width: upload.progress + '%'}"></div>
-                </div>
-                <div class="upload-progress-pct">{{ upload.progress }}%</div>
-            </div>
-        </div>
+        <uploads-panel />
 
         <mini-player
             v-on:select-note="select_notes_overview"
@@ -595,15 +212,12 @@ const app = Vue.createApp({
     `,
     data: function () {
         return {
-            note_refs: {},
             new_body: '',
             active_note: null,
             editing_note: null,
-            dropping_note_uid: null,
             mouseover_note_uid: null,
             mouseover_file_path: null,
             notes: [],
-            render_limit: 20,
             selected_tags: load_selected_tags(),
             excluded_tags: load_excluded_tags(),
             tag_picker_open: false,
@@ -618,11 +232,9 @@ const app = Vue.createApp({
             jobs_refresh_timer: null,
             seen_terminal_job_uids: [],
             terminal_job: null,
-            file_queries: {},
             pending_note_removals: [],
             pending_file_removals: [],
             notes_hearts: {},
-            uploads: uploads_list,
         };
     },
     computed: {
@@ -688,9 +300,6 @@ const app = Vue.createApp({
                 ].join(' ').toLowerCase().includes(query);
             });
         },
-        visible_notes: function () {
-            return this.filtered_notes.slice(0, this.render_limit);
-        },
         has_tag_filter: function () {
             return !!(this.selected_tags.length || this.excluded_tags.length);
         },
@@ -702,9 +311,9 @@ const app = Vue.createApp({
                 const note_cover = (note.files || []).find(file => file.thumbnail_url);
                 const note_hearts = this.notes_hearts[note.uid]?.tracks || {};
                 return (note.files || [])
-                    .filter(file => this.is_audio_file(file) || this.is_video_file(file))
+                    .filter(file => is_audio_file(file) || is_video_file(file))
                     .map(file => {
-                        const is_video = this.is_video_file(file);
+                        const is_video = is_video_file(file);
                         const hearts = note_hearts[file.path]?.hearts || [];
                         return {
                             key: `${note.uid}:${file.path}`,
@@ -716,8 +325,8 @@ const app = Vue.createApp({
                                 ? (file.thumbnail_url || null)
                                 : (note_cover?.thumbnail_url || note_cover?.url || null),
                             meta: file.video
-                                ? this.video_file_summary(file)
-                                : (file.audio ? this.audio_file_summary(file) : null),
+                                ? video_file_summary(file)
+                                : (file.audio ? audio_file_summary(file) : null),
                             note_uid: note.uid,
                             file_path: file.path,
                             sha256: file.sha256 || null,
@@ -774,7 +383,7 @@ const app = Vue.createApp({
         },
         load_all_hearts: async function () {
             const media_notes = this.notes.filter(note => {
-                return (note.files || []).some(file => this.is_audio_file(file) || this.is_video_file(file));
+                return (note.files || []).some(file => is_audio_file(file) || is_video_file(file));
             });
             const hearts_path = this.hearts_path_for_note();
             const results = await Promise.all(media_notes.map(note => {
@@ -950,197 +559,9 @@ const app = Vue.createApp({
         note_create_fail: function ({uid}) {
             this.notes = this.notes.filter(note => note.uid !== uid);
         },
-        note_jobs: function (note) {
-            return this.jobs.filter(job => job.note_uid === note.uid || String(job.note_uid || '').startsWith(note.uid + '-'));
-        },
-        note_active_job: function (note, job_name) {
-            return this.note_jobs(note).find(job => job.job_name === job_name && job.bucket === 'active');
-        },
-        note_has_pdf: function (note) {
-            return note.files.some(f => f.path.toLowerCase().endsWith('.pdf'));
-        },
-        is_audio_file: function (file) {
-            return /\.(mp3|m4a|wav|ogg|oga|flac|aac|opus)$/i.test(String(file.path || ''));
-        },
-        is_video_file: function (file) {
-            return /\.(m4v|mkv|mov|mp4|ogv|webm)$/i.test(String(file.path || ''));
-        },
-        note_header_has_buttons: function (note) {
-            // The terminal button is always shown, so the header always has buttons.
-            return true;
-        },
-        format_note_uid_date: function (uid) {
-            const match = String(uid || '').match(/^(\d{4})(\d{2})(\d{2})_(\d{2})(\d{2})(\d{2})/);
-            if (!match) {
-                return uid;
-            }
-            const date = new Date(Date.UTC(
-                Number(match[1]),
-                Number(match[2]) - 1,
-                Number(match[3]),
-                Number(match[4]),
-                Number(match[5]),
-                Number(match[6])
-            ));
-            if (Number.isNaN(date.getTime())) {
-                return uid;
-            }
-            const pad = value => String(value).padStart(2, '0');
-            return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
-        },
-        note_file_query: function (note) {
-            return String(this.file_queries[note.uid] || '').trim().toLowerCase();
-        },
-        filtered_note_files: function (note) {
-            const query = this.note_file_query(note);
-            if (!query) {
-                return note.files;
-            }
-            return note.files.filter(file => String(file.path || '').toLowerCase().includes(query));
-        },
-        note_file_summary: function (note) {
-            const files = this.filtered_note_files(note);
-            const total_size = files.reduce((sum, file) => sum + Number(file.size || 0), 0);
-            const filtered_count = this.note_file_query(note) ? ` of ${note.files.length}` : '';
-            return `${files.length}${filtered_count} file${files.length === 1 ? '' : 's'} · ${format_bytes(total_size)} total`;
-        },
-        is_system_file: function (file) {
-            return String(file.path || '').toLowerCase().startsWith('apps/');
-        },
-        file_type: function (file) {
-            const path = String(file.path || '').toLowerCase();
-            if (path.endsWith('.pdf')) {
-                return 'pdf';
-            }
-            if (path.endsWith('.epub')) {
-                return 'epub';
-            }
-            if (path.endsWith('.zip')) {
-                return 'zip';
-            }
-            if (this.is_audio_file(file)) {
-                return 'audio';
-            }
-            if (this.is_video_file(file)) {
-                return 'video';
-            }
-            if (path.endsWith('.png') || path.endsWith('.jpg') || path.endsWith('.jpeg') || path.endsWith('.gif') || path.endsWith('.webp') || path.endsWith('.svg')) {
-                return 'image';
-            }
-            if (path.endsWith('.json')) {
-                return 'json';
-            }
-            return 'file';
-        },
-        file_icon_class: function (file) {
-            return {
-                pdf: 'ti-file-type-pdf',
-                epub: 'ti-book-2',
-                zip: 'ti-file-zip',
-                audio: 'ti-music',
-                video: 'ti-movie',
-                image: 'ti-photo',
-                json: 'ti-code',
-                file: 'ti-file',
-            }[this.file_type(file)];
-        },
-        image_file_summary: function (file) {
-            const image = file.image || {};
-            return [
-                image.width && image.height ? `${image.width}×${image.height}` : '',
-                image.format ? image.format.toUpperCase() : '',
-                image.pages && image.pages > 1 ? `${image.pages} frames` : '',
-            ].filter(Boolean).join(' · ');
-        },
-        audio_file_summary: function (file) {
-            const audio = file.audio || {};
-            return [
-                this.format_audio_duration(audio.duration_seconds),
-                this.format_audio_bitrate(audio.bit_rate),
-                audio.channel_layout || this.format_audio_channels(audio.channels),
-                audio.sample_rate ? `${Math.round(audio.sample_rate / 1000)} kHz` : '',
-                audio.codec_name ? audio.codec_name.toUpperCase() : '',
-            ].filter(Boolean).join(' · ');
-        },
-        video_file_summary: function (file) {
-            const video = file.video || {};
-            return [
-                this.format_audio_duration(video.duration_seconds),
-                video.width && video.height ? `${video.width}×${video.height}` : '',
-                video.frame_rate ? `${this.format_frame_rate(video.frame_rate)} fps` : '',
-                this.format_audio_bitrate(video.bit_rate),
-                video.codec_name ? video.codec_name.toUpperCase() : '',
-                video.audio_codec_name ? `${video.audio_codec_name.toUpperCase()} audio` : '',
-            ].filter(Boolean).join(' · ');
-        },
-        format_audio_duration: function (seconds) {
-            seconds = Math.floor(Number(seconds));
-            if (!Number.isFinite(seconds) || seconds < 0) {
-                return '';
-            }
-            const h = Math.floor(seconds / 3600);
-            const m = Math.floor(seconds % 3600 / 60);
-            const s = seconds % 60;
-            if (h) {
-                return `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
-            }
-            return `${m}:${String(s).padStart(2, '0')}`;
-        },
-        format_audio_bitrate: function (bit_rate) {
-            bit_rate = Number(bit_rate);
-            if (!Number.isFinite(bit_rate) || bit_rate <= 0) {
-                return '';
-            }
-            return `${Math.round(bit_rate / 1000)} kbps`;
-        },
-        format_audio_channels: function (channels) {
-            channels = Number(channels);
-            if (!Number.isFinite(channels) || channels <= 0) {
-                return '';
-            }
-            return channels === 1 ? 'mono' : channels === 2 ? 'stereo' : `${channels} ch`;
-        },
-        format_frame_rate: function (frame_rate) {
-            frame_rate = Number(frame_rate);
-            if (!Number.isFinite(frame_rate) || frame_rate <= 0) {
-                return '';
-            }
-            return frame_rate >= 10 ? frame_rate.toFixed(0) : frame_rate.toFixed(2);
-        },
-        job_label: function (job) {
-            return [
-                job.job_name,
-                job.user_friendly_status || job.status,
-                job.bucket,
-            ].filter(Boolean).join(' · ');
-        },
         select_notes_overview: async function (note_uid) {
-            const index = this.filtered_notes.findIndex(v => v.uid === note_uid);
-            if (index !== -1 && index >= this.render_limit) {
-                this.render_limit = index + 1;
-                await this.$nextTick();
-            }
-            this.note_refs[note_uid]?.scrollIntoView({behavior: 'smooth', block: 'center'});
+            await this.$refs.list?.scroll_to(note_uid);
             this.active_note = this.notes.find(v => v.uid === note_uid);
-        },
-        ramp_up_render_limit: async function () {
-            // Let the first render_limit cards paint before mounting the rest,
-            // in idle chunks to keep the page responsive.
-            await this.$nextTick();
-            await new Promise(requestAnimationFrame);
-            await new Promise(requestAnimationFrame);
-            const idle = window.requestIdleCallback
-                ? (fn => window.requestIdleCallback(fn))
-                : (fn => setTimeout(fn, 50));
-            const step = () => {
-                if (this.render_limit >= this.notes.length) {
-                    this.render_limit = Infinity;
-                    return;
-                }
-                this.render_limit += 50;
-                idle(step);
-            };
-            idle(step);
         },
         toggle_tag_picker: async function () {
             this.tag_picker_open = !this.tag_picker_open;
@@ -1208,15 +629,6 @@ const app = Vue.createApp({
             this.reset();
             await this.refresh();
         },
-        change_note_files: async function (event, note) {
-            const files = await get_event_files(event);
-            event.target.value = '';
-            if (!files.length) {
-                return;
-            }
-            await Promise.all(files.map(file => do_upload_file(note.uid, file)));
-            await this.refresh_preserving_note_files(note);
-        },
         paste: async function (event) {
             const items = event.clipboardData && event.clipboardData.items;
             if (!items) {
@@ -1238,52 +650,15 @@ const app = Vue.createApp({
             }
             await this.refresh();
         },
-        paste_note: async function (event, note) {
-            const items = event.clipboardData && event.clipboardData.items;
-            if (!items) {
-                return;
-            }
-            let note_uid = note.uid;
-            let uploaded = false;
-            for (let i = 0; i < items.length; ++i) {
-                const item = items[i];
-                if (item.kind === 'file') {
-                    const file = item.getAsFile();
-                    if (file) {
-                        await do_upload_file(note_uid, file);
-                        uploaded = true;
-                    }
-                }
-            }
-            if (uploaded) {
-                await this.refresh_preserving_note_files(note);
-            }
-        },
         click_submit: async function () {
             await api_notes_create({body: this.new_body});
             await this.reset();
             await this.refresh();
         },
-        click_h2_copy: async function (event, note) {
-            const elem = event.currentTarget;
-            await navigator.clipboard.writeText(note.body);
-            elem.classList.add('copied');
-            await Promise.delay(900);
-            elem.classList.remove('copied');
-        },
-        click_h2_paste: async function (note) {
-            const note_uid = note.uid;
-            const items = await navigator.clipboard.read();
-            for (const item of items) {
-                const blob = await item.getType('image/png');
-                await do_upload_file(note_uid, new File([blob], 'image.png'));
-            }
-            await this.refresh_preserving_note_files(note);
-        },
-        click_h2_edit: async function (note) {
+        edit_note: async function (note) {
             this.editing_note = JSON.parse(JSON.stringify(note));
         },
-        click_h2_remove: async function (note) {
+        remove_note: async function (note) {
             const index = this.notes.findIndex(v => v.uid === note.uid);
             const removed = this.notes[index];
             if (!this.pending_note_removals.includes(note.uid)) {
@@ -1309,7 +684,7 @@ const app = Vue.createApp({
                 throw error;
             }
         },
-        click_editing_save: async function () {
+        save_note_edit: async function () {
             const editing_note = this.editing_note;
             const index = this.notes.findIndex(v => v.uid === editing_note.uid);
             const previous = this.notes[index];
@@ -1345,13 +720,10 @@ const app = Vue.createApp({
                 throw error;
             }
         },
-        click_editing_cancel: async function () {
+        cancel_note_edit: async function () {
             this.editing_note = null;
         },
-        click_file_save: function (note, file) {
-            window.open(file.url, '_blank');
-        },
-        click_file_remove: async function (note, file) {
+        remove_note_file: async function (note, file) {
             const key = this.file_removal_key(note.uid, file.path);
             const note_index = this.notes.findIndex(v => v.uid === note.uid);
             const current = this.notes[note_index];
@@ -1403,7 +775,7 @@ const app = Vue.createApp({
             this.watch_note_image_loads_for_scroll_anchor(anchor);
         },
         capture_note_files_scroll_anchor: function (note) {
-            const elem = this.note_refs[note.uid]?.querySelector('.note-files');
+            const elem = this.$refs.list?.note_elem(note.uid)?.querySelector('.note-files');
             if (!elem) {
                 return null;
             }
@@ -1421,7 +793,7 @@ const app = Vue.createApp({
             this.adjust_note_files_scroll_anchor(anchor);
         },
         adjust_note_files_scroll_anchor: function (anchor) {
-            const elem = this.note_refs[anchor.note_uid]?.querySelector('.note-files');
+            const elem = this.$refs.list?.note_elem(anchor.note_uid)?.querySelector('.note-files');
             if (!elem) {
                 return;
             }
@@ -1432,7 +804,7 @@ const app = Vue.createApp({
             if (!anchor) {
                 return;
             }
-            const note_elem = this.note_refs[anchor.note_uid];
+            const note_elem = this.$refs.list?.note_elem(anchor.note_uid);
             if (!note_elem) {
                 return;
             }
@@ -1456,58 +828,23 @@ const app = Vue.createApp({
                 window.open(this.youtube_player.url, '_blank');
             }
         },
-        click_youtube_thumbnails: async function (note) {
-            await api_jobs_create({job_name: 'youtube-thumbnails', note_uid: note.uid});
-            await this.refresh_jobs();
-        },
-        click_youtube_mp3: async function (note) {
-            await api_jobs_create({job_name: 'youtube-mp3', note_uid: note.uid});
-            await this.refresh_jobs();
-        },
-        click_terminal: async function (note) {
-            const job = await api_jobs_create({job_name: 'terminal', note_uid: note.uid});
-            this.terminal_job = job;
-            await this.refresh_jobs();
-        },
         open_terminal: function (job) {
             this.terminal_job = job;
         },
         close_terminal: function () {
             this.terminal_job = null;
         },
-        click_job_confirm: async function (job) {
-            await api_jobs_confirm({job_uid: job.uid});
-            await this.refresh_jobs();
-        },
-        mouseover_note: function (event, note) {
+        activate_note: function (note) {
             this.active_note = note;
         },
-        mouseleave_note: function (event, note) {
+        deactivate_note: function (note) {
             if (this.active_note?.uid === note.uid) {
                 this.active_note = null;
             }
         },
-        dragover_note: function (event, note) {
-            event.preventDefault();
-            this.dropping_note_uid = note.uid;
-        },
-        dragleave_note: function (event, note) {
-            if (this.dropping_note_uid === note.uid) {
-                this.dropping_note_uid = null;
-            }
-        },
-        drop_note: async function (event, note) {
-            event.preventDefault();
-            this.dropping_note_uid = null;
-            const files = await get_event_files(event);
-            if (files.length) {
-                await Promise.all(files.map(file => do_upload_file(note.uid, file)));
-                await this.refresh_preserving_note_files(note);
-            }
-        },
-        mouseover_note_image: function (event, note, file) {
-            this.mouseover_note_uid = note.uid;
-            this.mouseover_file_path = file.path;
+        hover_file: function (note_uid, file_path) {
+            this.mouseover_note_uid = note_uid;
+            this.mouseover_file_path = file_path;
         },
         set_hover_track: function (note_uid, file_path) {
             this.mouseover_note_uid = note_uid;
@@ -1516,31 +853,15 @@ const app = Vue.createApp({
                 return;
             }
             this.$nextTick(() => {
-                const note_elem = this.note_refs[note_uid];
+                const note_elem = this.$refs.list?.note_elem(note_uid);
                 const row = note_elem?.querySelector(`[data-file-path="${CSS.escape(file_path)}"]`);
                 row?.scrollIntoView({block: 'nearest', behavior: 'smooth'});
             });
         },
-        mouseleave_note_image: function (event, note, file) {
-            if (this.mouseover_note_uid === note.uid && this.mouseover_file_path === file.path) {
-                this.mouseover_note_uid = null;
-                this.mouseover_file_path = null;
-            }
-        },
-        mouseover_note_table_row: function ($event, note, file) {
-            this.mouseover_note_uid = note.uid;
-            this.mouseover_file_path = file.path;
-        },
-        mouseleave_note_table_row: function ($event, note, file) {
-            if (this.mouseover_note_uid === note.uid && this.mouseover_file_path === file.path) {
-                this.mouseover_note_uid = null;
-                this.mouseover_file_path = null;
-            }
-        },
     },
     created: async function () {
         await this.refresh();
-        this.ramp_up_render_limit();
+        this.$refs.list?.ramp_up();
         await this.refresh_jobs();
     },
     mounted: function () {
@@ -1557,12 +878,18 @@ app.mixin({
         px,
         pc,
         format_bytes,
+        image_file_summary,
+        audio_file_summary,
+        video_file_summary,
     },
 });
 </script>
 
 <script src="js/components/notes-new.js"></script>
 <script src="js/components/notes-overview.js"></script>
+<script src="js/components/note-card.js"></script>
+<script src="js/components/notes-list.js"></script>
+<script src="js/components/uploads-panel.js"></script>
 <script src="js/components/mini-player.js"></script>
 <script src="js/components/note-calendar.js"></script>
 <script src="js/components/terminal-panel.js"></script>

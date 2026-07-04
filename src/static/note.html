@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+    <link href="https://unpkg.com/@vbarbarosh/smcss@1.2.0/dist/reset.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.43.0/dist/tabler-icons.min.css" rel="stylesheet">
+    <link href="/css/theme.css" rel="stylesheet">
+    <link href="https://unpkg.com/@xterm/xterm@5.5.0/css/xterm.css" rel="stylesheet">
+    <link id="smcss" href="https://unpkg.com/@vbarbarosh/smcss@1.2.0/dist/sm.css" rel="stylesheet">
+    <title>notes</title>
+    <style>
+        .note-page { padding: 40px 16px; }
+    </style>
+</head>
+<body>
+
+<div id="app"></div>
+
+<script src="https://unpkg.com/axios@1.10.0/dist/axios.min.js"></script>
+<script src="https://unpkg.com/jquery@3.7.1/dist/jquery.js"></script>
+<script src="https://unpkg.com/bluebird@3.7.2/js/browser/bluebird.js"></script>
+<script>Promise.config({warnings: {wForgottenReturn: false}});</script>
+<script src="https://unpkg.com/vue@3.5.12/dist/vue.global.js"></script>
+<script src="https://unpkg.com/@xterm/xterm@5.5.0/lib/xterm.js"></script>
+<script src="https://unpkg.com/@xterm/addon-fit@0.10.0/lib/addon-fit.js"></script>
+<script src="/js/utils.js"></script>
+<script src="/js/apis.js"></script>
+<script>
+const NOTE_UID = decodeURIComponent(window.location.pathname.split('/')[2] || '');
+
+const app = Vue.createApp({
+    template: `
+        <div v-if="ready" class="note-page ma max-w600">
+            <note-card
+                v-bind:note="note"
+                v-bind:jobs="jobs"
+                v-bind:editing="editing_note"
+                v-bind:hovered-note-uid="mouseover_note_uid"
+                v-bind:hovered-file-path="mouseover_file_path"
+                v-bind:playing-youtube-id="youtube_player?.id"
+                v-on:toggle-tag="open_tag"
+                v-on:play-youtube="play_youtube"
+                v-on:open-terminal="open_terminal"
+                v-on:refresh-jobs="refresh_jobs"
+                v-on:edit="edit_note"
+                v-on:edit-save="save_note_edit"
+                v-on:edit-cancel="cancel_note_edit"
+                v-on:remove="remove_note"
+                v-on:remove-file="remove_note_file"
+                v-on:hover-file="hover_file"
+                v-on:uploaded="refresh" />
+        </div>
+
+        <uploads-panel />
+
+        <div v-if="youtube_player" class="youtube-player">
+            <div class="youtube-player-head">
+                <div class="youtube-player-title">{{ youtube_player.title }}</div>
+                <button type="button" v-on:click="open_youtube_source" title="Open on YouTube">↗</button>
+                <button type="button" v-on:click="youtube_player = null" title="Close">×</button>
+            </div>
+            <iframe
+                v-bind:src="youtube_player.embed_url"
+                title="YouTube player"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                allowfullscreen></iframe>
+        </div>
+
+        <terminal-panel
+            v-if="terminal_job"
+            v-on:close="close_terminal"
+            v-bind:job="terminal_job" />
+    `,
+    data: function () {
+        return {
+            ready: false,
+            note: null,
+            editing_note: null,
+            mouseover_note_uid: null,
+            mouseover_file_path: null,
+            youtube_player: null,
+            jobs: [],
+            jobs_loaded: false,
+            jobs_poll_timer: null,
+            jobs_event_source: null,
+            jobs_refresh_timer: null,
+            seen_terminal_job_uids: [],
+            terminal_job: null,
+        };
+    },
+    methods: {
+        refresh: async function () {
+            const note = await api_notes_fetch(NOTE_UID);
+            const parsed = parse_note_tags(note.body);
+            const youtube_items = extract_youtube_items(note.body);
+            this.note = {
+                ...note,
+                display_tags: youtube_items.length ? Array.from(new Set([...parsed.tags, '#youtube'])) : parsed.tags,
+                display_body: parsed.display_body,
+                youtube_items,
+            };
+            this.ready = true;
+        },
+        refresh_jobs: async function () {
+            clearTimeout(this.jobs_refresh_timer);
+            this.jobs_refresh_timer = null;
+            const data = await api_jobs_list();
+            const items = data.items || [];
+            const has_new_terminal_job = this.jobs_loaded && items.some(job => {
+                if (!['finished', 'failed'].includes(job.bucket)) {
+                    return false;
+                }
+                return !this.seen_terminal_job_uids.includes(job.uid);
+            });
+
+            this.jobs = items;
+            this.jobs_loaded = true;
+            this.seen_terminal_job_uids = Array.from(new Set([
+                ...this.seen_terminal_job_uids,
+                ...items.filter(job => ['finished', 'failed', 'confirmed'].includes(job.bucket)).map(job => job.uid),
+            ]));
+
+            if (has_new_terminal_job) {
+                await this.refresh();
+            }
+        },
+        schedule_refresh_jobs: function () {
+            clearTimeout(this.jobs_refresh_timer);
+            this.jobs_refresh_timer = setTimeout(this.refresh_jobs, 250);
+        },
+        connect_jobs_events: function () {
+            if (!window.EventSource) {
+                this.jobs_poll_timer = setInterval(this.refresh_jobs, 2500);
+                return;
+            }
+            this.jobs_event_source = new EventSource('/api/v1/jobs/events');
+            this.jobs_event_source.addEventListener('jobs_changed', () => {
+                this.schedule_refresh_jobs();
+            });
+        },
+        disconnect_jobs_events: function () {
+            if (this.jobs_event_source) {
+                this.jobs_event_source.close();
+                this.jobs_event_source = null;
+            }
+            clearInterval(this.jobs_poll_timer);
+            this.jobs_poll_timer = null;
+            clearTimeout(this.jobs_refresh_timer);
+            this.jobs_refresh_timer = null;
+        },
+        open_tag: function (tag) {
+            localStorage.setItem(TAG_FILTER_STORAGE_KEY, JSON.stringify([tag]));
+            window.location.href = '/';
+        },
+        edit_note: async function (note) {
+            this.editing_note = JSON.parse(JSON.stringify(note));
+        },
+        save_note_edit: async function () {
+            await api_notes_update({note_uid: this.note.uid, body: this.editing_note.body});
+            this.editing_note = null;
+            await this.refresh();
+        },
+        cancel_note_edit: async function () {
+            this.editing_note = null;
+        },
+        remove_note: async function (note) {
+            await api_notes_remove({note_uid: note.uid});
+            window.location.href = '/';
+        },
+        remove_note_file: async function (note, file) {
+            await api_notes_remove_file({note_uid: note.uid, filename: file.path});
+            await this.refresh();
+        },
+        hover_file: function (note_uid, file_path) {
+            this.mouseover_note_uid = note_uid;
+            this.mouseover_file_path = file_path;
+        },
+        play_youtube: function (note, item) {
+            this.youtube_player = {
+                ...item,
+                title: note.name || note.uid,
+            };
+        },
+        open_youtube_source: function () {
+            if (this.youtube_player?.url) {
+                window.open(this.youtube_player.url, '_blank');
+            }
+        },
+        open_terminal: function (job) {
+            this.terminal_job = job;
+        },
+        close_terminal: function () {
+            this.terminal_job = null;
+        },
+    },
+    created: async function () {
+        await this.refresh();
+        await this.refresh_jobs();
+    },
+    mounted: function () {
+        this.connect_jobs_events();
+    },
+    unmounted: function () {
+        this.disconnect_jobs_events();
+    },
+});
+app.mixin({
+    methods: {
+        px,
+        pc,
+        format_bytes,
+        image_file_summary,
+        audio_file_summary,
+        video_file_summary,
+    },
+});
+</script>
+
+<script src="/js/components/note-card.js"></script>
+<script src="/js/components/note-calendar.js"></script>
+<script src="/js/components/terminal-panel.js"></script>
+<script src="/js/components/uploads-panel.js"></script>
+<script src="/js/components/vendor/fancybox.js"></script>
+<script src="/js/components/vendor/markdown.js"></script>
+<script src="/js/directives/autofocus.js"></script>
+<script src="/js/directives/autosize.js"></script>
+
+<script>
+    app.mount('#app');
+</script>
+
+</body>
+</html>

@@ -57,6 +57,7 @@ async function main()
     express_routes(app, [
         {req: 'GET /', fn: echo},
         {req: 'GET /r/*.meta', fn: data_meta},
+        {req: 'GET /r/:note_uid', fn: note_page},
         {req: 'GET /r/*', fn: data_fetch},
         {req: 'GET /t/:size/*', fn: thumbnail},
         ...require('./routes/notes'),
@@ -92,6 +93,26 @@ function x_perf(req, res, next)
 async function page404(req, res)
 {
     res.status(404).send(`Page not found: ${req.path}`);
+}
+
+// GET /r/:note_uid → single-note page (files are served from /r/:note_uid/files/*)
+async function note_page(req, res)
+{
+    let dir;
+    try {
+        dir = fs_path_safe_resolve(`${req.user_dir}/notes`, req.params.note_uid);
+    }
+    catch {
+        res.status(400).send('Invalid path');
+        return;
+    }
+
+    if (!await fs_exists(dir)) {
+        res.status(404).send(`Note not found: ${req.params.note_uid}`);
+        return;
+    }
+
+    res.sendFile(fs_path_resolve(__dirname, 'static/note.html'));
 }
 
 async function data_fetch(req, res)
