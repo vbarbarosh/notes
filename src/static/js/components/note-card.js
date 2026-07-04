@@ -29,6 +29,7 @@ app.component('note-card', {
         <div v-on:paste="paste_note"
              v-on:mouseover="$emit('activate', note)"
              v-on:mouseleave="$emit('deactivate', note)"
+             v-on:dragenter="dragenter_note"
              v-on:dragover="dragover_note"
              v-on:dragleave="dragleave_note"
              v-on:drop="drop_note"
@@ -231,6 +232,7 @@ app.component('note-card', {
     data: function () {
         return {
             dropping: false,
+            drag_depth: 0,
             file_query: '',
         };
     },
@@ -405,15 +407,23 @@ app.component('note-card', {
                 this.$emit('uploaded', this.note);
             }
         },
-        dragover_note: function (event) {
+        dragenter_note: function (event) {
             event.preventDefault();
+            this.drag_depth++;
             this.dropping = true;
         },
+        dragover_note: function (event) {
+            event.preventDefault();
+        },
         dragleave_note: function (event) {
-            this.dropping = false;
+            this.drag_depth = Math.max(0, this.drag_depth - 1);
+            if (!this.drag_depth) {
+                this.dropping = false;
+            }
         },
         drop_note: async function (event) {
             event.preventDefault();
+            this.drag_depth = 0;
             this.dropping = false;
             const files = await get_event_files(event);
             if (files.length) {
