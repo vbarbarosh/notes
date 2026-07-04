@@ -23,6 +23,8 @@ app.component('markdown', {
                     src = env.prefix + src;
                     token.attrSet('src', src);
                 }
+                token.attrSet('loading', 'lazy');
+                token.attrSet('decoding', 'async');
                 return defaultImage(tokens, idx, options, env, self);
             };
 

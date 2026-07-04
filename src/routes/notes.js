@@ -56,7 +56,7 @@ async function read_notes_list(req)
         await fs_mkdirp(d);
     }
     const names = await fs_readdir(d);
-    const items = await Promise.all(names.map(v => read_note(req, v)));
+    const items = await Promise.all(names.map(v => cache_api_notes(req, v, () => read_note(req, v))));
 
     return {items: items.sort((b, a) => fcmp_strings_ascii(a.uid, b.uid))};
 }

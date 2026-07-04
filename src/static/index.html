@@ -350,7 +350,7 @@ const app = Vue.createApp({
             </div>
 -->
 
-            <div v-for="note in filtered_notes"
+            <div v-for="note in visible_notes"
                  v-bind:key="note.uid"
                  v-bind:ref="elem => note_refs[note.uid] = elem"
                  v-on:paste="paste_note($event, note)"
@@ -469,6 +469,8 @@ const app = Vue.createApp({
                                 v-bind:src="file.thumbnail_url"
                                 v-bind:class="{highlight: (mouseover_note_uid === note.uid && mouseover_file_path === file.path)}"
                                 alt=""
+                                loading="lazy"
+                                decoding="async"
                                 class="flex-static max-ww checkerboard">
                         </a>
                     </div>
@@ -601,6 +603,7 @@ const app = Vue.createApp({
             mouseover_note_uid: null,
             mouseover_file_path: null,
             notes: [],
+            render_limit: 20,
             selected_tags: load_selected_tags(),
             excluded_tags: load_excluded_tags(),
             tag_picker_open: false,
@@ -684,6 +687,9 @@ const app = Vue.createApp({
                     (note.files || []).map(file => file.path).join(' '),
                 ].join(' ').toLowerCase().includes(query);
             });
+        },
+        visible_notes: function () {
+            return this.filtered_notes.slice(0, this.render_limit);
         },
         has_tag_filter: function () {
             return !!(this.selected_tags.length || this.excluded_tags.length);
@@ -770,7 +776,13 @@ const app = Vue.createApp({
             const media_notes = this.notes.filter(note => {
                 return (note.files || []).some(file => this.is_audio_file(file) || this.is_video_file(file));
             });
-            const results = await Promise.all(media_notes.map(note => this.fetch_note_hearts(note.uid)));
+            const hearts_path = this.hearts_path_for_note();
+            const results = await Promise.all(media_notes.map(note => {
+                if (!(note.files || []).some(file => file.path === hearts_path)) {
+                    return null;
+                }
+                return this.fetch_note_hearts(note.uid);
+            }));
             const next = {};
             media_notes.forEach((note, i) => {
                 next[note.uid] = results[i] || {version: 1, tracks: {}};
@@ -1102,9 +1114,33 @@ const app = Vue.createApp({
                 job.bucket,
             ].filter(Boolean).join(' · ');
         },
-        select_notes_overview: function (note_uid) {
+        select_notes_overview: async function (note_uid) {
+            const index = this.filtered_notes.findIndex(v => v.uid === note_uid);
+            if (index !== -1 && index >= this.render_limit) {
+                this.render_limit = index + 1;
+                await this.$nextTick();
+            }
             this.note_refs[note_uid]?.scrollIntoView({behavior: 'smooth', block: 'center'});
             this.active_note = this.notes.find(v => v.uid === note_uid);
+        },
+        ramp_up_render_limit: async function () {
+            // Let the first render_limit cards paint before mounting the rest,
+            // in idle chunks to keep the page responsive.
+            await this.$nextTick();
+            await new Promise(requestAnimationFrame);
+            await new Promise(requestAnimationFrame);
+            const idle = window.requestIdleCallback
+                ? (fn => window.requestIdleCallback(fn))
+                : (fn => setTimeout(fn, 50));
+            const step = () => {
+                if (this.render_limit >= this.notes.length) {
+                    this.render_limit = Infinity;
+                    return;
+                }
+                this.render_limit += 50;
+                idle(step);
+            };
+            idle(step);
         },
         toggle_tag_picker: async function () {
             this.tag_picker_open = !this.tag_picker_open;
@@ -1504,6 +1540,7 @@ const app = Vue.createApp({
     },
     created: async function () {
         await this.refresh();
+        this.ramp_up_render_limit();
         await this.refresh_jobs();
     },
     mounted: function () {
