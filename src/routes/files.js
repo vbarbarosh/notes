@@ -1,6 +1,7 @@
 const cache_api_notes_invalidate = require('../helpers/cache_api_notes_invalidate');
 const crypto = require('crypto');
 const file_meta_cache = require('../helpers/file_meta_cache');
+const file_meta_read_public = require('../helpers/file_meta_read_public');
 const fs = require('fs');
 const fs_exists = require('@vbarbarosh/node-helpers/src/fs_exists');
 const fs_lstat = require('@vbarbarosh/node-helpers/src/fs_lstat');
@@ -10,7 +11,6 @@ const fs_write_over_file = require('../helpers/fs_write_over_file');
 const fs_write_unique_file = require('../helpers/fs_write_unique_file');
 const multer = require('multer');
 const path = require('path');
-const sharp = require('sharp');
 
 const chunk_upload = multer({
     storage: multer.diskStorage({
@@ -160,28 +160,25 @@ async function files_upload_assemble(req, res)
         await file_meta_cache.remove_file_meta_cache(meta_root, `${note_uid}/files/${rel}`, path.resolve(req.user_dir, 'thumbnails'));
     }
     await cache_api_notes_invalidate(req, note_uid);
+    const public_meta = await file_meta_read_public({
+        notes_root: path.resolve(req.user_dir, 'notes'),
+        notes_meta_root: path.resolve(req.user_dir, 'notes.meta'),
+        relative: `${note_uid}/files/${rel}`,
+    });
     const url = `/r/${note_uid}/files/${rel}`;
-    const thumbnail_url = await is_image(file_path) ? `/t/1024/${note_uid}/files/${rel}` : null;
+    const thumbnail_url = public_meta.mime.startsWith('image/') && public_meta.details !== null
+        ? `/t/1024/${note_uid}/files/${rel}`
+        : null;
 
     res.json({
         path: rel,
         url,
         thumbnail_url,
+        ...public_meta,
         size: lstat.size,
         created_at: lstat.birthtime,
         updated_at: lstat.mtime,
     });
-}
-
-async function is_image(file_path)
-{
-    try {
-        await sharp(file_path).metadata();
-        return true;
-    }
-    catch {
-        return false;
-    }
 }
 
 module.exports = routes;

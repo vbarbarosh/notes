@@ -466,27 +466,28 @@ function format_thousands(x)
 
 function is_audio_file(file)
 {
-    return /\.(mp3|m4a|wav|ogg|oga|flac|aac|opus)$/i.test(String(file.path || ''));
+    return String(file.mime || '').startsWith('audio/')
+        || /\.(mp3|m4a|wav|ogg|oga|flac|aac|opus)$/i.test(String(file.path || ''));
 }
 
 function is_video_file(file)
 {
-    return /\.(m4v|mkv|mov|mp4|ogv|webm)$/i.test(String(file.path || ''));
+    return String(file.mime || '').startsWith('video/')
+        || /\.(m4v|mkv|mov|mp4|ogv|webm)$/i.test(String(file.path || ''));
 }
 
 function image_file_summary(file)
 {
-    const image = file.image || {};
+    const image = file.details || {};
     return [
         image.width && image.height ? `${image.width}×${image.height}` : '',
-        image.format ? image.format.toUpperCase() : '',
         image.pages && image.pages > 1 ? `${image.pages} frames` : '',
     ].filter(Boolean).join(' · ');
 }
 
 function audio_file_summary(file)
 {
-    const audio = file.audio || {};
+    const audio = file.details || {};
     return [
         format_audio_duration(audio.duration_seconds),
         format_audio_bitrate(audio.bit_rate),
@@ -498,7 +499,7 @@ function audio_file_summary(file)
 
 function video_file_summary(file)
 {
-    const video = file.video || {};
+    const video = file.details || {};
     return [
         format_audio_duration(video.duration_seconds),
         video.width && video.height ? `${video.width}×${video.height}` : '',

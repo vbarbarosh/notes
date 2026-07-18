@@ -197,9 +197,9 @@ app.component('note-card', {
                             </div>
                             <div class="note-file-main">
                                 <span class="note-file-name">{{ file.path }}</span>
-                                <div v-if="file.image" class="note-file-media-meta">{{ image_file_summary(file) }}</div>
-                                <div v-if="file.audio" class="note-file-audio-meta">{{ audio_file_summary(file) }}</div>
-                                <div v-if="file.video" class="note-file-media-meta">{{ video_file_summary(file) }}</div>
+                                <div v-if="file.details && file.mime.startsWith('image/')" class="note-file-media-meta">{{ image_file_summary(file) }}</div>
+                                <div v-if="file.details && file.mime.startsWith('audio/')" class="note-file-audio-meta">{{ audio_file_summary(file) }}</div>
+                                <div v-if="file.details && file.mime.startsWith('video/')" class="note-file-media-meta">{{ video_file_summary(file) }}</div>
                             </div>
                         </div>
                         <div class="note-file-size">{{ format_bytes(file.size) }}</div>

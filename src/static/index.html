@@ -324,9 +324,9 @@ const app = Vue.createApp({
                             cover_url: is_video
                                 ? (file.thumbnail_url || null)
                                 : (note_cover?.thumbnail_url || note_cover?.url || null),
-                            meta: file.video
-                                ? video_file_summary(file)
-                                : (file.audio ? audio_file_summary(file) : null),
+                            meta: file.details
+                                ? (is_video ? video_file_summary(file) : audio_file_summary(file))
+                                : null,
                             note_uid: note.uid,
                             file_path: file.path,
                             sha256: file.sha256 || null,
