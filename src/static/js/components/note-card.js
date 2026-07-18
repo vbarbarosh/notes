@@ -71,6 +71,10 @@ app.component('note-card', {
                     v-bind:href="'/pdf.html?note=' + note.uid"
                     target="_blank"
                     class="note-pdf-link">PDF</a>
+                <a
+                    v-bind:href="'/demo-browser.html?note=' + note.uid"
+                    target="_blank"
+                    class="note-app-link">FILES</a>
                 <button v-on:click="click_h2_copy" class="mla">📋️</button>
                 <button v-on:click="click_h2_paste">📥</button>
                 <button v-on:click="$emit('edit', note)">✏️</button>

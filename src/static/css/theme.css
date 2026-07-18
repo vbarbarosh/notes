@@ -53,6 +53,17 @@ body {
     text-decoration: none;
 }
 
+.note-app-link {
+    background: #2486fd;
+    color: #fff;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.4px;
+    padding: 2px 7px;
+    border-radius: 4px;
+    text-decoration: none;
+}
+
 .note-card:hover,
 .note-card.active {
     box-shadow: 0 4px 18px #abb9ee6e;

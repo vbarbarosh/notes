@@ -16,6 +16,14 @@
     "url": "/api.html"
   },
   {
+    "id": "demo-browser",
+    "name": "Demo Browser",
+    "desc": "Browse and edit a note's underlying files.",
+    "icon": "ti ti-folders",
+    "emoji": "🗂️",
+    "url": "/demo-browser.html"
+  },
+  {
     "id": "pdf",
     "name": "PDF Vault",
     "desc": "Read, highlight, and bookmark PDF documents.",

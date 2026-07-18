@@ -143,6 +143,11 @@ UID. If the Notes page needs a per-note app button, add a link where that note
 is rendered. The PDF link in `src/static/js/components/note-card.js` is the
 current example.
 
+`src/static/demo-browser.html` is a minimal working integration example. It
+treats the note-root `README.md` as the note body and demonstrates listing,
+uploading, editing, moving, and deleting files below `files/`. Uploads above
+50 MB automatically use the chunked multipart upload API.
+
 ## Store app state in a note
 
 Apps may store their settings and other private state under `apps/<app-name>/*`

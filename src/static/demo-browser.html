@@ -1,0 +1,1060 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Demo Browser</title>
+<style>
+  :root {
+    --bg: #e3e6ee;
+    --card: #f7f8fb;
+    --card-alt: #eef1f8;
+    --ink: #232634;
+    --title: #3b4273;
+    --muted: #6b7392;
+    --line: #c7cde2;
+    --blue: #2486fd;
+    --blue-dark: #176fc9;
+    --red: #a74357;
+    --green: #238260;
+    --shadow: 0 2px 10px #bbb3;
+    --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    --sans: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body { margin: 0; overflow: hidden; background: var(--bg); color: var(--ink); font-family: var(--sans); }
+  button, input, select, textarea { font: inherit; }
+  button { color: inherit; }
+  .hidden { display: none !important; }
+  .mono { font-family: var(--mono); }
+
+  .app { height: 100%; display: grid; grid-template-rows: 66px minmax(0, 1fr); }
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 18px;
+    padding: 0 22px;
+    border-bottom: 1px solid var(--line);
+    background: var(--card);
+    box-shadow: var(--shadow);
+  }
+  .brand, .header-actions, .row { display: flex; align-items: center; }
+  .brand { min-width: 0; gap: 11px; }
+  .brand-mark { width: 38px; height: 38px; display: grid; place-items: center; border-radius: 10px; background: var(--blue); color: #fff; font-size: 19px; }
+  h1 { margin: 0; color: var(--title); font-size: 17px; }
+  .subtitle { margin-top: 2px; color: var(--muted); font-size: 10px; }
+  .demo-badge { margin-left: 7px; padding: 2px 6px; border-radius: 999px; background: #e0e9ff; color: #315ca8; font-size: 8px; letter-spacing: .06em; text-transform: uppercase; }
+  .header-actions { gap: 7px; }
+
+  .button {
+    min-height: 34px;
+    padding: 0 11px;
+    border: 1px solid #c5cce4;
+    border-radius: 7px;
+    background: #f7f8fd;
+    cursor: pointer;
+    font-size: 11px;
+    font-weight: 700;
+    text-decoration: none;
+  }
+  a.button { display: inline-flex; align-items: center; }
+  .button:hover { border-color: #91a6e6; background: #edf3ff; color: #27336a; }
+  .button.primary { border-color: var(--blue); background: var(--blue); color: #fff; }
+  .button.primary:hover { background: var(--blue-dark); }
+  .button.danger { border-color: #e1b3bd; background: #fff6f7; color: var(--red); }
+  .button.small { min-height: 28px; padding: 0 8px; font-size: 9px; }
+  .button:disabled { cursor: not-allowed; opacity: .5; }
+
+  input[type="text"], select, textarea {
+    width: 100%;
+    border: 1px solid #c5cce4;
+    border-radius: 8px;
+    outline: none;
+    background: #fff;
+    color: var(--ink);
+  }
+  input[type="text"], select { height: 36px; padding: 0 10px; }
+  textarea { padding: 14px; resize: none; line-height: 1.55; }
+  input:focus, select:focus, textarea:focus { border-color: #91a6e6; box-shadow: 0 0 0 3px rgba(145, 166, 230, .16); }
+  label { display: block; margin-bottom: 5px; color: var(--muted); font-size: 9px; font-weight: 800; }
+
+  main { min-height: 0; display: grid; grid-template-columns: 330px minmax(0, 1fr); gap: 12px; padding: 12px; }
+  .panel { min-width: 0; min-height: 0; overflow: hidden; border: 1px solid var(--line); border-radius: 10px; background: var(--card); box-shadow: var(--shadow); }
+  .sidebar { display: flex; flex-direction: column; }
+  .sidebar-head { padding: 12px; border-bottom: 1px solid #d8dceb; }
+  .note-picker { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 7px; }
+  .storage-note { margin-top: 8px; color: var(--muted); font-size: 9px; line-height: 1.4; }
+
+  .tree-head { display: flex; align-items: center; justify-content: space-between; padding: 10px 12px; border-bottom: 1px solid #e0e3ee; background: var(--card-alt); }
+  .tree-head strong { color: var(--title); font-size: 11px; }
+  .tree-count { color: var(--muted); font-family: var(--mono); font-size: 9px; }
+  .tree { flex: 1; overflow: auto; padding: 7px; }
+  .tree-empty { padding: 34px 14px; color: var(--muted); font-size: 11px; text-align: center; }
+  .tree-row { width: 100%; min-height: 34px; display: grid; grid-template-columns: 19px minmax(0, 1fr) auto; gap: 6px; align-items: center; padding: 5px 7px 5px calc(7px + var(--depth, 0) * 15px); border: 1px solid transparent; border-radius: 7px; background: transparent; text-align: left; }
+  button.tree-row { cursor: pointer; }
+  button.tree-row:hover { border-color: #d6dcef; background: var(--card-alt); }
+  button.tree-row.active { border-color: #b7c9ef; background: #e5eeff; }
+  .tree-row.folder { color: #6c7391; }
+  .tree-icon { text-align: center; font-size: 13px; }
+  .tree-name { overflow: hidden; font-family: var(--mono); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+  .tree-size { color: var(--muted); font-family: var(--mono); font-size: 8px; }
+
+  .sidebar-actions { padding: 11px; border-top: 1px solid #d8dceb; background: #f3f4fa; }
+  .action-tabs { display: flex; gap: 4px; margin-bottom: 9px; }
+  .action-tab { flex: 1; min-height: 29px; border: 0; border-radius: 6px; background: transparent; color: var(--muted); cursor: pointer; font-size: 9px; font-weight: 800; }
+  .action-tab.active { background: #fff; color: var(--title); box-shadow: 0 1px 4px #aab2ca33; }
+  .action-pane .field { margin-top: 8px; }
+  .action-pane .field:first-child { margin-top: 0; }
+  input[type="file"] { width: 100%; color: var(--muted); font-size: 9px; }
+  input[type="file"]::file-selector-button { margin-right: 7px; padding: 6px 8px; border: 1px solid #c5cce4; border-radius: 6px; background: #fff; cursor: pointer; }
+  .upload-status { margin-top: 7px; min-height: 13px; color: var(--muted); font-size: 9px; line-height: 1.4; }
+  .sidebar-actions .button.primary { width: 100%; margin-top: 9px; }
+
+  .workspace { display: grid; grid-template-rows: auto minmax(0, 1fr) auto; }
+  .workspace-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; padding: 13px 16px; border-bottom: 1px solid #d8dceb; }
+  .file-path { overflow-wrap: anywhere; color: var(--title); font-family: var(--mono); font-size: 12px; font-weight: 800; }
+  .file-meta { margin-top: 4px; color: var(--muted); font-size: 9px; }
+  .workspace-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
+  .workspace-body { min-height: 0; position: relative; overflow: hidden; background: #fff; }
+  .editor { width: 100%; height: 100%; min-height: 0; border: 0; border-radius: 0; box-shadow: none !important; font-family: var(--mono); font-size: 12px; tab-size: 2; }
+  .viewer { width: 100%; height: 100%; overflow: auto; display: grid; place-items: center; padding: 24px; background: #f0f2f7; }
+  .viewer img, .viewer video, .viewer iframe { max-width: 100%; max-height: 100%; border: 1px solid var(--line); border-radius: 7px; background: #fff; box-shadow: var(--shadow); }
+  .viewer iframe { width: 100%; height: 100%; }
+  .viewer audio { width: min(620px, 100%); }
+  .viewer-message { max-width: 470px; color: var(--muted); text-align: center; font-size: 11px; line-height: 1.5; }
+  .empty-workspace { height: 100%; display: grid; place-items: center; color: var(--muted); font-size: 12px; text-align: center; }
+  .loading { position: absolute; inset: 0; z-index: 2; display: grid; place-items: center; background: rgba(247, 248, 251, .88); color: var(--muted); font-size: 11px; }
+
+  .workspace-foot { display: flex; align-items: end; gap: 8px; padding: 10px 13px; border-top: 1px solid #d8dceb; background: var(--card-alt); }
+  .rename-field { flex: 1; }
+  .readme-hint { flex: 1; color: var(--muted); font-size: 9px; line-height: 1.45; }
+  .dirty { color: #a76a21; }
+  .saved { color: var(--green); }
+  .toast { position: fixed; right: 18px; bottom: 18px; z-index: 10; max-width: 360px; padding: 10px 13px; border: 1px solid var(--line); border-radius: 8px; background: var(--card); box-shadow: 0 14px 34px #6c739440; font-size: 11px; }
+
+  @media (max-width: 760px) {
+    body { overflow: auto; }
+    .app { height: auto; min-height: 100%; grid-template-rows: auto auto; }
+    header { min-height: 66px; padding: 9px 12px; }
+    .subtitle { display: none; }
+    .header-actions .button:first-child { display: none; }
+    main { display: block; padding: 9px; }
+    .sidebar { height: 660px; margin-bottom: 9px; }
+    .workspace { height: 720px; }
+    .workspace-head { display: block; }
+    .workspace-actions { justify-content: flex-start; margin-top: 9px; }
+    .workspace-foot { align-items: stretch; flex-direction: column; }
+    .workspace-foot .button { width: 100%; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <div class="brand">
+      <div class="brand-mark">▤</div>
+      <div>
+        <h1>Demo Browser <span class="demo-badge">integration demo</span></h1>
+        <div class="subtitle">The note body is README.md; attachments live below files/</div>
+      </div>
+    </div>
+    <div class="header-actions">
+      <a class="button" href="/apps/">Apps</a>
+      <a class="button" href="/">Notes</a>
+    </div>
+  </header>
+
+  <main>
+    <aside class="panel sidebar">
+      <div class="sidebar-head">
+        <label for="note-select">Note</label>
+        <div class="note-picker">
+          <select id="note-select"><option value="">Loading notes…</option></select>
+          <button class="button small" id="refresh-note" type="button">Refresh</button>
+        </div>
+        <div class="storage-note" id="storage-note">Select a note to inspect its storage.</div>
+      </div>
+      <div class="tree-head">
+        <strong>Note storage</strong>
+        <span class="tree-count" id="tree-count">0 files</span>
+      </div>
+      <div class="tree" id="tree"><div class="tree-empty">Loading…</div></div>
+      <div class="sidebar-actions">
+        <div class="action-tabs">
+          <button class="action-tab active" data-action-pane="upload" type="button">Upload</button>
+          <button class="action-tab" data-action-pane="new" type="button">New text file</button>
+        </div>
+        <div class="action-pane" data-action-content="upload">
+          <div class="field"><label for="upload-files">Local files</label><input id="upload-files" type="file" multiple></div>
+          <div class="field"><label for="upload-folder">Destination folder below files/</label><input id="upload-folder" type="text" placeholder="documents"></div>
+          <div class="upload-status" id="upload-status">Files above 50 MB use 10 MB multipart chunks.</div>
+          <button class="button primary" id="upload-button" type="button">POST upload</button>
+        </div>
+        <div class="action-pane hidden" data-action-content="new">
+          <div class="field"><label for="new-file-path">Exact path below files/</label><input id="new-file-path" type="text" placeholder="notes/example.txt"></div>
+          <button class="button primary" id="new-file-button" type="button">PUT new file</button>
+        </div>
+      </div>
+    </aside>
+
+    <section class="panel workspace">
+      <div class="workspace-head">
+        <div>
+          <div class="file-path" id="file-path">No note selected</div>
+          <div class="file-meta" id="file-meta">Choose a note from the browser.</div>
+        </div>
+        <div class="workspace-actions">
+          <button class="button small" id="open-file" type="button" disabled>Open</button>
+          <button class="button small" id="download-file" type="button" disabled>Download</button>
+          <button class="button small danger" id="delete-file" type="button" disabled>Delete</button>
+        </div>
+      </div>
+      <div class="workspace-body">
+        <div class="empty-workspace" id="empty-workspace"><div>Select README.md or an attachment.</div></div>
+        <textarea class="editor hidden" id="editor" spellcheck="false"></textarea>
+        <div class="viewer hidden" id="viewer"></div>
+        <div class="loading hidden" id="loading">Loading…</div>
+      </div>
+      <div class="workspace-foot">
+        <div class="readme-hint" id="readme-hint">README.md is stored as the note body, outside the files/ directory.</div>
+        <div class="rename-field hidden" id="rename-field">
+          <label for="rename-path">Move or rename below files/</label>
+          <input id="rename-path" type="text">
+        </div>
+        <button class="button hidden" id="rename-button" type="button">PATCH rename</button>
+        <button class="button primary" id="save-button" type="button" disabled>Save</button>
+      </div>
+    </section>
+  </main>
+</div>
+<div class="toast hidden" id="toast"></div>
+
+<script>
+const state = {
+  notes: [],
+  note: null,
+  selected: null,
+  selection_token: 0,
+  original_content: '',
+  preview_url: null,
+};
+
+const editable_extensions = new Set([
+  'css', 'csv', 'html', 'ini', 'js', 'json', 'log', 'md', 'mjs', 'sh',
+  'svg', 'text', 'toml', 'ts', 'txt', 'xml', 'yaml', 'yml',
+]);
+const max_edit_size = 2 * 1024 * 1024;
+const chunked_upload_threshold = 50 * 1024 * 1024;
+const upload_chunk_size = 10 * 1024 * 1024;
+const elements = Object.fromEntries(Array.from(document.querySelectorAll('[id]')).map(function (element) {
+  return [element.id.replaceAll('-', '_'), element];
+}));
+
+function init()
+{
+  bind_events();
+  load_notes();
+}
+
+function bind_events()
+{
+  elements.note_select.addEventListener('change', function () { select_note(elements.note_select.value); });
+  elements.refresh_note.addEventListener('click', refresh_note);
+  elements.editor.addEventListener('input', update_dirty_state);
+  elements.save_button.addEventListener('click', save_selected);
+  elements.rename_button.addEventListener('click', rename_selected);
+  elements.delete_file.addEventListener('click', delete_selected);
+  elements.open_file.addEventListener('click', open_selected);
+  elements.download_file.addEventListener('click', download_selected);
+  elements.upload_button.addEventListener('click', upload_files);
+  elements.new_file_button.addEventListener('click', create_text_file);
+  document.querySelectorAll('.action-tab').forEach(function (button) {
+    button.addEventListener('click', function () { show_action_pane(button.getAttribute('data-action-pane')); });
+  });
+  window.addEventListener('beforeunload', function (event) {
+    if (is_dirty()) {
+      event.preventDefault();
+      event.returnValue = '';
+    }
+    revoke_preview();
+  });
+}
+
+async function load_notes()
+{
+  set_busy(elements.refresh_note, true, '…');
+  try {
+    const result = await api_request('GET', '/api/v1/notes');
+    state.notes = result.items || [];
+    render_note_picker();
+    const requested_uid = new URLSearchParams(location.search).get('note');
+    const selected_uid = requested_uid && state.notes.some(function (note) { return note.uid === requested_uid; })
+      ? requested_uid
+      : state.notes[0]?.uid;
+    if (selected_uid) {
+      await select_note(selected_uid);
+    }
+    else {
+      render_empty_notes();
+    }
+  }
+  catch (error) {
+    show_error(error);
+  }
+  finally {
+    set_busy(elements.refresh_note, false, 'Refresh');
+  }
+}
+
+function render_note_picker()
+{
+  elements.note_select.replaceChildren();
+  if (!state.notes.length) {
+    elements.note_select.appendChild(new Option('No notes available', ''));
+    elements.note_select.disabled = true;
+    return;
+  }
+  elements.note_select.disabled = false;
+  state.notes.forEach(function (note) {
+    const title = first_line(note.body) || '(empty note)';
+    elements.note_select.appendChild(new Option(`${note.uid} · ${title}`, note.uid));
+  });
+}
+
+async function select_note(note_uid)
+{
+  if (!note_uid) {
+    return;
+  }
+  if (!confirm_discard_changes('Discard unsaved changes and open another note?')) {
+    elements.note_select.value = state.note?.uid || '';
+    return;
+  }
+  set_loading(true, 'Loading note…');
+  try {
+    const note = await api_request('GET', `/api/v1/notes/${note_uid}`);
+    state.original_content = elements.editor.value;
+    state.note = note;
+    state.selected = null;
+    elements.note_select.value = note.uid;
+    const url = new URL(location.href);
+    url.searchParams.set('note', note.uid);
+    history.replaceState(null, '', url);
+    render_note();
+    select_readme();
+  }
+  catch (error) {
+    show_error(error);
+  }
+  finally {
+    set_loading(false);
+  }
+}
+
+async function refresh_note()
+{
+  if (!state.note) {
+    await load_notes();
+    return;
+  }
+  if (!confirm_discard_changes('Discard unsaved changes and refresh?')) {
+    return;
+  }
+  const selected_path = state.selected?.kind === 'file' ? state.selected.file.path : null;
+  set_busy(elements.refresh_note, true, '…');
+  try {
+    const note = await api_request('GET', `/api/v1/notes/${state.note.uid}`);
+    state.original_content = elements.editor.value;
+    state.note = note;
+    state.selected = null;
+    render_note();
+    const selected_file = selected_path && note.files.find(function (file) { return file.path === selected_path; });
+    if (selected_file) {
+      await select_file(selected_file);
+    }
+    else {
+      select_readme();
+    }
+  }
+  catch (error) {
+    show_error(error);
+  }
+  finally {
+    set_busy(elements.refresh_note, false, 'Refresh');
+  }
+}
+
+function render_note()
+{
+  const files = state.note?.files || [];
+  const total_size = files.reduce(function (sum, file) { return sum + Number(file.size || 0); }, 0);
+  elements.storage_note.textContent = `${state.note.prefix} · README.md + files/`;
+  elements.tree_count.textContent = `${files.length + 1} files · ${format_bytes(total_size)}`;
+  render_tree();
+}
+
+function render_tree()
+{
+  elements.tree.replaceChildren();
+  if (!state.note) {
+    elements.tree.innerHTML = '<div class="tree-empty">Select a note.</div>';
+    return;
+  }
+
+  elements.tree.appendChild(make_file_row({
+    depth: 0,
+    icon: '▤',
+    name: 'README.md',
+    size: format_bytes(new Blob([state.note.body || '']).size),
+    active: state.selected?.kind === 'readme',
+    callback: select_readme,
+  }));
+
+  const files_root = make_folder_row('files/', 0);
+  elements.tree.appendChild(files_root);
+  const entries = tree_entries(state.note.files || []);
+  entries.forEach(function (entry) {
+    if (entry.kind === 'folder') {
+      elements.tree.appendChild(make_folder_row(`${entry.name}/`, entry.depth + 1));
+      return;
+    }
+    elements.tree.appendChild(make_file_row({
+      depth: entry.depth + 1,
+      icon: file_icon(entry.file),
+      name: entry.name,
+      size: format_bytes(entry.file.size),
+      active: state.selected?.kind === 'file' && state.selected.file.path === entry.file.path,
+      callback: function () { select_file(entry.file); },
+    }));
+  });
+}
+
+function tree_entries(files)
+{
+  const folders = new Set();
+  files.forEach(function (file) {
+    const parts = file.path.split('/');
+    for (let i = 1; i < parts.length; ++i) {
+      folders.add(parts.slice(0, i).join('/'));
+    }
+  });
+  const entries = Array.from(folders).map(function (path) {
+    const parts = path.split('/');
+    return {kind: 'folder', path, name: parts.at(-1), depth: parts.length - 1};
+  });
+  files.forEach(function (file) {
+    const parts = file.path.split('/');
+    entries.push({kind: 'file', path: file.path, name: parts.at(-1), depth: parts.length - 1, file});
+  });
+  return entries.sort(function (a, b) {
+    return a.path.localeCompare(b.path, undefined, {numeric: true, sensitivity: 'base'}) || a.kind.localeCompare(b.kind);
+  });
+}
+
+function make_folder_row(name, depth)
+{
+  const row = document.createElement('div');
+  row.className = 'tree-row folder';
+  row.style.setProperty('--depth', depth);
+  row.innerHTML = '<span class="tree-icon">▾</span>';
+  const label = document.createElement('span');
+  label.className = 'tree-name';
+  label.textContent = name;
+  row.appendChild(label);
+  return row;
+}
+
+function make_file_row(options)
+{
+  const row = document.createElement('button');
+  row.className = `tree-row${options.active ? ' active' : ''}`;
+  row.style.setProperty('--depth', options.depth);
+  row.type = 'button';
+  row.addEventListener('click', options.callback);
+  const icon = document.createElement('span');
+  icon.className = 'tree-icon';
+  icon.textContent = options.icon;
+  const name = document.createElement('span');
+  name.className = 'tree-name';
+  name.textContent = options.name;
+  const size = document.createElement('span');
+  size.className = 'tree-size';
+  size.textContent = options.size;
+  row.append(icon, name, size);
+  return row;
+}
+
+function select_readme()
+{
+  ++state.selection_token;
+  set_loading(false);
+  revoke_preview();
+  state.selected = {kind: 'readme'};
+  state.original_content = state.note.body || '';
+  elements.editor.value = state.original_content;
+  elements.file_path.textContent = 'README.md';
+  elements.file_meta.textContent = 'Note body · PATCH /api/v1/notes/:note_uid';
+  elements.empty_workspace.classList.add('hidden');
+  elements.viewer.classList.add('hidden');
+  elements.editor.classList.remove('hidden');
+  elements.rename_field.classList.add('hidden');
+  elements.rename_button.classList.add('hidden');
+  elements.readme_hint.classList.remove('hidden');
+  elements.open_file.disabled = false;
+  elements.download_file.disabled = true;
+  elements.delete_file.disabled = true;
+  elements.save_button.disabled = true;
+  elements.save_button.textContent = 'PATCH README.md';
+  render_tree();
+}
+
+async function select_file(file)
+{
+  if (!confirm_discard_changes('Discard unsaved changes and open another file?')) {
+    return;
+  }
+  const selection_token = ++state.selection_token;
+  state.original_content = elements.editor.value;
+  revoke_preview();
+  state.selected = {kind: 'file', file, blob: null, editable: false};
+  state.original_content = '';
+  elements.file_path.textContent = `files/${file.path}`;
+  elements.file_meta.textContent = `${file.mime || 'unknown'} · ${format_bytes(file.size)} · ${format_date(file.updated_at)}`;
+  elements.rename_path.value = file.path;
+  elements.empty_workspace.classList.add('hidden');
+  elements.editor.classList.add('hidden');
+  elements.viewer.classList.add('hidden');
+  elements.rename_field.classList.remove('hidden');
+  elements.rename_button.classList.remove('hidden');
+  elements.readme_hint.classList.add('hidden');
+  elements.open_file.disabled = false;
+  elements.download_file.disabled = false;
+  elements.delete_file.disabled = false;
+  elements.save_button.disabled = true;
+  elements.save_button.textContent = 'PUT save file';
+  render_tree();
+  set_loading(true, `Loading ${file.path}…`);
+  try {
+    const response = await fetch(file.url);
+    if (!response.ok) {
+      throw new Error(`Could not load file: ${response.status}`);
+    }
+    const blob = await response.blob();
+    if (selection_token !== state.selection_token) {
+      return;
+    }
+    if (is_editable_file(file)) {
+      const content = await blob.text();
+      if (selection_token !== state.selection_token) {
+        return;
+      }
+      state.selected.editable = true;
+      state.selected.blob = blob;
+      state.original_content = content;
+      elements.editor.value = content;
+      elements.editor.classList.remove('hidden');
+    }
+    else {
+      state.selected.blob = blob;
+      render_preview(file, blob);
+    }
+  }
+  catch (error) {
+    if (selection_token === state.selection_token) {
+      show_error(error);
+      show_viewer_message('The file could not be loaded.');
+    }
+  }
+  finally {
+    if (selection_token === state.selection_token) {
+      set_loading(false);
+    }
+  }
+}
+
+function render_preview(file, blob)
+{
+  revoke_preview();
+  elements.viewer.replaceChildren();
+  elements.viewer.classList.remove('hidden');
+  let media = null;
+  if (file.mime?.startsWith('image/')) {
+    media = document.createElement('img');
+    media.alt = file.path;
+  }
+  else if (file.mime?.startsWith('audio/')) {
+    media = document.createElement('audio');
+    media.controls = true;
+  }
+  else if (file.mime?.startsWith('video/')) {
+    media = document.createElement('video');
+    media.controls = true;
+  }
+  else if (file.mime === 'application/pdf') {
+    media = document.createElement('iframe');
+    media.title = file.path;
+  }
+  if (media) {
+    const url = URL.createObjectURL(blob);
+    state.preview_url = url;
+    media.src = url;
+    elements.viewer.appendChild(media);
+  }
+  else {
+    show_viewer_message(`No inline editor for ${file.mime || 'this file type'}. Use Open or Download.`);
+  }
+}
+
+function show_viewer_message(message)
+{
+  elements.viewer.replaceChildren();
+  elements.viewer.classList.remove('hidden');
+  const content = document.createElement('div');
+  content.className = 'viewer-message';
+  content.textContent = message;
+  elements.viewer.appendChild(content);
+}
+
+async function save_selected()
+{
+  if (!state.note || !state.selected || !is_dirty()) {
+    return;
+  }
+  const note = state.note;
+  const selected = state.selected;
+  const selection_token = state.selection_token;
+  const content = elements.editor.value;
+  set_busy(elements.save_button, true, 'Saving…');
+  try {
+    if (selected.kind === 'readme') {
+      await api_request('PATCH', `/api/v1/notes/${note.uid}`, {json: {body: content}});
+      note.body = content;
+    }
+    else {
+      const file = state.selected.file;
+      const form = new FormData();
+      form.append('file', new Blob([content], {type: file.mime || 'text/plain'}), basename(file.path));
+      const saved_file = await api_request('PUT', file_api_url(file.path), {form});
+      replace_file(saved_file, note);
+      if (selection_token === state.selection_token) {
+        state.selected.file = saved_file;
+      }
+    }
+    if (selection_token === state.selection_token) {
+      state.original_content = content;
+      update_dirty_state();
+    }
+    if (state.note === note) {
+      render_note();
+    }
+    show_toast('Saved.');
+  }
+  catch (error) {
+    show_error(error);
+  }
+  finally {
+    if (selection_token === state.selection_token) {
+      elements.save_button.textContent = state.selected?.kind === 'readme' ? 'PATCH README.md' : 'PUT save file';
+      elements.save_button.disabled = !is_dirty();
+    }
+  }
+}
+
+async function upload_files()
+{
+  const files = Array.from(elements.upload_files.files || []);
+  if (!state.note || !files.length) {
+    show_toast('Choose one or more local files.');
+    return;
+  }
+  if (!confirm_discard_changes('Discard unsaved changes and open the uploaded file?')) {
+    return;
+  }
+  const folder = clean_folder(elements.upload_folder.value);
+  set_busy(elements.upload_button, true, 'Uploading…');
+  try {
+    let last_file = null;
+    for (let file_index = 0; file_index < files.length; ++file_index) {
+      const file = files[file_index];
+      const path = folder ? `${folder}/${file.name}` : file.name;
+      last_file = await upload_file(state.note.uid, path, file, function (progress) {
+        const percent = Math.round(progress * 100);
+        elements.upload_status.textContent = `${file_index + 1}/${files.length} · ${path} · ${percent}%`;
+      });
+    }
+    elements.upload_files.value = '';
+    await reload_note(last_file?.path);
+    show_toast(`${files.length} file${files.length === 1 ? '' : 's'} uploaded.`);
+  }
+  catch (error) {
+    show_error(error);
+  }
+  finally {
+    set_busy(elements.upload_button, false, 'POST upload');
+    elements.upload_status.textContent = 'Files above 50 MB use 10 MB multipart chunks.';
+  }
+}
+
+async function upload_file(note_uid, path, file, on_progress)
+{
+  if (file.size > chunked_upload_threshold) {
+    return upload_file_chunked(note_uid, path, file, on_progress);
+  }
+
+  on_progress(0);
+  const form = new FormData();
+  form.append('file', file, path);
+  const uploaded = await api_request('POST', `/api/v1/notes/${note_uid}/files`, {form});
+  on_progress(1);
+  return uploaded;
+}
+
+async function upload_file_chunked(note_uid, path, file, on_progress)
+{
+  const total_chunks = Math.ceil(file.size / upload_chunk_size);
+  on_progress(0);
+  const started = await api_request('POST', '/api/v1/files/upload/start', {
+    json: {filename: path, total_chunks, total_size: file.size},
+  });
+
+  for (let chunk_index = 0; chunk_index < total_chunks; ++chunk_index) {
+    const start = chunk_index * upload_chunk_size;
+    const chunk = file.slice(start, Math.min(file.size, start + upload_chunk_size));
+    const form = new FormData();
+    form.append('chunk', chunk, `${basename(file.name)}.part-${chunk_index}`);
+    await api_request('POST', `/api/v1/files/upload/${started.upload_id}/chunk/${chunk_index}`, {form});
+    on_progress((chunk_index + 1) / total_chunks);
+  }
+
+  return api_request('POST', `/api/v1/files/upload/${started.upload_id}/assemble`, {
+    json: {note_uid, overwrite: false},
+  });
+}
+
+async function create_text_file()
+{
+  if (!state.note) {
+    return;
+  }
+  const path = clean_file_path(elements.new_file_path.value);
+  if (!path) {
+    show_toast('Enter a path below files/.');
+    return;
+  }
+  if (!confirm_discard_changes('Discard unsaved changes and create another file?')) {
+    return;
+  }
+  const exists = state.note.files.some(function (file) { return file.path === path; });
+  if (exists && !confirm(`Replace files/${path}?`)) {
+    return;
+  }
+  set_busy(elements.new_file_button, true, 'Creating…');
+  try {
+    const form = new FormData();
+    form.append('file', new Blob([''], {type: mime_for_path(path)}), basename(path));
+    const file = await api_request('PUT', file_api_url(path), {form});
+    elements.new_file_path.value = '';
+    await reload_note(file.path);
+    show_toast('Text file created.');
+  }
+  catch (error) {
+    show_error(error);
+  }
+  finally {
+    set_busy(elements.new_file_button, false, 'PUT new file');
+  }
+}
+
+async function rename_selected()
+{
+  const selected = state.selected;
+  if (!state.note || selected?.kind !== 'file') {
+    return;
+  }
+  const destination = clean_file_path(elements.rename_path.value);
+  if (!destination || destination === selected.file.path) {
+    show_toast('Enter a different destination path.');
+    return;
+  }
+  if (!confirm_discard_changes('Discard unsaved content changes and rename the stored file?')) {
+    return;
+  }
+  set_busy(elements.rename_button, true, 'Moving…');
+  try {
+    const file = await api_request('PATCH', file_api_url(selected.file.path), {json: {path: destination}});
+    await reload_note(file.path);
+    show_toast('File moved.');
+  }
+  catch (error) {
+    show_error(error);
+  }
+  finally {
+    set_busy(elements.rename_button, false, 'PATCH rename');
+  }
+}
+
+async function delete_selected()
+{
+  const selected = state.selected;
+  if (!state.note || selected?.kind !== 'file') {
+    return;
+  }
+  if (!confirm_discard_changes('Discard unsaved content changes and delete the stored file?')) {
+    return;
+  }
+  if (!confirm(`Move files/${selected.file.path} to trash?`)) {
+    return;
+  }
+  set_busy(elements.delete_file, true, 'Deleting…');
+  try {
+    await api_request('DELETE', file_api_url(selected.file.path));
+    await reload_note();
+    show_toast('File moved to trash.');
+  }
+  catch (error) {
+    show_error(error);
+  }
+  finally {
+    elements.delete_file.textContent = 'Delete';
+    elements.delete_file.disabled = state.selected?.kind !== 'file';
+  }
+}
+
+async function reload_note(selected_path = null)
+{
+  const note = await api_request('GET', `/api/v1/notes/${state.note.uid}`);
+  state.original_content = elements.editor.value;
+  state.note = note;
+  state.selected = null;
+  render_note();
+  const file = selected_path && note.files.find(function (item) { return item.path === selected_path; });
+  if (file) {
+    await select_file(file);
+  }
+  else {
+    select_readme();
+  }
+}
+
+function replace_file(file, note = state.note)
+{
+  const index = note.files.findIndex(function (item) { return item.path === file.path; });
+  if (index !== -1) {
+    note.files[index] = file;
+  }
+}
+
+function open_selected()
+{
+  if (state.selected?.kind === 'readme') {
+    window.open(state.note.prefix, '_blank', 'noopener');
+  }
+  else if (state.selected?.kind === 'file') {
+    window.open(state.selected.file.url, '_blank', 'noopener');
+  }
+}
+
+function download_selected()
+{
+  if (state.selected?.kind !== 'file') {
+    return;
+  }
+  const link = document.createElement('a');
+  link.href = state.selected.file.url;
+  link.download = basename(state.selected.file.path);
+  link.click();
+}
+
+function show_action_pane(pane)
+{
+  document.querySelectorAll('.action-tab').forEach(function (button) {
+    button.classList.toggle('active', button.getAttribute('data-action-pane') === pane);
+  });
+  document.querySelectorAll('[data-action-content]').forEach(function (content) {
+    content.classList.toggle('hidden', content.getAttribute('data-action-content') !== pane);
+  });
+}
+
+async function api_request(method, url, options = {})
+{
+  const headers = {};
+  let body;
+  if (options.json !== undefined) {
+    headers['Content-Type'] = 'application/json';
+    body = JSON.stringify(options.json);
+  }
+  else if (options.form) {
+    body = options.form;
+  }
+  const response = await fetch(url, {method, headers, body});
+  if (!response.ok) {
+    const message = await response.text();
+    throw new Error(message || `${response.status} ${response.statusText}`);
+  }
+  if (response.status === 204 || response.headers.get('content-length') === '0') {
+    return null;
+  }
+  const content_type = response.headers.get('content-type') || '';
+  return content_type.includes('json') ? response.json() : response.text();
+}
+
+function file_api_url(path)
+{
+  return `/api/v1/notes/${state.note.uid}/files/${encode_path(path)}`;
+}
+
+function encode_path(path)
+{
+  return String(path).split('/').map(encodeURIComponent).join('/');
+}
+
+function clean_folder(value)
+{
+  return String(value || '').trim().replace(/^\/+|\/+$/g, '');
+}
+
+function clean_file_path(value)
+{
+  return clean_folder(value);
+}
+
+function basename(path)
+{
+  return String(path).split('/').at(-1) || 'file';
+}
+
+function file_extension(path)
+{
+  const match = String(path).toLowerCase().match(/\.([^.\/]+)$/);
+  return match?.[1] || '';
+}
+
+function is_editable_file(file)
+{
+  const mime = file.mime || '';
+  return Number(file.size || 0) <= max_edit_size && (
+    mime.startsWith('text/') ||
+    /json|javascript|xml|svg/.test(mime) ||
+    editable_extensions.has(file_extension(file.path))
+  );
+}
+
+function mime_for_path(path)
+{
+  const extension = file_extension(path);
+  if (extension === 'json') return 'application/json';
+  if (extension === 'html') return 'text/html';
+  if (extension === 'css') return 'text/css';
+  if (extension === 'js' || extension === 'mjs') return 'text/javascript';
+  if (extension === 'svg') return 'image/svg+xml';
+  if (extension === 'xml') return 'application/xml';
+  if (extension === 'csv') return 'text/csv';
+  if (extension === 'md') return 'text/markdown';
+  return 'text/plain';
+}
+
+function file_icon(file)
+{
+  if (file.mime?.startsWith('image/')) return '▧';
+  if (file.mime?.startsWith('audio/')) return '♫';
+  if (file.mime?.startsWith('video/')) return '▶';
+  if (file.mime === 'application/pdf') return '▣';
+  if (is_editable_file(file)) return '≡';
+  return '◇';
+}
+
+function update_dirty_state()
+{
+  const dirty = is_dirty();
+  elements.save_button.disabled = !dirty;
+  elements.file_meta.classList.toggle('dirty', dirty);
+  if (dirty && !elements.file_meta.textContent.includes('unsaved')) {
+    elements.file_meta.textContent += ' · unsaved changes';
+  }
+  else if (!dirty) {
+    elements.file_meta.textContent = elements.file_meta.textContent.replace(' · unsaved changes', '');
+  }
+}
+
+function is_dirty()
+{
+  return !elements.editor.classList.contains('hidden') && elements.editor.value !== state.original_content;
+}
+
+function confirm_discard_changes(message)
+{
+  return !is_dirty() || confirm(message);
+}
+
+function render_empty_notes()
+{
+  state.note = null;
+  elements.storage_note.textContent = 'Create a note in Notes first.';
+  elements.tree_count.textContent = '0 files';
+  elements.tree.innerHTML = '<div class="tree-empty">No notes available.</div>';
+  elements.file_path.textContent = 'No notes available';
+  elements.file_meta.textContent = 'Create a note, then refresh this app.';
+}
+
+function first_line(value)
+{
+  return String(value || '').split('\n').find(function (line) { return line.trim(); })?.replace(/^#+\s*/, '').trim() || '';
+}
+
+function format_bytes(value)
+{
+  const bytes = Number(value) || 0;
+  if (!bytes) return '0 B';
+  const units = ['B', 'KB', 'MB', 'GB'];
+  const index = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
+  return `${(bytes / (1024 ** index)).toFixed(index ? 1 : 0)} ${units[index]}`;
+}
+
+function format_date(value)
+{
+  const date = new Date(value);
+  return Number.isNaN(date.valueOf()) ? 'unknown date' : date.toLocaleString();
+}
+
+function set_busy(button, busy, label)
+{
+  button.disabled = busy;
+  button.textContent = label;
+}
+
+function set_loading(loading, message = 'Loading…')
+{
+  elements.loading.textContent = message;
+  elements.loading.classList.toggle('hidden', !loading);
+}
+
+function revoke_preview()
+{
+  if (state.preview_url) {
+    URL.revokeObjectURL(state.preview_url);
+    state.preview_url = null;
+  }
+}
+
+let toast_timer;
+function show_toast(message)
+{
+  clearTimeout(toast_timer);
+  elements.toast.textContent = message;
+  elements.toast.classList.remove('hidden');
+  toast_timer = setTimeout(function () { elements.toast.classList.add('hidden'); }, 2800);
+}
+
+function show_error(error)
+{
+  console.error(error);
+  show_toast(error.message || String(error));
+}
+
+init();
+</script>
+</body>
+</html>
