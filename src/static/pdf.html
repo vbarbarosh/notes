@@ -237,6 +237,23 @@
     letter-spacing: 0.12em;
     color: var(--ink-muted);
   }
+  /* Bookmark/note count badge — visually distinct from size/number text */
+  .bm-badge {
+    display: inline-block;
+    background: var(--accent);
+    color: var(--paper);
+    padding: 1px 6px;
+    margin-left: 4px;
+    font-size: 9px;
+    letter-spacing: 0.08em;
+    border: 1px solid var(--ink);
+    vertical-align: middle;
+  }
+  .file-item.active .bm-badge {
+    background: var(--paper);
+    color: var(--accent);
+    border-color: var(--accent);
+  }
 
   .remove-btn {
     background: none; border: none;
@@ -312,6 +329,7 @@
   /* Rect-drawing mode */
   .canvas-area.rect-mode .page-wrap,
   .canvas-area.shot-mode .page-wrap { cursor: crosshair; }
+  .canvas-area.note-mode .page-wrap { cursor: copy; }
   .canvas-area.pan-mode { cursor: grab; }
   .canvas-area.pan-mode.panning { cursor: grabbing; }
   .canvas-area.pan-mode .page-wrap { cursor: inherit; }
@@ -331,7 +349,12 @@
     display: none;
   }
   .canvas-area.rect-mode .rect-draw-layer,
-  .canvas-area.shot-mode .rect-draw-layer { display: block; }
+  .canvas-area.shot-mode .rect-draw-layer,
+  .canvas-area.note-mode .rect-draw-layer,
+  .canvas-area.pin-mode .rect-draw-layer,
+  .canvas-area.draw-mode .rect-draw-layer { display: block; }
+  .canvas-area.pin-mode .page-wrap { cursor: copy; }
+  .canvas-area.draw-mode .page-wrap { cursor: crosshair; }
   .rect-draft {
     position: absolute;
     background: rgba(200, 71, 43, 0.18);
@@ -493,6 +516,214 @@
     background: rgba(200, 71, 43, 0.22);
     outline: 1.5px solid var(--accent);
   }
+
+  /* Note bookmarks (kind='note') — show inline user text on the page. */
+  .hl-rect.note-rect {
+    background: rgba(120, 180, 100, 0.18);
+    outline: 1px solid rgba(80, 140, 60, 0.55);
+    overflow: visible;
+    display: flex;
+    align-items: flex-end; /* text baseline sits at the bottom = click point */
+    padding: 1px 4px;
+    box-sizing: border-box;
+    mix-blend-mode: normal;
+  }
+  .hl-rect.note-rect:hover {
+    background: rgba(120, 180, 100, 0.28);
+    outline-color: rgb(60, 120, 50);
+  }
+  .hl-rect.note-rect.note-empty {
+    background: rgba(80, 140, 60, 0.10);
+    outline-style: dashed;
+  }
+  /* Cross-hover "active" state must be re-declared per kind: the kind base
+     rules above share specificity with .hl-rect.active and come later in
+     the sheet, so without these the panel-hover highlight is invisible on
+     rect and note bookmarks. */
+  .hl-rect.rect-kind.active {
+    background: rgba(200, 71, 43, 0.30);
+    outline: 2px solid var(--accent);
+  }
+  .hl-rect.note-rect.active {
+    background: rgba(120, 180, 100, 0.40);
+    outline: 2px solid var(--accent);
+  }
+
+  /* Pin bookmarks (kind='pin') — fixed-size flag icon anchored on the page */
+  .hl-rect.pin-rect {
+    width: 22px !important;
+    height: 22px !important;
+    background: var(--paper);
+    outline: 1.5px solid rgb(90, 70, 160);
+    color: rgb(90, 70, 160);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+    line-height: 1;
+    cursor: pointer;
+    box-shadow: 2px 2px 0 rgba(90, 70, 160, 0.35);
+    mix-blend-mode: normal;
+    user-select: none;
+  }
+  .hl-rect.pin-rect:hover {
+    background: rgb(90, 70, 160);
+    color: var(--paper);
+  }
+  .hl-rect.pin-rect.pin-empty { outline-style: dashed; opacity: 0.7; }
+  .hl-rect.pin-rect.active {
+    background: rgb(90, 70, 160);
+    color: var(--paper);
+    outline: 2px solid var(--accent);
+  }
+  /* Pins stay hoverable in pan mode — reading mode is exactly when you
+     want to peek at pinned notes. (Other .hl-rect kinds stay inert.) */
+  .canvas-area.pan-mode .hl-rect.pin-rect { pointer-events: auto; }
+
+  /* Freehand drawing (kind='draw') */
+  .draw-svg {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    overflow: visible;
+  }
+  polyline.draw-stroke {
+    fill: none;
+    stroke: var(--accent);
+    stroke-width: 2;
+    vector-effect: non-scaling-stroke; /* constant px width at any zoom */
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    pointer-events: none;
+    outline: none; /* neutralize .hl-rect box styling on SVG */
+  }
+  polyline.draw-stroke.active {
+    stroke: rgb(90, 70, 160);
+    stroke-width: 3.5;
+  }
+
+  /* Hover popover showing the pin's full rendered text */
+  .pin-popover {
+    display: none;
+    position: fixed;
+    z-index: 300;
+    background: var(--paper);
+    border: 1.5px solid var(--ink);
+    box-shadow: 4px 4px 0 var(--ink);
+    padding: 10px 12px;
+    font-size: 13px;
+    line-height: 1.5;
+    color: var(--ink);
+    pointer-events: none; /* never steals hover from the icon */
+    word-break: break-word;
+  }
+  .pin-popover code {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    background: var(--bg-alt);
+    padding: 0 3px;
+  }
+
+  /* Modal editor for pin notes */
+  .pin-modal-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 400;
+    background: rgba(20, 18, 14, 0.45);
+    align-items: center;
+    justify-content: center;
+  }
+  .pin-modal {
+    background: var(--paper);
+    border: 1.5px solid var(--ink);
+    box-shadow: 6px 6px 0 var(--ink);
+    width: min(560px, calc(100vw - 48px));
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .pin-modal-title {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    color: rgb(90, 70, 160);
+    font-weight: 700;
+  }
+  .pin-modal-text {
+    width: 100%;
+    min-height: 180px;
+    resize: vertical;
+    border: 1px solid var(--ink);
+    background: var(--bg);
+    font-family: 'Fraunces', Georgia, serif;
+    font-size: 14px;
+    line-height: 1.5;
+    color: var(--ink);
+    padding: 10px;
+    box-sizing: border-box;
+    outline: none;
+  }
+  .pin-modal-text:focus { box-shadow: 0 0 0 2px rgba(90, 70, 160, 0.4); }
+  .pin-modal-hint {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: var(--ink-muted);
+  }
+  .pin-modal-actions {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+  .pin-actions-spacer { flex: 1; }
+  .pin-btn {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    padding: 7px 14px;
+    border: 1.5px solid var(--ink);
+    background: var(--paper);
+    color: var(--ink);
+    cursor: pointer;
+  }
+  .pin-btn:hover { background: var(--ink); color: var(--paper); }
+  .pin-btn-save { background: rgb(90, 70, 160); color: var(--paper); border-color: var(--ink); }
+  .pin-btn-save:hover { background: var(--ink); }
+  .pin-btn-delete { border-color: var(--accent); color: var(--accent); }
+  .pin-btn-delete:hover { background: var(--accent); color: var(--paper); }
+  .note-text {
+    font-family: 'Fraunces', Georgia, serif;
+    font-style: italic;
+    font-size: 13px;
+    line-height: 1;
+    color: rgb(40, 80, 30);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    width: 100%;
+    pointer-events: none; /* clicks pass to the rect for edit/manip */
+  }
+  /* Inline editor that replaces the note text while editing */
+  .note-input {
+    width: 100%;
+    height: 100%;
+    border: 1.5px solid var(--accent);
+    background: var(--paper);
+    font-family: 'Fraunces', Georgia, serif;
+    font-style: italic;
+    font-size: 14px;
+    line-height: 1;
+    color: var(--ink);
+    padding: 1px 4px;
+    box-sizing: border-box;
+    outline: none;
+    box-shadow: 2px 2px 0 var(--accent);
+  }
   /* In shot mode, don't let highlights intercept drag events */
   .canvas-area.shot-mode .hl-rect,
   .canvas-area.pan-mode .hl-rect { pointer-events: none; }
@@ -651,6 +882,54 @@
     top: 0; left: 0;
     width: 4px; height: 100%;
     background: var(--highlight);
+  }
+  /* Note bookmarks get a green accent stripe to distinguish them */
+  .bookmark-item.bm-kind-note::before {
+    background: rgb(80, 140, 60);
+  }
+  /* Pin bookmarks get a violet stripe */
+  .bookmark-item.bm-kind-pin::before {
+    background: rgb(90, 70, 160);
+  }
+  /* Drawing bookmarks get an accent (red) stripe */
+  .bookmark-item.bm-kind-draw::before {
+    background: var(--accent);
+  }
+  .bm-draw-preview {
+    width: 100%;
+    height: 48px;
+    margin-bottom: 8px;
+    display: block;
+  }
+  .bm-draw-preview polyline {
+    fill: none;
+    stroke: var(--accent);
+    stroke-width: 1.5;
+    vector-effect: non-scaling-stroke;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+  .bm-pin code {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    background: var(--bg-alt);
+    padding: 0 3px;
+  }
+  .bm-note {
+    font-family: 'Fraunces', Georgia, serif;
+    font-size: 14px;
+    line-height: 1.4;
+    color: var(--ink);
+    margin-bottom: 8px;
+    word-break: break-word;
+    display: -webkit-box;
+    -webkit-line-clamp: 4;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .bm-note .bm-empty {
+    color: var(--ink-muted);
+    font-style: italic;
   }
   .bm-quote {
     font-size: 13px;
@@ -814,6 +1093,8 @@
         <button class="ctrl-btn" id="textMode" title="Select text to highlight">T Text</button>
         <button class="ctrl-btn" id="rectMode" title="Draw rectangle highlight">▢ Box</button>
         <button class="ctrl-btn" id="noteMode" title="Click or drag to add a note">✎ Note</button>
+        <button class="ctrl-btn" id="pinMode" title="Click to place a pin note">⚑ Pin</button>
+        <button class="ctrl-btn" id="drawMode" title="Freehand drawing">✏ Draw</button>
         <button class="ctrl-btn" id="shotMode" title="Drag a region, save as PNG">⌖ Shot</button>
         <button class="ctrl-btn" id="fitWidth" title="Fit page to width">↔ Fit</button>
         <button class="ctrl-btn" id="fitHeight" title="Fit page to height">⇕ Fit</button>
@@ -841,8 +1122,8 @@
     </div>
     <div class="bookmarks" id="bookmarksList">
       <div class="empty-bm" id="emptyBm">
-        <strong>Two ways to highlight</strong>
-        Select text and click the “Highlight” pill — or toggle <em>▢ Box</em> in the toolbar to draw a rectangle on a scanned page.
+        <strong>Three ways to annotate</strong>
+        Select text and click the “Highlight” pill — toggle <em>▢ Box</em> to draw a rectangle — or toggle <em>✎ Note</em> to add inline text.
       </div>
     </div>
   </section>
@@ -998,7 +1279,9 @@
     sorted.forEach((file, i) => {
       const item = document.createElement('div');
       item.className = 'file-item' + (file.id === activeId ? ' active' : '');
-      const bmTag = file.bookmarks.length ? ` · ${file.bookmarks.length} ✦` : '';
+      const bmTag = file.bookmarks.length
+        ? ` <span class="bm-badge" title="${file.bookmarks.length} bookmark(s) & note(s)">✦ ${file.bookmarks.length}</span>`
+        : '';
       item.innerHTML = `
         <div class="file-icon">PDF</div>
         <div class="file-info">
@@ -1024,6 +1307,9 @@
     const file = files.find(f => f.id === id);
     if (!file) return;
     if (id === activeId) return; // already active, no-op
+
+    // A drawing session never spans documents.
+    activeDrawing = null;
 
     // Capture & flush the outgoing PDF's view so its position is preserved
     // both in memory (for fast re-open) and on the server.
@@ -1324,37 +1610,62 @@
   }
 
   // ───── Zoom ─────
-  async function rerenderAll() {
+  // anchor (optional): { page, fx, fy, viewX, viewY } — a document point
+  // (fractional coords within a page) that must land back at the same
+  // viewport position (viewX/viewY relative to canvasArea) after re-render.
+  // Used by ctrl+wheel zoom to keep the point under the cursor fixed.
+  // Without an anchor, the viewport-top position is preserved as before.
+  async function rerenderAll(anchor) {
     if (!currentPdf) return;
     // Capture current logical position (scale-independent: page + offset within page)
-    const before = computeCurrentView(); // { page, offset, scale } | null
+    const before = anchor ? null : computeCurrentView();
 
-    loadingOverlay.classList.add('active');
+    // Anti-flicker: only show the loading overlay if the re-render is
+    // actually slow. Fast zoom rerenders (~100ms, cached doc) shouldn't
+    // blink a full-screen overlay on every wheel tick.
+    let overlayShown = false;
+    const overlayTimer = setTimeout(() => {
+      overlayShown = true;
+      loadingOverlay.classList.add('active');
+    }, 250);
+
     suppressViewSave = true;
     if (pageObserver) { pageObserver.disconnect(); pageObserver = null; }
     canvasArea.querySelectorAll('.page-wrap').forEach(el => el.remove());
     pageRefs = [];
     const myToken = ++renderToken;
     await setupPagePlaceholders(myToken);
-    if (myToken !== renderToken) return;
+    if (myToken !== renderToken) { clearTimeout(overlayTimer); return; }
 
-    // Restore scroll to the same logical position at the new scale
-    if (before && before.page) {
-      // Wait two frames so layout settles
-      await new Promise(r => requestAnimationFrame(r));
-      await new Promise(r => requestAnimationFrame(r));
-      if (myToken !== renderToken) return;
-      canvasArea.scrollTop = 0;
+    // Anti-flicker: no scroll reset, no awaited animation frames (each
+    // awaited rAF paints a frame — the old code visibly jumped to the top
+    // for 1-2 frames before landing). getBoundingClientRect forces a
+    // synchronous layout of the freshly built placeholders, and adding
+    // the current scroll offset makes the math independent of whatever
+    // scroll position the browser clamped to when the pages were removed.
+    // One scroll assignment, zero intermediate paints.
+    if (anchor && anchor.page) {
+      const ref = pageRefs.find(p => p.pageNum === anchor.page);
+      if (ref) {
+        const areaRect = canvasArea.getBoundingClientRect();
+        const wrapRect = ref.wrap.getBoundingClientRect();
+        const absX = (wrapRect.left - areaRect.left) + canvasArea.scrollLeft;
+        const absY = (wrapRect.top - areaRect.top) + canvasArea.scrollTop;
+        canvasArea.scrollLeft = Math.max(0, absX + anchor.fx * wrapRect.width - anchor.viewX);
+        canvasArea.scrollTop = Math.max(0, absY + anchor.fy * wrapRect.height - anchor.viewY);
+      }
+    } else if (before && before.page) {
       const ref = pageRefs.find(p => p.pageNum === before.page);
       if (ref) {
         const areaRect = canvasArea.getBoundingClientRect();
         const wrapRect = ref.wrap.getBoundingClientRect();
-        const offsetPx = (before.offset || 0) * wrapRect.height;
-        canvasArea.scrollTop = (wrapRect.top - areaRect.top) + offsetPx;
+        const absY = (wrapRect.top - areaRect.top) + canvasArea.scrollTop;
+        canvasArea.scrollTop = absY + (before.offset || 0) * wrapRect.height;
       }
     }
 
-    loadingOverlay.classList.remove('active');
+    clearTimeout(overlayTimer);
+    if (overlayShown) loadingOverlay.classList.remove('active');
     setTimeout(() => { suppressViewSave = false; }, 100);
   }
 
@@ -1368,6 +1679,66 @@
     await rerenderAll();
     if (window.__pdfvault_bookmarksChanged) window.__pdfvault_bookmarksChanged();
   });
+
+  // Ctrl + mouse wheel → zoom. Wheel ticks arrive rapidly and rerenderAll
+  // is expensive (rebuilds all page placeholders), so we accumulate the
+  // scale changes and re-render once after a short idle. Position is
+  // preserved by rerenderAll's capture/restore. Bonus: macOS trackpad
+  // pinch sends wheel events with ctrlKey=true, so pinch-zoom works too.
+  (function setupWheelZoom() {
+    let timer = null;
+    let pendingScale = null;
+    let pendingAnchor = null;
+
+    // Capture the document point under the cursor: which page, fractional
+    // position within it, and the cursor's viewport-relative position.
+    // Valid until the re-render since layout doesn't change between ticks.
+    function captureAnchor(e) {
+      const areaRect = canvasArea.getBoundingClientRect();
+      for (const ref of pageRefs) {
+        const wr = ref.wrap.getBoundingClientRect();
+        if (e.clientX >= wr.left && e.clientX <= wr.right &&
+            e.clientY >= wr.top && e.clientY <= wr.bottom) {
+          return {
+            page: ref.pageNum,
+            fx: (e.clientX - wr.left) / wr.width,
+            fy: (e.clientY - wr.top) / wr.height,
+            viewX: e.clientX - areaRect.left,
+            viewY: e.clientY - areaRect.top
+          };
+        }
+      }
+      return null; // cursor in a gap between pages — fall back to default restore
+    }
+
+    canvasArea.addEventListener('wheel', (e) => {
+      if (!e.ctrlKey) return;       // plain wheel keeps scrolling
+      e.preventDefault();           // block browser page-zoom
+      if (!currentPdf) return;
+
+      const base = (pendingScale !== null) ? pendingScale : currentScale;
+      const step = e.deltaY < 0 ? 0.1 : -0.1; // finer than the +/- buttons
+      pendingScale = Math.max(0.5, Math.min(3, Math.round((base + step) * 10) / 10));
+      // Latest tick's cursor position wins as the zoom anchor
+      pendingAnchor = captureAnchor(e);
+
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(async () => {
+        timer = null;
+        if (pendingScale === null || pendingScale === currentScale) {
+          pendingScale = null;
+          pendingAnchor = null;
+          return;
+        }
+        currentScale = pendingScale;
+        const anchor = pendingAnchor;
+        pendingScale = null;
+        pendingAnchor = null;
+        await rerenderAll(anchor);
+        if (window.__pdfvault_bookmarksChanged) window.__pdfvault_bookmarksChanged();
+      }, 180);
+    }, { passive: false }); // non-passive so preventDefault works
+  })();
 
   // Fit current page to the viewport (width or height).
   // Uses the page closest to viewport top — what the user sees right now.
@@ -1662,6 +2033,8 @@
   //   text — left-drag selects text → highlight popup
   //   rect — left-drag draws a rectangle bookmark
   //   note — click or drag to add an inline text note
+  //   pin  — click to place a pin note (icon; hover to read, click to edit)
+  //   draw — freehand pen strokes
   //   shot — left-drag selects a region → PNG download + clipboard
   let currentMode = 'pan';
   const modeBtns = {
@@ -1669,6 +2042,8 @@
     text: $('textMode'),
     rect: $('rectMode'),
     note: $('noteMode'),
+    pin:  $('pinMode'),
+    draw: $('drawMode'),
     shot: $('shotMode'),
   };
 
@@ -1678,6 +2053,19 @@
   let panModeOn  = false;
   let textModeOn = false;
   let noteModeOn = false;
+  let pinModeOn  = false;
+  let drawModeOn = false;
+
+  // The open drawing for the current Draw session: strokes accumulate into
+  // this bookmark until the session closes (mode change, doc switch, or
+  // drawing on another page).
+  let activeDrawing = null; // { bmId, pageNum } | null
+
+  // Pin UI elements — declared here (before the startup setMode call)
+  // because setMode → hidePinPopover reads pinPopoverEl; a later `let`
+  // would still be in the temporal dead zone at that point.
+  let pinPopoverEl = null;
+  let pinModalEl = null;
 
   function setMode(mode) {
     if (!modeBtns[mode]) return;
@@ -1687,17 +2075,25 @@
     panModeOn  = (mode === 'pan');
     textModeOn = (mode === 'text');
     noteModeOn = (mode === 'note');
+    pinModeOn  = (mode === 'pin');
+    drawModeOn = (mode === 'draw');
     canvasArea.classList.toggle('rect-mode', rectModeOn);
     canvasArea.classList.toggle('shot-mode', shotModeOn);
     canvasArea.classList.toggle('pan-mode',  panModeOn);
     canvasArea.classList.toggle('text-mode', textModeOn);
     canvasArea.classList.toggle('note-mode', noteModeOn);
+    canvasArea.classList.toggle('pin-mode',  pinModeOn);
+    canvasArea.classList.toggle('draw-mode', drawModeOn);
     Object.entries(modeBtns).forEach(([m, btn]) => {
       btn.classList.toggle('toggled', m === mode);
     });
     // Clear stale text selection when leaving text mode
     if (!textModeOn) window.getSelection().removeAllRanges();
+    // Leaving draw mode closes the open drawing — the next Draw session
+    // starts a fresh bookmark.
+    if (!drawModeOn) activeDrawing = null;
     hidePopup();
+    hidePinPopover();
   }
 
   Object.entries(modeBtns).forEach(([mode, btn]) => {
@@ -1744,17 +2140,30 @@
     let dragging = false;
     let startX = 0, startY = 0;
     let draftEl = null;
-    let dragMode = null; // 'rect' or 'shot' — captured at mousedown
+    let dragMode = null; // 'rect' | 'shot' | 'note' | 'pin' | 'draw'
+    let strokePts = null;   // fractional points of the in-progress stroke
+    let strokeEl = null;    // live-preview polyline
+    let lastPx = null;      // last point in px, for decimation
 
     ref.rectLayer.addEventListener('mousedown', (e) => {
       if (e.button !== 0) return;
-      if (!rectModeOn && !shotModeOn) return;
-      dragMode = rectModeOn ? 'rect' : 'shot';
+      if (!rectModeOn && !shotModeOn && !noteModeOn && !pinModeOn && !drawModeOn) return;
       e.preventDefault();
       const wr = ref.wrap.getBoundingClientRect();
       startX = e.clientX - wr.left;
       startY = e.clientY - wr.top;
       dragging = true;
+
+      if (drawModeOn) {
+        // Freehand stroke: live-preview polyline, points collected on move.
+        dragMode = 'draw';
+        strokePts = [{ x: startX / wr.width, y: startY / wr.height }];
+        lastPx = { x: startX, y: startY };
+        strokeEl = makeStrokePolyline(ref, strokePts);
+        return;
+      }
+
+      dragMode = rectModeOn ? 'rect' : (shotModeOn ? 'shot' : (noteModeOn ? 'note' : 'pin'));
       draftEl = document.createElement('div');
       draftEl.className = 'rect-draft';
       draftEl.style.left = startX + 'px';
@@ -1763,7 +2172,20 @@
     });
 
     function onMove(e) {
-      if (!dragging || !draftEl) return;
+      if (!dragging) return;
+      if (dragMode === 'draw') {
+        if (!strokeEl) return;
+        const wr = ref.wrap.getBoundingClientRect();
+        const px = Math.max(0, Math.min(e.clientX - wr.left, wr.width));
+        const py = Math.max(0, Math.min(e.clientY - wr.top, wr.height));
+        // Decimate: only record a point when the cursor moved enough.
+        if (Math.abs(px - lastPx.x) < 2 && Math.abs(py - lastPx.y) < 2) return;
+        lastPx = { x: px, y: py };
+        strokePts.push({ x: px / wr.width, y: py / wr.height });
+        strokeEl.setAttribute('points', strokePts.map(p => `${p.x * 100},${p.y * 100}`).join(' '));
+        return;
+      }
+      if (!draftEl) return;
       const wr = ref.wrap.getBoundingClientRect();
       const cx = Math.max(0, Math.min(e.clientX - wr.left, wr.width));
       const cy = Math.max(0, Math.min(e.clientY - wr.top, wr.height));
@@ -1778,27 +2200,81 @@
     }
 
     function onUp(e) {
-      if (!dragging || !draftEl) { dragging = false; return; }
+      if (!dragging) return;
       dragging = false;
+
+      if (dragMode === 'draw') {
+        dragMode = null;
+        const pts = strokePts; const el = strokeEl;
+        strokePts = null; strokeEl = null; lastPx = null;
+        if (!pts || pts.length < 2) {
+          // A click with no movement isn't a stroke — discard.
+          if (el) el.remove();
+          return;
+        }
+        addStrokeToDrawing(ref, pts, el);
+        return;
+      }
+
+      if (!draftEl) return;
       const wr = ref.wrap.getBoundingClientRect();
-      const x = parseFloat(draftEl.style.left) || 0;
-      const y = parseFloat(draftEl.style.top) || 0;
-      const w = parseFloat(draftEl.style.width) || 0;
-      const h = parseFloat(draftEl.style.height) || 0;
+      let x = parseFloat(draftEl.style.left) || 0;
+      let y = parseFloat(draftEl.style.top) || 0;
+      let w = parseFloat(draftEl.style.width) || 0;
+      let h = parseFloat(draftEl.style.height) || 0;
       draftEl.remove();
       draftEl = null;
-      // Ignore tiny drags (likely accidental clicks)
-      if (w < 8 || h < 8) return;
-      const rel = {
-        x: x / wr.width,
-        y: y / wr.height,
-        w: w / wr.width,
-        h: h / wr.height
-      };
-      if (dragMode === 'shot') {
-        downloadShot(ref, rel);
+
+      if (dragMode === 'pin') {
+        // Pins are points, not rects — place at the mousedown position and
+        // ignore any drag geometry. Store a small nominal rect so the sort
+        // and cross-hover machinery (which read rects) keep working.
+        const PIN = 22; // px, matches the rendered icon size
+        const px = Math.max(0, Math.min(wr.width - PIN, startX));
+        const py = Math.max(0, Math.min(wr.height - PIN, startY));
+        const rel = {
+          x: px / wr.width,
+          y: py / wr.height,
+          w: PIN / wr.width,
+          h: PIN / wr.height
+        };
+        createPinBookmark(ref, rel);
+      } else if (dragMode === 'note') {
+        // Notes: a small drag is still a valid placement — for clicks with
+        // no drag, use a default size big enough to type a few words.
+        const TINY = 6;
+        if (w < TINY || h < TINY) {
+          const DEFAULT_W = wr.width * 0.18;
+          const DEFAULT_H = Math.max(18, wr.height * 0.025);
+          // The click point becomes the BOTTOM-LEFT corner of the note —
+          // like putting a pen tip where the text should start writing.
+          // (Click at the start of a "_____" blank; text goes up-right.)
+          x = Math.max(0, Math.min(wr.width - DEFAULT_W, x));
+          y = Math.max(0, Math.min(wr.height - DEFAULT_H, y - DEFAULT_H));
+          w = DEFAULT_W;
+          h = DEFAULT_H;
+        }
+        const rel = {
+          x: x / wr.width,
+          y: y / wr.height,
+          w: w / wr.width,
+          h: h / wr.height
+        };
+        createNoteBookmark(ref, rel);
       } else {
-        createRectBookmark(ref, rel);
+        // Rect / shot: ignore tiny drags (accidental clicks)
+        if (w < 8 || h < 8) { dragMode = null; return; }
+        const rel = {
+          x: x / wr.width,
+          y: y / wr.height,
+          w: w / wr.width,
+          h: h / wr.height
+        };
+        if (dragMode === 'shot') {
+          downloadShot(ref, rel);
+        } else {
+          createRectBookmark(ref, rel);
+        }
       }
       dragMode = null;
     }
@@ -1936,6 +2412,421 @@
     renderBookmarks();
     renderCollection();
     if (window.__pdfvault_bookmarksChanged) window.__pdfvault_bookmarksChanged();
+  }
+
+  function createNoteBookmark(ref, rel) {
+    if (!activeId) return;
+    const file = files.find(f => f.id === activeId);
+    if (!file) return;
+
+    const bm = {
+      id: Date.now() + '-' + Math.random().toString(36).slice(2, 6),
+      kind: 'note',
+      text: '',
+      page: ref.pageNum,
+      rects: { [ref.pageNum]: [rel] },
+      createdAt: new Date()
+    };
+    file.bookmarks.unshift(bm);
+    drawHighlightOnPage(bm, ref);
+    renderBookmarks();
+    renderCollection();
+    // No save yet — the note is empty. It gets persisted on commit
+    // (with text) or removed on cancel/empty-commit. Empty notes are
+    // never kept, so the server never sees one.
+    editNote(bm.id);
+  }
+
+  // ───── Pin notes (kind='pin') ─────
+  // Icon-only marker on the page. Hover → popover with the full rendered
+  // text; click → modal editor with markdown-lite formatting.
+
+  function createPinBookmark(ref, rel) {
+    if (!activeId) return;
+    const file = files.find(f => f.id === activeId);
+    if (!file) return;
+
+    const bm = {
+      id: Date.now() + '-' + Math.random().toString(36).slice(2, 6),
+      kind: 'pin',
+      text: '',
+      page: ref.pageNum,
+      rects: { [ref.pageNum]: [rel] },
+      createdAt: new Date()
+    };
+    file.bookmarks.unshift(bm);
+    drawHighlightOnPage(bm, ref);
+    renderBookmarks();
+    renderCollection();
+    // Same policy as notes: empty pins are never persisted. The editor's
+    // Save is the first save; Cancel on an empty pin deletes it.
+    openPinEditor(bm.id);
+  }
+
+  // Markdown-lite → HTML. HTML-escape FIRST, then apply formatting, so
+  // user text can never inject markup. Supported: **bold**, *italic*,
+  // `code`, and line breaks.
+  function mdLite(text) {
+    let s = escapeHtml(text || '');
+    s = s.replace(/\*\*([^*\n]+)\*\*/g, '<strong>$1</strong>');
+    s = s.replace(/\*([^*\n]+)\*/g, '<em>$1</em>');
+    s = s.replace(/`([^`\n]+)`/g, '<code>$1</code>');
+    s = s.replace(/\n/g, '<br>');
+    return s;
+  }
+
+  // Shared hover popover (one instance, repositioned per pin).
+  // pinPopoverEl is declared up top, before the startup setMode call.
+  function showPinPopover(bm, iconEl) {
+    if (!bm.text) return;
+    if (!pinPopoverEl) {
+      pinPopoverEl = document.createElement('div');
+      pinPopoverEl.className = 'pin-popover';
+      document.body.appendChild(pinPopoverEl);
+    }
+    pinPopoverEl.innerHTML = mdLite(bm.text);
+    const r = iconEl.getBoundingClientRect();
+    pinPopoverEl.style.display = 'block';
+    // Position beside the icon; clamp to the viewport.
+    const pw = Math.min(360, window.innerWidth - 24);
+    pinPopoverEl.style.maxWidth = pw + 'px';
+    let left = r.right + 8;
+    if (left + pw > window.innerWidth - 8) left = Math.max(8, r.left - pw - 8);
+    let top = r.top;
+    pinPopoverEl.style.left = left + 'px';
+    pinPopoverEl.style.top = top + 'px';
+    // After layout, nudge up if it overflows the bottom
+    requestAnimationFrame(() => {
+      if (!pinPopoverEl || pinPopoverEl.style.display === 'none') return;
+      const ph = pinPopoverEl.offsetHeight;
+      if (top + ph > window.innerHeight - 8) {
+        pinPopoverEl.style.top = Math.max(8, window.innerHeight - 8 - ph) + 'px';
+      }
+    });
+  }
+  function hidePinPopover() {
+    if (pinPopoverEl) pinPopoverEl.style.display = 'none';
+  }
+
+  // Modal editor (one instance, created lazily).
+  // pinModalEl is declared up top alongside pinPopoverEl.
+  function openPinEditor(bmId) {
+    const file = files.find(f => f.id === activeId);
+    if (!file) return;
+    const bm = file.bookmarks.find(b => b.id === bmId);
+    if (!bm || bm.kind !== 'pin') return;
+    hidePinPopover();
+
+    if (!pinModalEl) {
+      pinModalEl = document.createElement('div');
+      pinModalEl.className = 'pin-modal-overlay';
+      pinModalEl.innerHTML = `
+        <div class="pin-modal">
+          <div class="pin-modal-title">⚑ Pin note</div>
+          <textarea class="pin-modal-text" placeholder="Write your note…"></textarea>
+          <div class="pin-modal-hint">**bold**  *italic*  \`code\`  — Ctrl+Enter to save, Esc to cancel</div>
+          <div class="pin-modal-actions">
+            <button class="pin-btn pin-btn-delete">Delete</button>
+            <span class="pin-actions-spacer"></span>
+            <button class="pin-btn pin-btn-cancel">Cancel</button>
+            <button class="pin-btn pin-btn-save">Save</button>
+          </div>
+        </div>`;
+      document.body.appendChild(pinModalEl);
+    }
+    const ta = pinModalEl.querySelector('.pin-modal-text');
+    ta.value = bm.text || '';
+    pinModalEl.style.display = 'flex';
+    setTimeout(() => ta.focus(), 0);
+
+    const hadText = !!(bm.text || '').trim();
+    let done = false;
+
+    function close() {
+      pinModalEl.style.display = 'none';
+      // Replace listeners next open (simplest teardown: clone-free, we
+      // just guard with `done` and re-bind fresh handlers each open).
+      saveBtn.removeEventListener('click', onSave);
+      cancelBtn.removeEventListener('click', onCancel);
+      delBtn.removeEventListener('click', onDelete);
+      ta.removeEventListener('keydown', onKey);
+      pinModalEl.removeEventListener('mousedown', onBackdrop);
+    }
+    function redrawPin() {
+      document.querySelectorAll(`.hl-rect[data-bm-id="${bm.id}"]`).forEach(r => r.remove());
+      const ref = pageRefs.find(p => p.pageNum === bm.page);
+      if (ref && ref.rendered) drawHighlightOnPage(bm, ref);
+      renderBookmarks();
+      renderCollection();
+    }
+    function removePin() {
+      file.bookmarks = file.bookmarks.filter(b => b.id !== bm.id);
+      document.querySelectorAll(`.hl-rect[data-bm-id="${bm.id}"]`).forEach(r => r.remove());
+      renderBookmarks();
+      renderCollection();
+    }
+    function onSave() {
+      if (done) return; done = true;
+      const t = ta.value.trim();
+      if (!t) { removePin(); }
+      else { bm.text = t; redrawPin(); }
+      if (window.__pdfvault_bookmarksChanged) window.__pdfvault_bookmarksChanged();
+      close();
+    }
+    function onCancel() {
+      if (done) return; done = true;
+      if (!hadText) {
+        // Fresh pin, never saved — cancel deletes it (no empty pins).
+        removePin();
+        if (window.__pdfvault_bookmarksChanged) window.__pdfvault_bookmarksChanged();
+      }
+      close();
+    }
+    function onDelete() {
+      if (done) return; done = true;
+      removePin();
+      if (window.__pdfvault_bookmarksChanged) window.__pdfvault_bookmarksChanged();
+      close();
+    }
+    function onKey(e) {
+      if (e.key === 'Escape') { e.preventDefault(); onCancel(); }
+      else if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); onSave(); }
+    }
+    function onBackdrop(e) {
+      if (e.target === pinModalEl) onCancel();
+    }
+
+    const saveBtn = pinModalEl.querySelector('.pin-btn-save');
+    const cancelBtn = pinModalEl.querySelector('.pin-btn-cancel');
+    const delBtn = pinModalEl.querySelector('.pin-btn-delete');
+    saveBtn.addEventListener('click', onSave);
+    cancelBtn.addEventListener('click', onCancel);
+    delBtn.addEventListener('click', onDelete);
+    ta.addEventListener('keydown', onKey);
+    pinModalEl.addEventListener('mousedown', onBackdrop);
+  }
+
+  // Draw a pin icon on the page. Fixed pixel size (legible at any zoom),
+  // anchored at the stored fractional position.
+  function drawPinOnPage(bm, ref, rel) {
+    const div = document.createElement('div');
+    div.className = 'hl-rect pin-rect' + (bm.text ? '' : ' pin-empty');
+    div.dataset.bmId = bm.id;
+    div.dataset.rectIdx = 0;
+    div.style.left = (rel.x * 100) + '%';
+    div.style.top = (rel.y * 100) + '%';
+    div.textContent = '⚑';
+
+    div.addEventListener('mouseenter', () => {
+      previewBookmark(bm.id);
+      showPinPopover(bm, div);
+    });
+    div.addEventListener('mouseleave', () => {
+      clearBookmarkPreview(bm.id);
+      hidePinPopover();
+    });
+
+    // Click (no move) → editor; drag → move the pin. 3px threshold.
+    div.addEventListener('mousedown', (e) => {
+      if (e.button !== 0) return;
+      e.preventDefault();
+      e.stopPropagation();
+      hidePinPopover();
+      const wr = ref.wrap.getBoundingClientRect();
+      const orig = { ...bm.rects[ref.pageNum][0] };
+      const sx = e.clientX, sy = e.clientY;
+      let moved = false;
+
+      function onMove(ev) {
+        const dx = ev.clientX - sx, dy = ev.clientY - sy;
+        if (!moved && Math.abs(dx) < 3 && Math.abs(dy) < 3) return;
+        moved = true;
+        const rects = bm.rects[ref.pageNum];
+        rects[0] = {
+          ...orig,
+          x: Math.max(0, Math.min(1 - orig.w, orig.x + dx / wr.width)),
+          y: Math.max(0, Math.min(1 - orig.h, orig.y + dy / wr.height))
+        };
+        div.style.left = (rects[0].x * 100) + '%';
+        div.style.top = (rects[0].y * 100) + '%';
+      }
+      function onUp() {
+        document.removeEventListener('mousemove', onMove);
+        document.removeEventListener('mouseup', onUp);
+        if (!moved) {
+          openPinEditor(bm.id);
+        } else {
+          renderBookmarks();
+          if (window.__pdfvault_bookmarksChanged) window.__pdfvault_bookmarksChanged();
+        }
+      }
+      document.addEventListener('mousemove', onMove);
+      document.addEventListener('mouseup', onUp);
+    });
+
+    ref.hlLayer.appendChild(div);
+  }
+
+  // ───── Freehand drawing (kind='draw') ─────
+  // One bookmark per stroke. Points are fractional page coords; rendered
+  // as an SVG polyline with vector-effect: non-scaling-stroke so strokes
+  // stay a crisp 2px at any zoom and aren't distorted by page aspect.
+  const SVG_NS = 'http://www.w3.org/2000/svg';
+
+  // One SVG overlay per page, created lazily, shared by all strokes.
+  function ensureDrawSvg(ref) {
+    if (ref.drawSvg && ref.drawSvg.isConnected) return ref.drawSvg;
+    const svg = document.createElementNS(SVG_NS, 'svg');
+    svg.setAttribute('class', 'draw-svg');
+    svg.setAttribute('viewBox', '0 0 100 100');
+    svg.setAttribute('preserveAspectRatio', 'none');
+    ref.hlLayer.appendChild(svg);
+    ref.drawSvg = svg;
+    return svg;
+  }
+
+  function makeStrokePolyline(ref, pts) {
+    const svg = ensureDrawSvg(ref);
+    const pl = document.createElementNS(SVG_NS, 'polyline');
+    pl.setAttribute('class', 'hl-rect draw-stroke');
+    pl.setAttribute('points', pts.map(p => `${p.x * 100},${p.y * 100}`).join(' '));
+    svg.appendChild(pl);
+    return pl;
+  }
+
+  function computeStrokesBbox(strokes) {
+    let minX = 1, minY = 1, maxX = 0, maxY = 0;
+    for (const stroke of strokes) {
+      for (const p of stroke) {
+        if (p.x < minX) minX = p.x;
+        if (p.y < minY) minY = p.y;
+        if (p.x > maxX) maxX = p.x;
+        if (p.y > maxY) maxY = p.y;
+      }
+    }
+    return { x: minX, y: minY, w: Math.max(0.001, maxX - minX), h: Math.max(0.001, maxY - minY) };
+  }
+
+  // Add a finished stroke to the current drawing (or start a new drawing).
+  // One bookmark = one drawing = all strokes of a Draw session on one page.
+  function addStrokeToDrawing(ref, pts, liveEl) {
+    if (!activeId) { if (liveEl) liveEl.remove(); return; }
+    const file = files.find(f => f.id === activeId);
+    if (!file) { if (liveEl) liveEl.remove(); return; }
+
+    // Round to 4 decimals — plenty of precision, much smaller JSON.
+    const points = pts.map(p => ({ x: +p.x.toFixed(4), y: +p.y.toFixed(4) }));
+
+    // Continue the open drawing if it's on this page and still exists
+    // (it may have been deleted from the panel mid-session).
+    let bm = null;
+    if (activeDrawing && activeDrawing.pageNum === ref.pageNum) {
+      bm = file.bookmarks.find(b => b.id === activeDrawing.bmId && b.kind === 'draw');
+    }
+
+    if (bm) {
+      bm.strokes.push(points);
+      bm.rects[ref.pageNum] = [computeStrokesBbox(bm.strokes)];
+      if (liveEl) liveEl.dataset.bmId = bm.id;
+    } else {
+      bm = {
+        id: Date.now() + '-' + Math.random().toString(36).slice(2, 6),
+        kind: 'draw',
+        text: '',
+        strokes: [points],
+        page: ref.pageNum,
+        rects: { [ref.pageNum]: [computeStrokesBbox([points])] },
+        createdAt: new Date()
+      };
+      file.bookmarks.unshift(bm);
+      if (liveEl) liveEl.dataset.bmId = bm.id;
+      activeDrawing = { bmId: bm.id, pageNum: ref.pageNum };
+    }
+    renderBookmarks();
+    renderCollection();
+    if (window.__pdfvault_bookmarksChanged) window.__pdfvault_bookmarksChanged();
+  }
+
+  function drawStrokeOnPage(bm, ref) {
+    const strokes = bm.strokes || [];
+    for (const stroke of strokes) {
+      if (!stroke || stroke.length < 2) continue;
+      const pl = makeStrokePolyline(ref, stroke);
+      pl.dataset.bmId = bm.id;
+    }
+  }
+
+  // Find the note's DOM element (within whichever page-wrap renders it)
+  // and convert it into an editable input. On commit (Enter / blur), the
+  // note's text is updated and persisted. Esc cancels without changes.
+  function editNote(bmId) {
+    const file = files.find(f => f.id === activeId);
+    if (!file) return;
+    const bm = file.bookmarks.find(b => b.id === bmId);
+    if (!bm || bm.kind !== 'note') return;
+    const ref = pageRefs.find(p => p.pageNum === bm.page);
+    if (!ref) return;
+    const noteEl = ref.hlLayer.querySelector(`.note-rect[data-bm-id="${bmId}"]`);
+    if (!noteEl) return;
+
+    // Replace the static text with an input
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.className = 'note-input';
+    input.value = bm.text || '';
+    input.placeholder = 'note…';
+    // Inherit the same positioning by replacing children of noteEl
+    noteEl.innerHTML = '';
+    noteEl.appendChild(input);
+    // Focus on next tick so the click that triggered editing doesn't
+    // immediately blur it.
+    setTimeout(() => { input.focus(); input.select(); }, 0);
+
+    let committed = false;
+    function commit() {
+      if (committed) return;
+      committed = true;
+      const newText = input.value.trim();
+      if (!newText) {
+        // Empty notes are not kept — remove entirely.
+        deleteNote(bm.id, noteEl);
+        return;
+      }
+      bm.text = newText;
+      noteEl.remove();
+      drawHighlightOnPage(bm, ref);
+      renderBookmarks();
+      if (window.__pdfvault_bookmarksChanged) window.__pdfvault_bookmarksChanged();
+    }
+    function cancel() {
+      if (committed) return;
+      committed = true;
+      if (!bm.text) {
+        // Note never had text (fresh creation) — cancel deletes it.
+        deleteNote(bm.id, noteEl);
+        return;
+      }
+      // Existing note: restore previous text display, discard edits.
+      noteEl.remove();
+      drawHighlightOnPage(bm, ref);
+      renderBookmarks();
+    }
+    function deleteNote(id, el) {
+      el.remove();
+      file.bookmarks = file.bookmarks.filter(b => b.id !== id);
+      document.querySelectorAll(`.hl-rect[data-bm-id="${id}"]`).forEach(r => r.remove());
+      renderBookmarks();
+      renderCollection();
+      if (window.__pdfvault_bookmarksChanged) window.__pdfvault_bookmarksChanged();
+    }
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') { e.preventDefault(); commit(); }
+      else if (e.key === 'Escape') { e.preventDefault(); cancel(); }
+    });
+    input.addEventListener('blur', commit);
+    // Stop click propagation so clicking inside the input doesn't
+    // immediately exit (and mode-handlers don't fire).
+    input.addEventListener('mousedown', (e) => e.stopPropagation());
   }
 
   // ───── Selection → highlight ─────
@@ -2133,6 +3024,23 @@
   function drawHighlightOnPage(bm, ref) {
     const stored = bm.rects[ref.pageNum];
     if (!stored) return;
+
+    // Notes have their own visual representation (text-bearing box).
+    if (bm.kind === 'note') {
+      drawNoteOnPage(bm, ref, stored[0]);
+      return;
+    }
+    // Pins render as a fixed-size icon at their anchor position.
+    if (bm.kind === 'pin') {
+      drawPinOnPage(bm, ref, stored[0]);
+      return;
+    }
+    // Freehand strokes render as SVG polylines.
+    if (bm.kind === 'draw') {
+      drawStrokeOnPage(bm, ref);
+      return;
+    }
+
     // For text bookmarks, dedupe overlapping rects at draw time (PDF.js
     // splits visual lines into multiple text-run rects; old bookmarks made
     // before mergeLineRects landed in capture have these duplicates stored).
@@ -2144,13 +3052,10 @@
     if (bm.kind !== 'rect' && stored.length > 1) {
       try {
         const merged = mergeLineRects(stored);
-        // Defensive: only use the merged result if it looks sane
-        // (non-empty and not larger than the input).
         if (merged && merged.length > 0 && merged.length <= stored.length) {
           rels = merged;
         }
       } catch (e) {
-        // If anything goes wrong, fall back to the original rects.
         console.warn('Highlight rect merge failed, using stored rects:', e);
       }
     }
@@ -2165,15 +3070,12 @@
       div.style.height = (rel.h * 100) + '%';
       div.title = bm.text || '';
 
-      // Hover the highlight → highlight the bookmark card and scroll it into view
       div.addEventListener('mouseenter', () => previewBookmark(bm.id));
       div.addEventListener('mouseleave', () => clearBookmarkPreview(bm.id));
 
       if (bm.kind === 'rect') {
-        // Always-on direct manipulation: cursor reflects mode, mousedown drags
         attachRectManipulation(div, bm, ref);
       } else {
-        // Text highlights stay click-to-focus
         div.addEventListener('click', (e) => {
           e.stopPropagation();
           focusBookmark(bm.id);
@@ -2181,6 +3083,40 @@
       }
       ref.hlLayer.appendChild(div);
     });
+  }
+
+  // Draw a note bookmark on the page: a thin box with the note's text in
+  // small italic. Click → edit. Manipulable (move/resize) like rect bookmarks.
+  function drawNoteOnPage(bm, ref, rel) {
+    const div = document.createElement('div');
+    div.className = 'hl-rect note-rect';
+    div.dataset.bmId = bm.id;
+    div.dataset.rectIdx = 0;
+    div.style.left = (rel.x * 100) + '%';
+    div.style.top = (rel.y * 100) + '%';
+    div.style.width = (rel.w * 100) + '%';
+    div.style.height = (rel.h * 100) + '%';
+
+    if (bm.text) {
+      const span = document.createElement('span');
+      span.className = 'note-text';
+      span.textContent = bm.text;
+      div.appendChild(span);
+    } else {
+      div.classList.add('note-empty');
+    }
+    div.title = bm.text || 'Empty note — click to edit';
+
+    div.addEventListener('mouseenter', () => previewBookmark(bm.id));
+    div.addEventListener('mouseleave', () => clearBookmarkPreview(bm.id));
+
+    // Note interaction:
+    //  - Pure click → edit (handled in startDrag's onUp via the `moved` flag)
+    //  - Drag from edge → resize
+    //  - Drag from body → move
+    attachRectManipulation(div, bm, ref);
+
+    ref.hlLayer.appendChild(div);
   }
 
   // Cross-highlight helpers: visually link bookmark cards <-> document highlights.
@@ -2297,12 +3233,18 @@
     const orig = { ...bm.rects[ref.pageNum][rectIdx] };
     const startX = e.clientX, startY = e.clientY;
     const lockedCursor = cursorFor(mode);
+    let moved = false; // true once mouse moves beyond a small threshold
 
-    // Lock the cursor across the whole document during drag so it doesn't flicker
     const prevBodyCursor = document.body.style.cursor;
     document.body.style.cursor = lockedCursor;
 
     function onMove(ev) {
+      if (!moved) {
+        const dx = ev.clientX - startX;
+        const dy = ev.clientY - startY;
+        if (Math.abs(dx) < 3 && Math.abs(dy) < 3) return; // still within click threshold
+        moved = true;
+      }
       const dx = (ev.clientX - startX) / wr.width;
       const dy = (ev.clientY - startY) / wr.height;
       let { x, y, w, h } = orig;
@@ -2334,8 +3276,17 @@
       document.removeEventListener('mousemove', onMove);
       document.removeEventListener('mouseup', onUp);
       document.body.style.cursor = prevBodyCursor;
+      if (!moved && bm.kind === 'note') {
+        // Pure click on a note → open editor instead of treating as drag
+        editNote(bm.id);
+        return;
+      }
+      if (!moved) return; // pure click on a rect bookmark — no-op
       const finalRel = bm.rects[ref.pageNum][rectIdx];
-      updateRectThumb(bm, ref, finalRel);
+      // Only rect bookmarks have thumbnails
+      if (bm.kind === 'rect') {
+        updateRectThumb(bm, ref, finalRel);
+      }
       renderBookmarks();
       if (window.__pdfvault_bookmarksChanged) window.__pdfvault_bookmarksChanged();
     }
@@ -2421,14 +3372,48 @@
 
     sorted.forEach(bm => {
       const item = document.createElement('div');
-      item.className = 'bookmark-item';
+      item.className = 'bookmark-item bm-kind-' + (bm.kind || 'text');
       item.dataset.bmId = bm.id;
       const isRect = bm.kind === 'rect';
-      const body = isRect && bm.thumb
-        ? `<img class="bm-thumb" src="${bm.thumb}" alt="Region from page ${bm.page}">`
-        : `<div class="bm-quote">${escapeHtml(bm.text)}</div>`;
-      const tag = isRect ? '▢ Region' : `Page ${String(bm.page).padStart(2, '0')}`;
-      const pageLabel = isRect ? `Page ${String(bm.page).padStart(2, '0')} · ${tag}` : `Page ${String(bm.page).padStart(2, '0')}`;
+      const isNote = bm.kind === 'note';
+      const isPin = bm.kind === 'pin';
+      const isDraw = bm.kind === 'draw';
+      let body, tag;
+      if (isRect) {
+        body = bm.thumb
+          ? `<img class="bm-thumb" src="${bm.thumb}" alt="Region from page ${bm.page}">`
+          : `<div class="bm-quote">${escapeHtml(bm.text)}</div>`;
+        tag = '▢ Region';
+      } else if (isNote) {
+        const display = bm.text ? escapeHtml(bm.text) : '<em class="bm-empty">empty note</em>';
+        body = `<div class="bm-note">${display}</div>`;
+        tag = '✎ Note';
+      } else if (isPin) {
+        // Pin text uses markdown-lite; mdLite escapes before formatting.
+        const display = bm.text ? mdLite(bm.text) : '<em class="bm-empty">empty pin</em>';
+        body = `<div class="bm-note bm-pin">${display}</div>`;
+        tag = '⚑ Pin';
+      } else if (isDraw) {
+        // Mini vector preview of all strokes, framed by the padded bbox.
+        const bb = (bm.rects[bm.page] || [{}])[0] || {};
+        const pad = 2;
+        const vx = ((bb.x || 0) * 100 - pad).toFixed(2);
+        const vy = ((bb.y || 0) * 100 - pad).toFixed(2);
+        const vw = Math.max(4, (bb.w || 0.01) * 100 + pad * 2).toFixed(2);
+        const vh = Math.max(4, (bb.h || 0.01) * 100 + pad * 2).toFixed(2);
+        const polys = (bm.strokes || [])
+          .map(s => `<polyline points="${s.map(p => `${(p.x * 100).toFixed(2)},${(p.y * 100).toFixed(2)}`).join(' ')}"/>`)
+          .join('');
+        body = `<svg class="bm-draw-preview" viewBox="${vx} ${vy} ${vw} ${vh}" preserveAspectRatio="xMidYMid meet">${polys}</svg>`;
+        const n = (bm.strokes || []).length;
+        tag = `✏ Drawing · ${n} stroke${n === 1 ? '' : 's'}`;
+      } else {
+        body = `<div class="bm-quote">${escapeHtml(bm.text)}</div>`;
+        tag = null;
+      }
+      const pageLabel = tag
+        ? `Page ${String(bm.page).padStart(2, '0')} · ${tag}`
+        : `Page ${String(bm.page).padStart(2, '0')}`;
       item.innerHTML = `
         ${body}
         <div class="bm-meta">
@@ -2445,7 +3430,6 @@
         removeBookmark(bm.id);
       });
       // Hover the card → highlight matching rect(s) on the page
-      // (Don't scroll the page; user can click to jump)
       item.addEventListener('mouseenter', () => {
         document.querySelectorAll(`.hl-rect[data-bm-id="${bm.id}"]`).forEach(r => {
           r.classList.add('active');
@@ -2634,6 +3618,9 @@
         page: bm.page,
         rects: bm.rects || {},
         text: bm.text || '',
+        // Drawings: multi-stroke format; legacy single-stroke `points`
+        // bookmarks are wrapped into a one-stroke drawing.
+        strokes: bm.strokes || (bm.points ? [bm.points] : undefined),
         thumb: null,
         createdAt: bm.createdAt ? new Date(bm.createdAt) : new Date()
       }));
@@ -2683,14 +3670,19 @@
     const payload = {
       version: 1,
       view,
-      bookmarks: file.bookmarks.map(bm => ({
-        id: bm.id,
-        kind: bm.kind || 'text',
-        page: bm.page,
-        rects: bm.rects,
-        text: bm.text || '',
-        createdAt: bm.createdAt
-      }))
+      bookmarks: file.bookmarks
+        // Safety net: empty notes/pins are never persisted (e.g. if the
+        // user switched PDFs mid-edit and the editor never committed).
+        .filter(bm => !((bm.kind === 'note' || bm.kind === 'pin') && !(bm.text || '').trim()))
+        .map(bm => ({
+          id: bm.id,
+          kind: bm.kind || 'text',
+          page: bm.page,
+          rects: bm.rects,
+          text: bm.text || '',
+          ...(bm.strokes ? { strokes: bm.strokes } : {}),
+          createdAt: bm.createdAt
+        }))
     };
 
     const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
