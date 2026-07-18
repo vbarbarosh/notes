@@ -19,7 +19,7 @@ ENV LOG_FILE=/dev/stdout
 ENV NODE_ENV=production
 
 COPY --chown=node:node package*.json .
-RUN npm ci --omit=dev
+RUN npm ci --omit=dev && npm cache clean --force
 
 COPY --chown=node:node src ./src
 
