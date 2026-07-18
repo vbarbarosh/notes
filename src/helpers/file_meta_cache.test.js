@@ -134,13 +134,15 @@ describe('file_meta_cache', function () {
         const relative = '20260509_121542/files/nested/a.txt';
         const file = path.join(notes_root, relative);
         const thumb_512 = path.join(notes_thumbnails_root, '512', 'notes', relative);
-        const thumb_1024 = path.join(notes_thumbnails_root, '1024', 'notes', relative);
+        const thumb_1024 = path.join(notes_thumbnails_root, 'v3', '1024', 'notes', relative);
+        const marker = path.join(notes_thumbnails_root, '.gitkeep');
         await fs.mkdir(path.dirname(file), {recursive: true});
         await fs.mkdir(path.dirname(thumb_512), {recursive: true});
         await fs.mkdir(path.dirname(thumb_1024), {recursive: true});
         await fs.writeFile(file, 'abc');
         await fs.writeFile(thumb_512, 'old 512 thumbnail');
         await fs.writeFile(thumb_1024, 'old 1024 thumbnail');
+        await fs.writeFile(marker, '');
 
         await file_meta_cache({
             notes_root,
@@ -152,11 +154,17 @@ describe('file_meta_cache', function () {
 
         assert.equal(await exists(thumb_512), false);
         assert.equal(await exists(thumb_1024), false);
+        assert.equal(await exists(marker), true);
     });
 
     it('removes a note cache directory and prunes empty parents', async function () {
         const file = path.join(notes_root, '20260509_121542', 'files', 'a.txt');
+        const thumbnail = path.join(notes_thumbnails_root, 'v3', '1024', 'notes', '20260509_121542', 'files', 'a.txt');
+        const marker = path.join(notes_thumbnails_root, '.gitkeep');
         await fs.writeFile(file, 'abc');
+        await fs.mkdir(path.dirname(thumbnail), {recursive: true});
+        await fs.writeFile(thumbnail, 'thumbnail');
+        await fs.writeFile(marker, '');
 
         await file_meta_cache({
             notes_root,
@@ -164,10 +172,12 @@ describe('file_meta_cache', function () {
             relative: '20260509_121542/files/a.txt',
         });
 
-        await file_meta_cache.remove_dir_meta_cache(notes_meta_root, '20260509_121542');
+        await file_meta_cache.remove_dir_meta_cache(notes_meta_root, '20260509_121542', notes_thumbnails_root);
 
         assert.equal(await exists(path.join(notes_meta_root, '20260509_121542')), false);
         assert.equal(await exists(notes_meta_root), true);
+        assert.equal(await exists(thumbnail), false);
+        assert.equal(await exists(marker), true);
     });
 });
 

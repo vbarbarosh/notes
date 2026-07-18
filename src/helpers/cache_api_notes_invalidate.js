@@ -2,7 +2,7 @@ const fs_readdir = require('@vbarbarosh/node-helpers/src/fs_readdir');
 const fs_rmf = require('@vbarbarosh/node-helpers/src/fs_rmf');
 const path = require('path');
 
-const CACHE_VERSION = 'v3';
+const CACHE_VERSION = 'v4';
 
 async function cache_api_notes_invalidate(req, note_uid = null)
 {

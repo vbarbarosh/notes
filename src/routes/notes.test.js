@@ -87,6 +87,36 @@ describe('note file routes', function () {
         assert.equal(await fs.readFile(path.join(root, 'notes', '20260718_120000', 'files', '.config', 'settings.json'), 'utf8'), '{}');
     });
 
+    it('renames a file with a thumbnail marker and invalidates the file list cache', async function () {
+        await fs.mkdir(path.join(root, 'thumbnails'), {recursive: true});
+        await fs.writeFile(path.join(root, 'thumbnails', '.gitkeep'), '');
+
+        let response = await put_file('before.txt', 'hello');
+        assert.equal(response.status, 201);
+
+        response = await fetch(`${base_url}/api/v1/notes/20260718_120000/files`);
+        assert.equal(response.status, 200);
+        assert.deepEqual((await response.json()).items.map(v => v.path), ['before.txt']);
+
+        response = await fetch(`${base_url}/api/v1/notes/20260718_120000/files/before.txt`, {
+            method: 'PATCH',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({path: 'after.txt'}),
+        });
+        assert.equal(response.status, 200);
+
+        response = await fetch(`${base_url}/api/v1/notes/20260718_120000/files`);
+        assert.equal(response.status, 200);
+        assert.deepEqual((await response.json()).items.map(v => v.path), ['after.txt']);
+
+        response = await fetch(`${base_url}/api/v1/notes/20260718_120000/files/after.txt`);
+        assert.equal(response.status, 200);
+        assert.equal(await response.text(), 'hello');
+
+        response = await fetch(`${base_url}/api/v1/notes/20260718_120000/files/before.txt`);
+        assert.equal(response.status, 404);
+    });
+
     async function put_file(relative, contents)
     {
         const form = new FormData();

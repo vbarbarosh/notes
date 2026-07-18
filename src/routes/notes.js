@@ -207,14 +207,14 @@ async function notes_file_move(req, res)
         return;
     }
 
-    await fs_mkdirp(fs_path_dirname(destination_file));
-    await fs_rename(source.file_path, destination_file);
-    await fs_prune_empty_dirs(source.files_root, fs_path_dirname(source.file_path));
-
     const meta_root = `${req.user_dir}/notes.meta`;
     const thumbnails_root = `${req.user_dir}/thumbnails`;
     await file_meta_cache.remove_file_meta_cache(meta_root, `${source.note_uid}/files/${source.path}`, thumbnails_root);
     await file_meta_cache.remove_file_meta_cache(meta_root, `${source.note_uid}/files/${destination_path}`, thumbnails_root);
+
+    await fs_mkdirp(fs_path_dirname(destination_file));
+    await fs_rename(source.file_path, destination_file);
+    await fs_prune_empty_dirs(source.files_root, fs_path_dirname(source.file_path));
     await cache_api_notes_invalidate(req, source.note_uid);
 
     res.send(await note_file_item({

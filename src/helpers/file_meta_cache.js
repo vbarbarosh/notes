@@ -1,6 +1,7 @@
 const ffprobe = require('@vbarbarosh/ffmpeg-helpers/src/ffprobe');
 const fs_mime = require('./fs_mime');
 const fs_mkdirp = require('@vbarbarosh/node-helpers/src/fs_mkdirp');
+const fs_lstat = require('@vbarbarosh/node-helpers/src/fs_lstat');
 const fs_path_dirname = require('@vbarbarosh/node-helpers/src/fs_path_dirname');
 const fs_path_safe_relative = require('./fs_path_safe_relative');
 const fs_path_strict_resolve = require('./fs_path_strict_resolve');
@@ -122,16 +123,8 @@ async function remove_file_thumbnails(notes_thumbnails_root, relative)
         return;
     }
 
-    let sizes;
-    try {
-        sizes = await fs_readdir(notes_thumbnails_root);
-    }
-    catch {
-        return;
-    }
-
-    await Promise.all(sizes.map(async function (size) {
-        const size_root = fs_path_strict_resolve(notes_thumbnails_root, size);
+    const size_roots = await find_thumbnail_size_roots(notes_thumbnails_root);
+    await Promise.all(size_roots.map(async function (size_root) {
         const thumbnail_file = fs_path_strict_resolve(size_root, `notes/${relative}`);
         await fs_rmf_and_prune_empty_dirs(size_root, thumbnail_file);
     }));
@@ -143,18 +136,50 @@ async function remove_dir_thumbnails(notes_thumbnails_root, note_uid)
         return;
     }
 
-    let sizes;
-    try {
-        sizes = await fs_readdir(notes_thumbnails_root);
-    }
-    catch {
-        return;
-    }
-
-    await Promise.all(sizes.map(async function (size) {
-        const note_thumbnail_dir = fs_path_strict_resolve(notes_thumbnails_root, `${size}/notes/${note_uid}`);
+    const size_roots = await find_thumbnail_size_roots(notes_thumbnails_root);
+    await Promise.all(size_roots.map(async function (size_root) {
+        const note_thumbnail_dir = fs_path_strict_resolve(size_root, `notes/${note_uid}`);
         await fs_rmrf(note_thumbnail_dir);
     }));
+}
+
+async function find_thumbnail_size_roots(notes_thumbnails_root)
+{
+    const out = [];
+
+    await visit(notes_thumbnails_root);
+    return out;
+
+    async function visit(current)
+    {
+        let names;
+        try {
+            names = await fs_readdir(current);
+        }
+        catch {
+            return;
+        }
+
+        const dirs = (await Promise.all(names.map(async function (name) {
+            const child = fs_path_strict_resolve(current, name);
+            try {
+                return (await fs_lstat(child)).isDirectory() ? {name, path: child} : null;
+            }
+            catch (error) {
+                if (error.code === 'ENOENT') {
+                    return null;
+                }
+                throw error;
+            }
+        }))).filter(Boolean);
+
+        if (dirs.some(v => v.name === 'notes')) {
+            out.push(current);
+            return;
+        }
+
+        await Promise.all(dirs.map(v => visit(v.path)));
+    }
 }
 
 module.exports = file_meta_cache;
