@@ -304,6 +304,7 @@
   var noteSettingsBusy = false, noteSettingsQueued = false, noteSettingsExists = false;
   var noteSyncBusy = false, noteSyncQueued = false, noteAssetPvTimer = null;
   var noteIndex = {}; /* file id -> {path, content}: last state confirmed on the server */
+  var noteBodyLast = null, NOTE_SYS_ID = 'n___README';
   function encodePath(p){ return String(p).split('/').map(encodeURIComponent).join('/'); }
   function noteFileUrl(path){ return '/api/v1/notes/' + NOTE + '/files/' + encodePath(path); }
   function noteReadUrl(path){ return '/r/' + NOTE + '/files/' + encodePath(path); }
@@ -339,12 +340,14 @@
     S.files.forEach(function(f){ byId[f.id] = f; });
     Object.keys(noteIndex).forEach(function(id){ if(!byId[id]) ops.push({op:'del', id:id, path:noteIndex[id].path}); });
     S.files.forEach(function(f){
-      if(f._pending || f._error) return;
+      if(f._system || f._pending || f._error) return;
       var p = zipPath(f), ix = noteIndex[f.id];
       if(!ix){ ops.push({op:'put', f:f, path:p}); return; }
       if(ix.path !== p) ops.push({op:'move', f:f, from:ix.path, to:p});
       if(ix.content !== f.content) ops.push({op:'put', f:f, path:p});
     });
+    var sysf = fileById(NOTE_SYS_ID);
+    if(sysf && !sysf._pending && !sysf._error && noteBodyLast!==null && sysf.content!==noteBodyLast) ops.push({op:'body', f:sysf});
     noteDirty = false;
     if(!ops.length) return;
     noteSyncBusy = true;
@@ -359,11 +362,13 @@
       var o = ops[i++], req;
       if(o.op === 'del') req = fetch(noteFileUrl(o.path), {method:'DELETE'});
       else if(o.op === 'move') req = fetch(noteFileUrl(o.from), {method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify({path:o.to})});
+      else if(o.op === 'body') req = fetch('/api/v1/notes/' + NOTE, {method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify({body:o.f.content})});
       else { var fd = new FormData(); fd.append('file', noteFileBlob(o.f), o.f.name); req = fetch(noteFileUrl(o.path), {method:'PUT', body:fd}); }
       req.then(function(r){
         if(!r.ok && !(o.op === 'del' && r.status === 404)) throw new Error('HTTP ' + r.status);
         if(o.op === 'del') delete noteIndex[o.id];
         else if(o.op === 'move'){ if(noteIndex[o.f.id]) noteIndex[o.f.id].path = o.to; }
+        else if(o.op === 'body') noteBodyLast = o.f.content;
         else noteIndex[o.f.id] = {path:o.path, content:o.f.content};
         noteErrShown = false;
       }).catch(function(e){ failed = true; noteError(e); }).then(next);
@@ -389,6 +394,7 @@
       p = p.replace(/^\/+/, '').replace(/^files\//, '');
       if(!p || /\/$/.test(p)) return; /* folder entries */
       if(/^apps\//.test(p)) return;   /* app-private state stays hidden */
+      if(p==='README.md') return;     /* note body: shown as the system entry instead */
       out.push(p);
     });
     return out;
@@ -414,13 +420,15 @@
     return {files:files, folders:folders};
   }
   function noteFetchContent(f){
-    fetch(noteReadUrl(f._path), {cache:'no-store'}).then(function(r){
+    var url = f._system ? ('/r/' + NOTE + '/' + encodePath(f._path)) : noteReadUrl(f._path);
+    fetch(url, {cache:'no-store'}).then(function(r){
+      if(f._system && r.status===404) return '';
       if(!r.ok) throw new Error('HTTP ' + r.status);
       return f.binary ? r.blob().then(blobToDataURL) : r.text();
     }).then(function(c){
       f.content = c;
       delete f._pending;
-      noteIndex[f.id] = {path:f._path, content:c};
+      if(f._system) noteBodyLast = c; else noteIndex[f.id] = {path:f._path, content:c};
       if(S.activeId === f.id){ loadActiveIntoEditor(); updatePreview(); refreshPreviewLabel(); }
       else{ /* an asset another file may reference just arrived: refresh the active preview */
         clearTimeout(noteAssetPvTimer);
@@ -444,6 +452,7 @@
     }, function(){ return null; });
     Promise.all([listing, settings]).then(function(res){
       var built = noteBuildState(noteParseListing(res[0]));
+      built.files.push({id:NOTE_SYS_ID, name:'README.md', folderId:'__system__', content:'', _system:true, _path:'README.md', _pending:true});
       var s = { files:built.files, folders:built.folders, trash:[], search:'', theme:'dark' }, k;
       for(k in NOTE_DEFAULTS) s[k] = NOTE_DEFAULTS[k];
       s.templates = {}; s.viewState = {};
@@ -509,6 +518,7 @@
     return body.replace(/(<img\b[^>]*?\bsrc=)(["'])([^"']*)\2/gi, function(m,pre,q,url){
       if(/^(https?:|data:|blob:|#|\/\/)/i.test(url)) return m;
       var ref; try{ ref=decodeURIComponent(url); }catch(e){ ref=url; }
+      if(f && f._system) ref=ref.replace(/^\.?\/?files\//,''); /* note body refs its files as "files/x"; workspace paths have no prefix */
       var file=byPath[resolveRef(baseSegs, ref)]||byBase[ref.split('/').pop()];
       if(file){ var du=fileToImgURL(file); if(du) return pre+q+du+q; }
       return m;
@@ -1607,6 +1617,16 @@
     var html=rows.map(rowHTML).join('');
     if(!rows.length) html='<div class="empty-msg">No snippets found.<br>Create one with the + above.</div>';
     html += trashHTML();
+    var sysf = NOTE ? fileById(NOTE_SYS_ID) : null;
+    if(sysf){
+      html += '<div class="trash-divider"></div>'
+        + '<div class="row file'+(sysf.id===S.activeId?' active':'')+'" data-row="file" data-id="'+sysf.id+'" title="Note body (system file)">'
+        + '<span class="caret" style="cursor:default"></span>'
+        + '<span class="ico file" style="color:#c9962e">'+SVG_FILE+'</span>'
+        + '<span class="nm" style="color:#c9962e">README.md</span>'
+        + '<div style="flex:1"></div>'
+        + '</div>';
+    }
     var tree=document.getElementById('tree');
     var prevScroll=tree.scrollTop;
     tree.innerHTML=html;
