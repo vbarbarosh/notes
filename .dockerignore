@@ -1,2 +1,8 @@
-/data
-/node_modules
+# Send only files required to build and run the application. This deny-by-default
+# policy keeps repository metadata, credentials, local databases, logs, notes,
+# editor settings, and other untracked workspace files out of the build context.
+**
+!package.json
+!package-lock.json
+!src/
+!src/**

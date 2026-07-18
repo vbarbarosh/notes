@@ -21,7 +21,7 @@ ENV NODE_ENV=production
 COPY --chown=node:node package*.json .
 RUN npm ci --omit=dev
 
-COPY --chown=node:node . .
+COPY --chown=node:node src ./src
 
 ENTRYPOINT ["/usr/bin/dumb-init", "--"]
 CMD ["npm", "start"]
