@@ -34,7 +34,7 @@ const upload = multer({
 });
 
 const routes = [
-    {req: 'GET /api/v1/notes.json', fn: notes_list},
+    {req: 'GET /api/v1/notes', fn: notes_list},
     {req: 'GET /api/v1/notes/:note_uid', fn: notes_fetch},
     {req: 'POST /api/v1/notes', fn: notes_create},
     {req: 'POST /api/v1/notes/:note_uid/files', fn: [upload.array('file'), notes_upload_file]},
@@ -43,7 +43,7 @@ const routes = [
     {req: 'DELETE /api/v1/notes/:note_uid/files/*', fn: notes_remove_file},
 ];
 
-// GET /api/v1/notes.json
+// GET /api/v1/notes
 async function notes_list(req, res)
 {
     res.send(await cache_api_notes(req, null, () => read_notes_list(req)));

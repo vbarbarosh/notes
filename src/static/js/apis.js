@@ -1,6 +1,6 @@
 async function api_notes_list(filters)
 {
-    return http_get_json(urlmod('/api/v1/notes.json', filters));
+    return http_get_json(urlmod('/api/v1/notes', filters));
 }
 
 async function api_notes_fetch(note_uid)
