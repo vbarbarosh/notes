@@ -130,7 +130,23 @@ async function data_fetch(req, res)
         return;
     }
 
-    res.sendFile(full);
+    try {
+        await new Promise(function (resolve, reject) {
+            res.sendFile(full, error => error ? reject(error) : resolve());
+        });
+    }
+    catch (error) {
+        if (error.code === 'ENOENT' || error.status === 404 || error.statusCode === 404) {
+            if (!res.headersSent) {
+                res.status(404).send('Not Found');
+            }
+            else {
+                res.end();
+            }
+            return;
+        }
+        throw error;
+    }
 }
 
 async function data_meta(req, res)
@@ -209,6 +225,11 @@ function set_thumbnail_cache_headers(res, meta, size)
 
 async function error_handler(error, req, res, next)
 {
+    if (error.code === 'ENOENT' || error.status === 404 || error.statusCode === 404) {
+        res.status(404).send('Not Found');
+        return;
+    }
+
     try {
         const details = {
             status: error.response?.status,

@@ -24,6 +24,14 @@
     "url": "/demo-browser.html"
   },
   {
+    "id": "fs",
+    "name": "Coding Sandbox",
+    "desc": "Browse, edit, and preview a note's files.",
+    "icon": "ti ti-code-dots",
+    "emoji": "💻",
+    "url": "/fs.html"
+  },
+  {
     "id": "pdf",
     "name": "PDF Vault",
     "desc": "Read, highlight, and bookmark PDF documents.",

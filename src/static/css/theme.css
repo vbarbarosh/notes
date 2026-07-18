@@ -64,6 +64,10 @@ body {
     text-decoration: none;
 }
 
+.note-api-link {
+    background: #168574;
+}
+
 .note-card:hover,
 .note-card.active {
     box-shadow: 0 4px 18px #abb9ee6e;

@@ -72,9 +72,17 @@ app.component('note-card', {
                     target="_blank"
                     class="note-pdf-link">PDF</a>
                 <a
-                    v-bind:href="'/demo-browser.html?note=' + note.uid"
+                    v-bind:href="'/fs.html?note=' + note.uid"
                     target="_blank"
-                    class="note-app-link">FILES</a>
+                    rel="noopener"
+                    title="Open Coding Sandbox"
+                    class="note-app-link">FS</a>
+                <a
+                    v-bind:href="'/api/v1/notes/' + note.uid"
+                    target="_blank"
+                    rel="noopener"
+                    title="Open raw note API response"
+                    class="note-app-link note-api-link">API</a>
                 <button v-on:click="click_h2_copy" class="mla">📋️</button>
                 <button v-on:click="click_h2_paste">📥</button>
                 <button v-on:click="$emit('edit', note)">✏️</button>
