@@ -8,6 +8,14 @@
     "url": "/"
   },
   {
+    "id": "api",
+    "name": "Notes API Lab",
+    "desc": "Exercise note, file, upload, and job APIs.",
+    "icon": "ti ti-api",
+    "emoji": "↯",
+    "url": "/api.html"
+  },
+  {
     "id": "pdf",
     "name": "PDF Vault",
     "desc": "Read, highlight, and bookmark PDF documents.",

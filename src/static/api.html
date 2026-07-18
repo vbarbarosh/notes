@@ -1,0 +1,1719 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Notes API Lab</title>
+<style>
+  :root {
+    --bg: #e3e6ee;
+    --card: #f7f8fb;
+    --card-2: #eef1f8;
+    --ink: #232634;
+    --title: #3b4273;
+    --muted: #6b7392;
+    --line: #c7cde2;
+    --blue: #2486fd;
+    --blue-dark: #176fc9;
+    --green: #238260;
+    --red: #a74357;
+    --purple: #7457bd;
+    --terminal: #1b1f2a;
+    --shadow: 0 2px 10px #bbb3;
+    --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    --sans: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body { margin: 0; overflow: hidden; background: var(--bg); color: var(--ink); font-family: var(--sans); }
+  button, input, select, textarea { font: inherit; }
+  button { color: inherit; }
+  .hidden { display: none !important; }
+
+  .app { height: 100%; display: grid; grid-template-rows: 66px minmax(0, 1fr); }
+  header {
+    z-index: 2;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 18px;
+    padding: 0 24px;
+    border-bottom: 1px solid var(--line);
+    background: var(--card);
+    box-shadow: var(--shadow);
+  }
+  .brand, .header-actions, .row, .inline-actions, .view-tabs { display: flex; align-items: center; }
+  .brand { gap: 12px; min-width: 0; }
+  .brand-mark {
+    width: 38px;
+    height: 38px;
+    display: grid;
+    place-items: center;
+    border-radius: 10px;
+    background: var(--blue);
+    color: #fff;
+    box-shadow: 0 4px 12px rgba(36, 134, 253, 0.25);
+    font-family: var(--mono);
+    font-size: 12px;
+    font-weight: 900;
+  }
+  h1 { margin: 0; color: var(--title); font-size: 18px; letter-spacing: -0.02em; }
+  .brand-sub { margin-top: 2px; color: var(--muted); font-size: 11px; }
+  .header-actions { gap: 8px; }
+  .view-tabs { align-self: stretch; gap: 3px; }
+  .view-tab {
+    padding: 0 14px;
+    border: 0;
+    border-bottom: 3px solid transparent;
+    background: transparent;
+    color: var(--muted);
+    cursor: pointer;
+    font-size: 11px;
+    font-weight: 800;
+  }
+  .view-tab:hover { color: var(--title); }
+  .view-tab.active { border-bottom-color: var(--blue); color: var(--title); }
+  .live-state { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 11px; }
+  .live-dot { width: 8px; height: 8px; border-radius: 50%; background: #aeb4c7; }
+  .live-state.open .live-dot { background: #31a66f; box-shadow: 0 0 0 4px rgba(49, 166, 111, 0.12); }
+  .live-state.error .live-dot { background: #cf5b70; }
+
+  main {
+    min-height: 0;
+    display: grid;
+    grid-template-columns: 290px minmax(500px, 1fr) 430px;
+    gap: 12px;
+    padding: 12px;
+  }
+  .panel {
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: var(--card);
+    box-shadow: var(--shadow);
+  }
+  .navigator, .inspector { display: flex; flex-direction: column; }
+  .workspace { overflow: auto; }
+
+  .reference-view { min-height: 0; overflow: auto; padding: 12px; }
+  .reference-shell { max-width: 1180px; min-height: 100%; margin: 0 auto; }
+  .reference-intro {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 18px;
+    padding: 18px 20px;
+    border-bottom: 1px solid #d8dceb;
+  }
+  .reference-intro h2 { margin: 0; color: var(--title); font-size: 17px; }
+  .reference-intro p { margin: 4px 0 0; color: var(--muted); font-size: 10px; }
+  .reference-search { width: min(330px, 42%) !important; flex: 0 0 auto; }
+  .reference-groups { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; padding: 14px; }
+  .api-group { overflow: hidden; border: 1px solid #d6daea; border-radius: 9px; background: #fff; }
+  .api-group-head { display: flex; align-items: center; justify-content: space-between; padding: 11px 12px; border-bottom: 1px solid #e1e4ef; background: var(--card-2); }
+  .api-group-head h3 { margin: 0; color: var(--title); font-size: 12px; }
+  .endpoint-row {
+    display: grid;
+    grid-template-columns: 48px minmax(0, 1fr) auto;
+    gap: 10px;
+    align-items: center;
+    padding: 10px 11px;
+    border-bottom: 1px solid #e7e9f1;
+  }
+  .endpoint-row:last-child { border-bottom: 0; }
+  .endpoint-path { overflow-wrap: anywhere; color: var(--title); font-family: var(--mono); font-size: 10px; font-weight: 700; }
+  .endpoint-body { margin-left: 5px; color: var(--purple); font-weight: 600; }
+  .endpoint-desc { margin-top: 4px; color: var(--muted); font-size: 9px; line-height: 1.35; }
+  .copy-endpoint { min-height: 25px; padding: 0 7px; }
+  .reference-empty { grid-column: 1 / -1; padding: 48px; color: var(--muted); text-align: center; }
+
+  .panel-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    min-height: 54px;
+    padding: 11px 14px;
+    border-bottom: 1px solid #d8dceb;
+  }
+  .panel-head h2 { margin: 0; color: var(--title); font-size: 14px; }
+  .count { min-width: 22px; padding: 2px 6px; border-radius: 999px; background: #e5e9f5; color: var(--muted); font-size: 10px; text-align: center; }
+
+  .button {
+    min-height: 34px;
+    padding: 0 11px;
+    border: 1px solid #c5cce4;
+    border-radius: 7px;
+    background: #f7f8fd;
+    cursor: pointer;
+    font-size: 11px;
+    font-weight: 700;
+  }
+  .button:hover { border-color: #91a6e6; background: #edf3ff; color: #27336a; }
+  .button.primary { border-color: var(--blue); background: var(--blue); color: #fff; box-shadow: 0 3px 10px rgba(36, 134, 253, 0.18); }
+  .button.primary:hover { background: var(--blue-dark); }
+  .button.danger { border-color: #e1b3bd; background: #fff6f7; color: var(--red); }
+  .button.small { min-height: 27px; padding: 0 8px; font-size: 10px; }
+  .button:disabled { cursor: wait; opacity: 0.55; }
+
+  input[type="text"], input[type="search"], input[type="number"], select, textarea {
+    width: 100%;
+    border: 1px solid #c5cce4;
+    border-radius: 8px;
+    outline: none;
+    background: #fff;
+    color: var(--ink);
+  }
+  input[type="text"], input[type="search"], input[type="number"], select { height: 36px; padding: 0 10px; }
+  textarea { min-height: 110px; padding: 10px; resize: vertical; line-height: 1.5; }
+  input:focus, select:focus, textarea:focus { border-color: #91a6e6; box-shadow: 0 0 0 3px rgba(145, 166, 230, 0.16); }
+  input[type="file"] { width: 100%; color: var(--muted); font-size: 11px; }
+  input[type="file"]::file-selector-button { margin-right: 8px; padding: 7px 9px; border: 1px solid #c5cce4; border-radius: 7px; background: var(--card-2); cursor: pointer; }
+  label { display: block; margin-bottom: 5px; color: var(--muted); font-size: 10px; font-weight: 700; }
+  .field { margin-top: 11px; }
+  .field:first-child { margin-top: 0; }
+  .help { margin: 5px 0 0; color: var(--muted); font-size: 10px; line-height: 1.4; }
+  .mono { font-family: var(--mono); }
+
+  .note-search { margin: 11px 12px 4px; width: calc(100% - 24px) !important; }
+  .note-list { flex: 1; overflow: auto; padding: 7px; }
+  .note-item {
+    width: 100%;
+    display: block;
+    margin-bottom: 6px;
+    padding: 10px;
+    border: 1px solid transparent;
+    border-radius: 8px;
+    background: transparent;
+    cursor: pointer;
+    text-align: left;
+  }
+  .note-item:hover { border-color: #d6dcef; background: var(--card-2); }
+  .note-item.active { border-color: #b7c9ef; background: #e5eeff; }
+  .note-item-uid { color: var(--title); font-family: var(--mono); font-size: 11px; font-weight: 800; }
+  .note-item-body { overflow: hidden; margin-top: 4px; color: var(--muted); font-size: 11px; line-height: 1.35; text-overflow: ellipsis; white-space: nowrap; }
+  .note-item-meta { margin-top: 6px; color: #8990aa; font-size: 9px; }
+  .empty { padding: 28px 18px; color: var(--muted); font-size: 12px; text-align: center; }
+  .new-note { padding: 12px; border-top: 1px solid #d8dceb; background: #f3f4fa; }
+  .new-note textarea { min-height: 70px; }
+  .new-note .button { width: 100%; margin-top: 8px; }
+
+  .workspace-empty { min-height: 100%; display: grid; place-items: center; padding: 40px; color: var(--muted); text-align: center; }
+  .workspace-content { min-height: 100%; }
+  .note-context {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 18px;
+    padding: 18px 20px 14px;
+    border-bottom: 1px solid #d8dceb;
+  }
+  .note-context h2 { margin: 0; color: var(--title); font-family: var(--mono); font-size: 16px; }
+  .note-context p { margin: 5px 0 0; color: var(--muted); font-size: 10px; }
+  .inline-actions { flex-wrap: wrap; gap: 7px; }
+  .workspace-tabs { display: flex; gap: 5px; padding: 8px 12px 0; border-bottom: 1px solid #d8dceb; background: var(--card-2); }
+  .workspace-tab {
+    padding: 9px 12px;
+    border: 0;
+    border-bottom: 2px solid transparent;
+    border-radius: 7px 7px 0 0;
+    background: transparent;
+    color: var(--muted);
+    cursor: pointer;
+    font-size: 11px;
+    font-weight: 700;
+  }
+  .workspace-tab.active { border-bottom-color: var(--blue); background: var(--card); color: var(--title); }
+  .workspace-pane { padding: 18px 20px 24px; }
+  .workspace-pane h3 { margin: 0 0 12px; color: var(--title); font-size: 13px; }
+  .note-editor { min-height: 330px; font-family: var(--mono); font-size: 12px; }
+  .pane-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 10px; }
+
+  .card {
+    margin-bottom: 14px;
+    padding: 14px;
+    border: 1px solid #d6daea;
+    border-radius: 9px;
+    background: #fafbfe;
+  }
+  .card h3 { margin-bottom: 4px; }
+  .card-sub { margin: 0 0 12px; color: var(--muted); font-size: 10px; }
+  .form-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(140px, 0.6fr) auto; gap: 8px; align-items: end; }
+  .form-grid .field { margin: 0; }
+  .progress { height: 7px; overflow: hidden; margin-top: 10px; border-radius: 999px; background: #dfe4f1; }
+  .progress-bar { width: 0; height: 100%; border-radius: inherit; background: var(--blue); transition: width 0.15s; }
+  .progress-label { margin-top: 6px; color: var(--muted); font-family: var(--mono); font-size: 9px; }
+
+  .file-list, .job-list { overflow: hidden; border: 1px solid #d6daea; border-radius: 9px; }
+  .file-row, .job-row {
+    display: grid;
+    align-items: center;
+    gap: 9px;
+    padding: 9px 10px;
+    border-bottom: 1px solid #e1e4ef;
+    background: #fff;
+    font-size: 11px;
+  }
+  .file-row { grid-template-columns: minmax(0, 1fr) auto auto; cursor: pointer; }
+  .job-row { grid-template-columns: minmax(0, 1fr) auto auto; }
+  .file-row:last-child, .job-row:last-child { border-bottom: 0; }
+  .file-row:hover, .file-row.active { background: #edf3ff; }
+  .file-name, .job-name { overflow: hidden; color: var(--title); font-family: var(--mono); font-size: 10px; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
+  .file-meta, .job-meta { margin-top: 3px; color: var(--muted); font-size: 9px; }
+  .file-size { color: var(--muted); font-family: var(--mono); font-size: 9px; }
+  .mime { padding: 2px 6px; border-radius: 999px; background: #e8e6f2; color: #645c78; font-size: 8px; }
+  .status-pill { padding: 3px 7px; border-radius: 999px; background: #e5e9f5; color: var(--muted); font-size: 9px; font-weight: 700; }
+  .status-pill.running, .status-pill.active { background: #dff2e9; color: #1b7050; }
+  .status-pill.failed { background: #f6dfe4; color: #96384b; }
+  .status-pill.finished { background: #deebfb; color: #245eaa; }
+  .selected-file { margin-top: 14px; }
+  .selected-file-path { overflow-wrap: anywhere; margin-bottom: 11px; color: var(--title); font-family: var(--mono); font-size: 11px; font-weight: 800; }
+  .action-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(72px, 1fr)); gap: 7px; }
+  .move-grid { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 7px; margin-top: 10px; }
+
+  .job-launch { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; margin-bottom: 14px; }
+  .terminal-box { margin-top: 14px; overflow: hidden; border-radius: 9px; background: var(--terminal); }
+  .terminal-head { display: flex; justify-content: space-between; padding: 8px 10px; background: #252a38; color: #b8c2da; font-size: 10px; }
+  .terminal-output { height: 210px; overflow: auto; margin: 0; padding: 10px; color: #dce4f5; font-family: var(--mono); font-size: 10px; line-height: 1.45; white-space: pre-wrap; }
+  .terminal-input { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 7px; padding: 8px; border-top: 1px solid #353b4e; }
+  .terminal-input input { border-color: #444b61; background: #242937; color: #fff; }
+
+  .activity-list { max-height: 185px; overflow: auto; padding: 7px; border-bottom: 1px solid #d8dceb; }
+  .activity-item {
+    width: 100%;
+    display: grid;
+    grid-template-columns: 45px minmax(0, 1fr) auto;
+    gap: 7px;
+    align-items: center;
+    margin-bottom: 4px;
+    padding: 7px;
+    border: 1px solid transparent;
+    border-radius: 7px;
+    background: transparent;
+    cursor: pointer;
+    text-align: left;
+  }
+  .activity-item:hover, .activity-item.active { border-color: #d6dcef; background: var(--card-2); }
+  .method { padding: 3px 5px; border-radius: 5px; font-family: var(--mono); font-size: 8px; font-weight: 900; text-align: center; }
+  .method.get, .method.head { background: #dff2e9; color: #1b7050; }
+  .method.post { background: #deebfb; color: #245eaa; }
+  .method.put, .method.patch { background: #e9e1f7; color: #6849a2; }
+  .method.delete { background: #f6dfe4; color: #96384b; }
+  .method.sse, .method.ws { background: #dceafe; color: #176fc9; }
+  .activity-path { overflow: hidden; font-family: var(--mono); font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
+  .activity-status { color: var(--muted); font-size: 9px; }
+
+  .inspect-head { min-height: 48px; }
+  .inspect-status { padding: 3px 7px; border-radius: 999px; background: #e5e9f5; color: var(--muted); font-size: 9px; font-weight: 800; }
+  .inspect-status.ok { background: #dff2e9; color: #1b7050; }
+  .inspect-status.error { background: #f6dfe4; color: #96384b; }
+  .inspect-tabs { display: flex; gap: 4px; padding: 6px 7px 0; border-bottom: 1px solid #d8dceb; background: var(--card-2); }
+  .inspect-tab { padding: 8px 9px; border: 0; border-bottom: 2px solid transparent; border-radius: 6px 6px 0 0; background: transparent; color: var(--muted); cursor: pointer; font-size: 9px; font-weight: 800; }
+  .inspect-tab.active { border-bottom-color: var(--blue); background: var(--card); color: var(--title); }
+  .inspect-body { flex: 1; min-height: 0; overflow: auto; background: var(--terminal); }
+  .inspect-output { min-height: 100%; margin: 0; padding: 14px; color: #e2e7f3; font-family: var(--mono); font-size: 10px; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; }
+  .inspect-output.placeholder { display: grid; place-items: center; color: #8f98ae; font-family: var(--sans); font-style: italic; }
+  .preview { min-height: 100%; padding: 14px; background: var(--card-2); }
+  .preview img, .preview video, .preview iframe { display: block; width: 100%; max-width: 100%; min-height: 330px; border: 1px solid var(--line); border-radius: 8px; background: #fff; }
+  .preview img { width: auto; min-height: 0; margin: 0 auto; }
+  .preview audio { width: 100%; }
+  .preview a { display: inline-block; margin-bottom: 10px; color: var(--blue-dark); font-size: 10px; }
+  .toast { position: fixed; right: 18px; bottom: 18px; z-index: 20; max-width: 360px; padding: 10px 13px; border: 1px solid var(--line); border-radius: 8px; background: var(--card); box-shadow: 0 14px 34px #6c739440; font-size: 11px; }
+
+  @media (max-width: 1100px) {
+    body { overflow: auto; }
+    .app { height: auto; min-height: 100%; }
+    main { grid-template-columns: 280px minmax(0, 1fr); grid-template-rows: auto 620px; }
+    .navigator { min-height: 650px; }
+    .inspector { grid-column: 1 / -1; min-height: 620px; }
+    .reference-groups { grid-template-columns: 1fr; }
+  }
+  @media (max-width: 760px) {
+    header { padding: 0 12px; }
+    .brand-sub, .live-state { display: none; }
+    .view-tab { padding: 0 7px; font-size: 10px; }
+    main { display: block; padding: 9px; }
+    .panel { margin-bottom: 10px; }
+    .navigator { min-height: 430px; max-height: 60vh; }
+    .workspace { min-height: 650px; }
+    .inspector { min-height: 600px; }
+    .form-grid { grid-template-columns: 1fr; }
+    .action-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .note-context { display: block; }
+    .note-context .inline-actions { margin-top: 10px; }
+    .reference-view { padding: 9px; }
+    .reference-intro { display: block; }
+    .reference-search { width: 100% !important; margin-top: 12px; }
+    .reference-groups { padding: 9px; }
+    .endpoint-row { grid-template-columns: 45px minmax(0, 1fr); }
+    .copy-endpoint { grid-column: 2; justify-self: start; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <div class="brand">
+      <div class="brand-mark">API</div>
+      <div>
+        <h1>Notes API Lab</h1>
+        <div class="brand-sub">A live control room for notes, files, and jobs</div>
+      </div>
+    </div>
+    <div class="view-tabs" aria-label="API Lab views">
+      <button class="view-tab active" data-view="playground" type="button">Playground</button>
+      <button class="view-tab" data-view="reference" type="button">All APIs <span class="count">24</span></button>
+    </div>
+    <div class="header-actions">
+      <div class="live-state" id="live-state"><span class="live-dot"></span><span id="live-label">events offline</span></div>
+      <button class="button" id="refresh-all" type="button">Refresh all</button>
+      <a class="button" href="/" style="display:inline-flex;align-items:center;text-decoration:none">Open Notes</a>
+    </div>
+  </header>
+
+  <main id="playground-view">
+    <aside class="panel navigator">
+      <div class="panel-head">
+        <div class="row" style="gap:7px"><h2>Notes</h2><span class="count" id="note-count">0</span></div>
+        <button class="button small" id="toggle-new-note" type="button">New</button>
+      </div>
+      <input class="note-search" id="note-search" type="search" placeholder="Filter notes…">
+      <div class="note-list" id="note-list"></div>
+      <div class="new-note hidden" id="new-note">
+        <label for="new-note-body">Markdown body</label>
+        <textarea id="new-note-body" placeholder="# New note"></textarea>
+        <button class="button primary" id="create-note" type="button">POST /api/v1/notes</button>
+      </div>
+    </aside>
+
+    <section class="panel workspace">
+      <div class="workspace-empty" id="workspace-empty">
+        <div><strong>Select or create a note</strong><br><span class="help">The lab will bind every operation to that note.</span></div>
+      </div>
+      <div class="workspace-content hidden" id="workspace-content">
+        <div class="note-context">
+          <div>
+            <h2 id="selected-note-uid"></h2>
+            <p id="selected-note-meta"></p>
+          </div>
+          <div class="inline-actions">
+            <button class="button small" id="fetch-note" type="button">GET note</button>
+            <button class="button small" id="open-note-page" type="button">Open /r page</button>
+            <button class="button small danger" id="delete-note" type="button">DELETE note</button>
+          </div>
+        </div>
+        <div class="workspace-tabs">
+          <button class="workspace-tab active" data-pane="note" type="button">Body</button>
+          <button class="workspace-tab" data-pane="files" type="button">Files <span id="file-count">0</span></button>
+          <button class="workspace-tab" data-pane="jobs" type="button">Jobs <span id="job-count">0</span></button>
+          <button class="workspace-tab" data-pane="large" type="button">Large upload</button>
+        </div>
+
+        <div class="workspace-pane" data-pane-content="note">
+          <h3>README.md</h3>
+          <textarea class="note-editor" id="note-body" spellcheck="false"></textarea>
+          <div class="pane-actions">
+            <button class="button" id="reset-note-body" type="button">Reset</button>
+            <button class="button primary" id="save-note" type="button">PATCH note body</button>
+          </div>
+        </div>
+
+        <div class="workspace-pane hidden" data-pane-content="files">
+          <div class="card">
+            <h3>Upload a file</h3>
+            <p class="card-sub">POST creates a uniquely named attachment. The filename override can include folders.</p>
+            <div class="form-grid">
+              <div class="field"><label for="upload-file">Local file</label><input id="upload-file" type="file"></div>
+              <div class="field"><label for="upload-name">Filename override</label><input id="upload-name" type="text" placeholder="folder/file.ext"></div>
+              <button class="button primary" id="upload-file-button" type="button">Upload</button>
+            </div>
+            <label style="margin-top:9px"><input id="upload-overwrite" type="checkbox"> Send <span class="mono">?overwrite=1</span> for app-owned state files</label>
+          </div>
+
+          <div class="row" style="justify-content:space-between;margin-bottom:9px">
+            <h3 style="margin:0">Stored files</h3>
+            <button class="button small" id="refresh-files" type="button">GET file list</button>
+          </div>
+          <div class="file-list" id="file-list"></div>
+
+          <div class="card selected-file hidden" id="selected-file-card">
+            <div class="selected-file-path" id="selected-file-path"></div>
+            <div class="action-grid">
+              <button class="button small" id="head-file" type="button">HEAD</button>
+              <button class="button small" id="read-file" type="button">GET API</button>
+              <button class="button small" id="raw-file" type="button">GET /r</button>
+              <button class="button small" id="meta-file" type="button">GET .meta</button>
+              <button class="button small" id="thumbnail-file" type="button">Thumbnail</button>
+            </div>
+            <div class="field">
+              <label for="replace-file">Replace exact path with PUT</label>
+              <div class="row" style="gap:7px"><input id="replace-file" type="file"><button class="button" id="replace-file-button" type="button">PUT</button></div>
+            </div>
+            <div class="move-grid">
+              <input id="move-file-path" type="text" placeholder="new/folder/name.ext">
+              <button class="button" id="move-file" type="button">PATCH move</button>
+            </div>
+            <div class="pane-actions">
+              <button class="button danger" id="delete-file" type="button">DELETE file</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="workspace-pane hidden" data-pane-content="jobs">
+          <div class="job-launch">
+            <select id="job-name">
+              <option value="youtube-thumbnails">youtube-thumbnails</option>
+              <option value="youtube-mp3">youtube-mp3</option>
+              <option value="terminal">terminal</option>
+            </select>
+            <button class="button primary" id="start-job" type="button">POST job</button>
+          </div>
+          <div class="row" style="justify-content:space-between;margin-bottom:9px">
+            <h3 style="margin:0">Jobs for this note</h3>
+            <button class="button small" id="refresh-jobs" type="button">GET jobs</button>
+          </div>
+          <div class="job-list" id="job-list"></div>
+          <div class="terminal-box hidden" id="terminal-box">
+            <div class="terminal-head"><span id="terminal-title">Terminal</span><button class="button small" id="close-terminal" type="button">Close socket</button></div>
+            <pre class="terminal-output" id="terminal-output"></pre>
+            <div class="terminal-input"><input id="terminal-input" type="text" placeholder="Type a command and press Enter"><button class="button primary" id="terminal-send" type="button">Send</button></div>
+          </div>
+        </div>
+
+        <div class="workspace-pane hidden" data-pane-content="large">
+          <div class="card">
+            <h3>Chunked upload workflow</h3>
+            <p class="card-sub">Runs start → chunk uploads → assemble and records every request. Chunks are 10 MB.</p>
+            <div class="field"><label for="large-file">Local file</label><input id="large-file" type="file"></div>
+            <div class="field"><label for="large-file-name">Stored filename</label><input id="large-file-name" type="text" placeholder="folder/large-file.bin"></div>
+            <div class="pane-actions"><button class="button primary" id="large-upload" type="button">Run chunked upload</button></div>
+            <div class="progress"><div class="progress-bar" id="upload-progress"></div></div>
+            <div class="progress-label" id="upload-progress-label">Waiting for a file</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <aside class="panel inspector">
+      <div class="panel-head">
+        <div class="row" style="gap:7px"><h2>API activity</h2><span class="count" id="activity-count">0</span></div>
+        <button class="button small" id="clear-activity" type="button">Clear</button>
+      </div>
+      <div class="activity-list" id="activity-list"></div>
+      <div class="panel-head inspect-head">
+        <h2 id="inspect-title">Request inspector</h2>
+        <span class="inspect-status" id="inspect-status">Idle</span>
+      </div>
+      <div class="inspect-tabs">
+        <button class="inspect-tab active" data-inspect="response" type="button">Response</button>
+        <button class="inspect-tab" data-inspect="request" type="button">Request</button>
+        <button class="inspect-tab" data-inspect="headers" type="button">Headers</button>
+        <button class="inspect-tab hidden" id="preview-tab" data-inspect="preview" type="button">Preview</button>
+      </div>
+      <div class="inspect-body">
+        <pre class="inspect-output placeholder" id="inspect-output">Use the controls to call an API.</pre>
+        <div class="preview hidden" id="preview"></div>
+      </div>
+    </aside>
+  </main>
+
+  <section class="reference-view hidden" id="reference-view">
+    <div class="panel reference-shell">
+      <div class="reference-intro">
+        <div>
+          <h2>All APIs</h2>
+          <p>The complete route set from <span class="mono">docs/README.md</span>. Copy a request signature to use it elsewhere.</p>
+        </div>
+        <input class="reference-search" id="api-filter" type="search" placeholder="Filter by method, path, or purpose…">
+      </div>
+      <div class="reference-groups" id="reference-groups"></div>
+    </div>
+  </section>
+</div>
+<div class="toast hidden" id="toast"></div>
+
+<script>
+const state = {
+  activities: [],
+  active_pane: 'note',
+  active_view: 'playground',
+  event_source: null,
+  files: [],
+  inspect_tab: 'response',
+  jobs: [],
+  notes: [],
+  preview_url: null,
+  selected_activity: null,
+  selected_file_path: null,
+  selected_note: null,
+  socket: null,
+};
+
+const api_reference = [
+  {
+    name: 'Notes',
+    items: [
+      {method: 'GET', path: '/api/v1/notes', desc: 'List notes'},
+      {method: 'GET', path: '/api/v1/notes/:note_uid', desc: 'Get a note and its files'},
+      {method: 'POST', path: '/api/v1/notes', body: '{body}', desc: 'Create a note'},
+      {method: 'PATCH', path: '/api/v1/notes/:note_uid', body: '{body}', desc: 'Replace the note body'},
+      {method: 'DELETE', path: '/api/v1/notes/:note_uid', desc: 'Move a note to trash'},
+    ],
+  },
+  {
+    name: 'Files',
+    items: [
+      {method: 'GET', path: '/api/v1/notes/:note_uid/files', desc: 'List files'},
+      {method: 'POST', path: '/api/v1/notes/:note_uid/files', body: '{file}', desc: 'Upload a multipart file; optional ?overwrite=1'},
+      {method: 'HEAD', path: '/api/v1/notes/:note_uid/files/*', desc: 'Get file headers'},
+      {method: 'GET', path: '/api/v1/notes/:note_uid/files/*', desc: 'Read a file'},
+      {method: 'PUT', path: '/api/v1/notes/:note_uid/files/*', body: '{file}', desc: 'Create or replace an exact path'},
+      {method: 'PATCH', path: '/api/v1/notes/:note_uid/files/*', body: '{path}', desc: 'Rename or move a file'},
+      {method: 'DELETE', path: '/api/v1/notes/:note_uid/files/*', desc: 'Move a file to trash'},
+    ],
+  },
+  {
+    name: 'Chunked uploads',
+    items: [
+      {method: 'POST', path: '/api/v1/files/upload/start', body: '{filename, total_chunks, total_size}', desc: 'Start an upload'},
+      {method: 'POST', path: '/api/v1/files/upload/:upload_id/chunk/:chunk_index', body: '{chunk}', desc: 'Upload a multipart chunk'},
+      {method: 'POST', path: '/api/v1/files/upload/:upload_id/assemble', body: '{note_uid, overwrite}', desc: 'Assemble and store the file'},
+    ],
+  },
+  {
+    name: 'Jobs',
+    items: [
+      {method: 'GET', path: '/api/v1/jobs', desc: 'List active, finished, and failed jobs'},
+      {method: 'GET', path: '/api/v1/jobs/events', desc: 'Subscribe to job events using SSE'},
+      {method: 'POST', path: '/api/v1/jobs/:job_name', body: '{note_uid}', desc: 'Start a job'},
+      {method: 'POST', path: '/api/v1/jobs/:job_uid/confirm', desc: 'Confirm a finished or failed job'},
+      {method: 'WS', path: '/api/v1/jobs/:job_uid/tty', desc: 'Connect to an interactive terminal job'},
+    ],
+  },
+  {
+    name: 'Resource routes',
+    items: [
+      {method: 'GET', path: '/r/*.meta', desc: 'Get stored-file metadata'},
+      {method: 'GET', path: '/r/:note_uid', desc: 'Open the single-note page'},
+      {method: 'GET', path: '/t/:size/*', desc: 'Get an image thumbnail; size must be 32–2048'},
+      {method: 'GET', path: '/r/*', desc: 'Read note resources and files'},
+    ],
+  },
+];
+
+const els = Object.fromEntries(Array.from(document.querySelectorAll('[id]')).map(v => [v.id.replaceAll('-', '_'), v]));
+
+function init()
+{
+  bind_events();
+  render_api_reference();
+  connect_job_events();
+  refresh_all();
+}
+
+function bind_events()
+{
+  document.querySelectorAll('.view-tab').forEach(function (button) {
+    button.addEventListener('click', function () { show_view(button.dataset.view); });
+  });
+  els.api_filter.addEventListener('input', render_api_reference);
+  els.refresh_all.addEventListener('click', refresh_all);
+  els.note_search.addEventListener('input', render_notes);
+  els.toggle_new_note.addEventListener('click', function () {
+    els.new_note.classList.toggle('hidden');
+  });
+  els.create_note.addEventListener('click', create_note);
+  els.fetch_note.addEventListener('click', refresh_selected_note);
+  els.open_note_page.addEventListener('click', open_note_page);
+  els.delete_note.addEventListener('click', delete_note);
+  els.save_note.addEventListener('click', save_note);
+  els.reset_note_body.addEventListener('click', function () {
+    els.note_body.value = state.selected_note?.body || '';
+  });
+  els.refresh_files.addEventListener('click', refresh_files);
+  els.upload_file_button.addEventListener('click', upload_file);
+  els.head_file.addEventListener('click', function () { inspect_file('HEAD'); });
+  els.read_file.addEventListener('click', function () { inspect_file('GET'); });
+  els.raw_file.addEventListener('click', inspect_file_raw);
+  els.meta_file.addEventListener('click', inspect_file_meta);
+  els.thumbnail_file.addEventListener('click', inspect_thumbnail);
+  els.replace_file_button.addEventListener('click', replace_file);
+  els.move_file.addEventListener('click', move_file);
+  els.delete_file.addEventListener('click', delete_file);
+  els.refresh_jobs.addEventListener('click', refresh_jobs);
+  els.start_job.addEventListener('click', start_job);
+  els.close_terminal.addEventListener('click', close_terminal);
+  els.terminal_send.addEventListener('click', send_terminal_input);
+  els.terminal_input.addEventListener('keydown', function (event) {
+    if (event.key === 'Enter') {
+      send_terminal_input();
+    }
+  });
+  els.large_file.addEventListener('change', function () {
+    if (!els.large_file_name.value && els.large_file.files[0]) {
+      els.large_file_name.value = els.large_file.files[0].name;
+    }
+  });
+  els.large_upload.addEventListener('click', run_chunked_upload);
+  els.clear_activity.addEventListener('click', clear_activity);
+  document.querySelectorAll('.workspace-tab').forEach(function (button) {
+    button.addEventListener('click', function () { show_pane(button.dataset.pane); });
+  });
+  document.querySelectorAll('.inspect-tab').forEach(function (button) {
+    button.addEventListener('click', function () { show_inspect_tab(button.dataset.inspect); });
+  });
+  window.addEventListener('beforeunload', function () {
+    state.event_source?.close();
+    close_terminal();
+    revoke_preview();
+  });
+}
+
+async function refresh_all()
+{
+  set_busy(els.refresh_all, true, 'Refreshing…');
+  try {
+    await Promise.all([refresh_notes(), refresh_jobs()]);
+    if (state.selected_note) {
+      await Promise.all([refresh_selected_note(), refresh_files()]);
+    }
+  }
+  catch (error) {
+    show_error(error);
+  }
+  finally {
+    set_busy(els.refresh_all, false, 'Refresh all');
+  }
+}
+
+async function refresh_notes()
+{
+  const result = await api_request('GET', '/api/v1/notes');
+  state.notes = result.data?.items || [];
+  if (state.selected_note) {
+    const next = state.notes.find(v => v.uid === state.selected_note.uid);
+    if (!next) {
+      select_note(null);
+    }
+  }
+  render_notes();
+}
+
+function render_notes()
+{
+  const query = els.note_search.value.trim().toLowerCase();
+  const notes = state.notes.filter(function (note) {
+    return !query || `${note.uid} ${note.name || ''} ${note.body || ''}`.toLowerCase().includes(query);
+  });
+  els.note_count.textContent = state.notes.length;
+  els.note_list.replaceChildren();
+  if (!notes.length) {
+    els.note_list.innerHTML = '<div class="empty">No matching notes.</div>';
+    return;
+  }
+  notes.forEach(function (note) {
+    const button = document.createElement('button');
+    button.className = `note-item${state.selected_note?.uid === note.uid ? ' active' : ''}`;
+    button.type = 'button';
+    button.addEventListener('click', function () { select_note(note); });
+    const title = document.createElement('div');
+    title.className = 'note-item-uid';
+    title.textContent = note.name || note.uid;
+    const body = document.createElement('div');
+    body.className = 'note-item-body';
+    body.textContent = first_line(note.body) || '(empty note)';
+    const meta = document.createElement('div');
+    meta.className = 'note-item-meta';
+    meta.textContent = `${note.uid} · ${(note.files || []).length} files`;
+    button.append(title, body, meta);
+    els.note_list.appendChild(button);
+  });
+}
+
+async function select_note(note)
+{
+  state.selected_note = note;
+  state.files = [];
+  state.selected_file_path = null;
+  render_notes();
+  render_workspace();
+  if (!note) {
+    return;
+  }
+  try {
+    await Promise.all([refresh_selected_note(), refresh_files()]);
+  }
+  catch (error) {
+    show_error(error);
+  }
+}
+
+function render_workspace()
+{
+  const note = state.selected_note;
+  els.workspace_empty.classList.toggle('hidden', !!note);
+  els.workspace_content.classList.toggle('hidden', !note);
+  if (!note) {
+    return;
+  }
+  els.selected_note_uid.textContent = note.name || note.uid;
+  els.selected_note_meta.textContent = `${note.uid} · updated ${format_date(note.updated_at)}`;
+  els.note_body.value = note.body || '';
+  els.file_count.textContent = state.files.length;
+  render_files();
+  render_jobs();
+}
+
+async function create_note()
+{
+  set_busy(els.create_note, true, 'Creating…');
+  try {
+    const result = await api_request('POST', '/api/v1/notes', {json: {body: els.new_note_body.value}});
+    els.new_note_body.value = '';
+    els.new_note.classList.add('hidden');
+    await refresh_notes();
+    const note = state.notes.find(v => v.uid === result.data?.uid);
+    await select_note(note || null);
+    show_toast('Note created.');
+  }
+  catch (error) {
+    show_error(error);
+  }
+  finally {
+    set_busy(els.create_note, false, 'POST /api/v1/notes');
+  }
+}
+
+async function refresh_selected_note()
+{
+  if (!state.selected_note) {
+    return;
+  }
+  const result = await api_request('GET', `/api/v1/notes/${encodeURIComponent(state.selected_note.uid)}`);
+  state.selected_note = result.data;
+  const i = state.notes.findIndex(v => v.uid === result.data.uid);
+  if (i !== -1) {
+    state.notes[i] = result.data;
+  }
+  render_notes();
+  render_workspace();
+}
+
+async function save_note()
+{
+  if (!state.selected_note) {
+    return;
+  }
+  set_busy(els.save_note, true, 'Saving…');
+  try {
+    await api_request('PATCH', `/api/v1/notes/${encodeURIComponent(state.selected_note.uid)}`, {json: {body: els.note_body.value}});
+    await refresh_selected_note();
+    show_toast('README.md saved.');
+  }
+  catch (error) {
+    show_error(error);
+  }
+  finally {
+    set_busy(els.save_note, false, 'PATCH note body');
+  }
+}
+
+async function delete_note()
+{
+  if (!state.selected_note || !confirm(`Move note ${state.selected_note.uid} to trash?`)) {
+    return;
+  }
+  try {
+    await api_request('DELETE', `/api/v1/notes/${encodeURIComponent(state.selected_note.uid)}`);
+    select_note(null);
+    await refresh_notes();
+    show_toast('Note moved to trash.');
+  }
+  catch (error) {
+    show_error(error);
+  }
+}
+
+function open_note_page()
+{
+  if (state.selected_note) {
+    window.open(`/r/${encodeURIComponent(state.selected_note.uid)}`, '_blank', 'noopener');
+  }
+}
+
+async function refresh_files()
+{
+  if (!state.selected_note) {
+    return;
+  }
+  const result = await api_request('GET', `/api/v1/notes/${encodeURIComponent(state.selected_note.uid)}/files`);
+  state.files = result.data?.items || [];
+  if (state.selected_file_path && !state.files.some(v => v.path === state.selected_file_path)) {
+    state.selected_file_path = null;
+  }
+  render_files();
+}
+
+function render_files()
+{
+  els.file_count.textContent = state.files.length;
+  els.file_list.replaceChildren();
+  if (!state.files.length) {
+    els.file_list.innerHTML = '<div class="empty">This note has no files.</div>';
+  }
+  state.files.forEach(function (file) {
+    const row = document.createElement('div');
+    row.className = `file-row${file.path === state.selected_file_path ? ' active' : ''}`;
+    row.tabIndex = 0;
+    row.addEventListener('click', function () { select_file(file.path); });
+    row.addEventListener('keydown', function (event) {
+      if (event.key === 'Enter') {
+        select_file(file.path);
+      }
+    });
+    const main = document.createElement('div');
+    const name = document.createElement('div');
+    name.className = 'file-name';
+    name.textContent = file.path;
+    const details = document.createElement('div');
+    details.className = 'file-meta';
+    details.textContent = file_summary(file);
+    main.append(name, details);
+    const mime = document.createElement('span');
+    mime.className = 'mime';
+    mime.textContent = file.mime || 'unknown';
+    const size = document.createElement('span');
+    size.className = 'file-size';
+    size.textContent = format_bytes(file.size);
+    row.append(main, mime, size);
+    els.file_list.appendChild(row);
+  });
+  render_selected_file();
+}
+
+function select_file(path)
+{
+  state.selected_file_path = path;
+  render_files();
+}
+
+function selected_file()
+{
+  return state.files.find(v => v.path === state.selected_file_path) || null;
+}
+
+function render_selected_file()
+{
+  const file = selected_file();
+  els.selected_file_card.classList.toggle('hidden', !file);
+  if (!file) {
+    return;
+  }
+  els.selected_file_path.textContent = file.path;
+  els.move_file_path.value = file.path;
+  els.thumbnail_file.disabled = !file.thumbnail_url;
+}
+
+async function upload_file()
+{
+  const file = els.upload_file.files[0];
+  if (!state.selected_note || !file) {
+    show_toast('Choose a local file first.');
+    return;
+  }
+  const form = new FormData();
+  form.append('file', file, els.upload_name.value.trim() || file.name);
+  const query = els.upload_overwrite.checked ? '?overwrite=1' : '';
+  set_busy(els.upload_file_button, true, 'Uploading…');
+  try {
+    await api_request('POST', `/api/v1/notes/${encodeURIComponent(state.selected_note.uid)}/files${query}`, {form, request: `multipart file=${file.name}`});
+    els.upload_file.value = '';
+    els.upload_name.value = '';
+    await refresh_files();
+    show_toast('File uploaded.');
+  }
+  catch (error) {
+    show_error(error);
+  }
+  finally {
+    set_busy(els.upload_file_button, false, 'Upload');
+  }
+}
+
+async function inspect_file(method)
+{
+  const file = selected_file();
+  if (file) {
+    await safely(function () { return api_request(method, file_api_url(file.path)); });
+  }
+}
+
+async function inspect_file_meta()
+{
+  const file = selected_file();
+  if (!file) {
+    return;
+  }
+  const path = `${encodeURIComponent(state.selected_note.uid)}/files/${encode_path(file.path)}.meta`;
+  await safely(function () { return api_request('GET', `/r/${path}`); });
+}
+
+async function inspect_file_raw()
+{
+  const file = selected_file();
+  if (!file) {
+    return;
+  }
+  const url = `/r/${encodeURIComponent(state.selected_note.uid)}/files/${encode_path(file.path)}`;
+  await safely(function () { return api_request('GET', url); });
+}
+
+async function inspect_thumbnail()
+{
+  const file = selected_file();
+  if (file?.thumbnail_url) {
+    await safely(function () { return api_request('GET', file.thumbnail_url); });
+  }
+}
+
+async function replace_file()
+{
+  const current = selected_file();
+  const local = els.replace_file.files[0];
+  if (!current || !local) {
+    show_toast('Choose a replacement file.');
+    return;
+  }
+  const form = new FormData();
+  form.append('file', local, local.name);
+  try {
+    await api_request('PUT', file_api_url(current.path), {form, request: `multipart file=${local.name}`});
+    els.replace_file.value = '';
+    await refresh_files();
+    show_toast('File replaced.');
+  }
+  catch (error) {
+    show_error(error);
+  }
+}
+
+async function move_file()
+{
+  const file = selected_file();
+  const destination = els.move_file_path.value.trim();
+  if (!file || !destination) {
+    return;
+  }
+  try {
+    await api_request('PATCH', file_api_url(file.path), {json: {path: destination}});
+    state.selected_file_path = destination;
+    await refresh_files();
+    show_toast('File moved.');
+  }
+  catch (error) {
+    show_error(error);
+  }
+}
+
+async function delete_file()
+{
+  const file = selected_file();
+  if (!file || !confirm(`Move ${file.path} to trash?`)) {
+    return;
+  }
+  try {
+    await api_request('DELETE', file_api_url(file.path));
+    state.selected_file_path = null;
+    await refresh_files();
+    show_toast('File moved to trash.');
+  }
+  catch (error) {
+    show_error(error);
+  }
+}
+
+function file_api_url(path)
+{
+  return `/api/v1/notes/${encodeURIComponent(state.selected_note.uid)}/files/${encode_path(path)}`;
+}
+
+async function refresh_jobs()
+{
+  const result = await api_request('GET', '/api/v1/jobs');
+  state.jobs = result.data?.items || [];
+  render_jobs();
+}
+
+function note_jobs()
+{
+  if (!state.selected_note) {
+    return [];
+  }
+  return state.jobs.filter(function (job) {
+    return job.note_uid === state.selected_note.uid || String(job.note_uid || '').startsWith(`${state.selected_note.uid}-`);
+  });
+}
+
+function render_jobs()
+{
+  const jobs = note_jobs();
+  els.job_count.textContent = jobs.length;
+  els.job_list.replaceChildren();
+  if (!jobs.length) {
+    els.job_list.innerHTML = '<div class="empty">No jobs for this note.</div>';
+    return;
+  }
+  jobs.forEach(function (job) {
+    const row = document.createElement('div');
+    row.className = 'job-row';
+    const main = document.createElement('div');
+    const name = document.createElement('div');
+    name.className = 'job-name';
+    name.textContent = job.job_name;
+    const meta = document.createElement('div');
+    meta.className = 'job-meta';
+    meta.textContent = job.uid;
+    main.append(name, meta);
+    const status = document.createElement('span');
+    status.className = `status-pill ${job.status || ''}`;
+    status.textContent = job.user_friendly_status || job.status;
+    const action = document.createElement('span');
+    if (job.job_kind === 'terminal' && job.bucket === 'active') {
+      action.appendChild(action_button('Connect', function () { connect_terminal(job); }));
+    }
+    else if (job.bucket === 'finished' || job.bucket === 'failed') {
+      action.appendChild(action_button('Confirm', function () { confirm_job(job); }));
+    }
+    row.append(main, status, action);
+    els.job_list.appendChild(row);
+  });
+}
+
+function action_button(label, callback)
+{
+  const button = document.createElement('button');
+  button.className = 'button small';
+  button.type = 'button';
+  button.textContent = label;
+  button.addEventListener('click', callback);
+  return button;
+}
+
+async function start_job()
+{
+  if (!state.selected_note) {
+    return;
+  }
+  const name = els.job_name.value;
+  try {
+    const result = await api_request('POST', `/api/v1/jobs/${encodeURIComponent(name)}`, {json: {note_uid: state.selected_note.uid}});
+    await refresh_jobs();
+    if (name === 'terminal') {
+      connect_terminal(result.data);
+    }
+  }
+  catch (error) {
+    show_error(error);
+  }
+}
+
+async function confirm_job(job)
+{
+  await safely(async function () {
+    await api_request('POST', `/api/v1/jobs/${encodeURIComponent(job.uid)}/confirm`, {json: {}});
+    await refresh_jobs();
+  });
+}
+
+function connect_job_events()
+{
+  state.event_source?.close();
+  const source = new EventSource('/api/v1/jobs/events');
+  state.event_source = source;
+  set_live_state('', 'connecting…');
+  source.addEventListener('jobs_connected', function (event) {
+    set_live_state('open', 'job events live');
+    add_event_activity('jobs_connected', event.data);
+  });
+  source.addEventListener('jobs_changed', function (event) {
+    add_event_activity('jobs_changed', event.data);
+    refresh_jobs().catch(show_error);
+  });
+  source.onerror = function () {
+    set_live_state('error', 'events reconnecting');
+  };
+}
+
+function set_live_state(class_name, label)
+{
+  els.live_state.className = `live-state${class_name ? ` ${class_name}` : ''}`;
+  els.live_label.textContent = label;
+}
+
+function connect_terminal(job)
+{
+  close_terminal();
+  const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+  const socket = new WebSocket(`${protocol}//${location.host}/api/v1/jobs/${encodeURIComponent(job.uid)}/tty`);
+  state.socket = socket;
+  els.terminal_box.classList.remove('hidden');
+  els.terminal_title.textContent = `${job.uid} · connecting`;
+  els.terminal_output.textContent = '';
+  socket.onopen = function () {
+    els.terminal_title.textContent = `${job.uid} · connected`;
+    add_socket_activity('open', job.uid);
+  };
+  socket.onmessage = function (event) {
+    try {
+      const message = JSON.parse(event.data);
+      if (message.type === 'output') {
+        els.terminal_output.textContent += strip_ansi(message.data);
+        els.terminal_output.scrollTop = els.terminal_output.scrollHeight;
+      }
+    }
+    catch {
+      els.terminal_output.textContent += event.data;
+    }
+  };
+  socket.onerror = function () {
+    els.terminal_title.textContent = `${job.uid} · error`;
+  };
+  socket.onclose = function (event) {
+    els.terminal_title.textContent = `${job.uid} · closed ${event.code}`;
+    add_socket_activity('close', `${event.code} ${event.reason || ''}`);
+    state.socket = null;
+  };
+}
+
+function send_terminal_input()
+{
+  const value = els.terminal_input.value;
+  if (!value || state.socket?.readyState !== WebSocket.OPEN) {
+    return;
+  }
+  state.socket.send(JSON.stringify({type: 'input', data: `${value}\n`}));
+  add_socket_activity('input', value);
+  els.terminal_input.value = '';
+}
+
+function close_terminal()
+{
+  if (state.socket && (state.socket.readyState === WebSocket.OPEN || state.socket.readyState === WebSocket.CONNECTING)) {
+    state.socket.close(1000, 'closed by API Lab');
+  }
+  state.socket = null;
+  els.terminal_box?.classList.add('hidden');
+}
+
+async function run_chunked_upload()
+{
+  const file = els.large_file.files[0];
+  if (!state.selected_note || !file) {
+    show_toast('Choose a local file first.');
+    return;
+  }
+  const filename = els.large_file_name.value.trim() || file.name;
+  const chunk_size = 10 * 1024 * 1024;
+  const total_chunks = Math.max(1, Math.ceil(file.size / chunk_size));
+  set_busy(els.large_upload, true, 'Uploading…');
+  set_upload_progress(0, `Starting ${total_chunks} chunks`);
+  try {
+    const start = await api_request('POST', '/api/v1/files/upload/start', {
+      json: {filename, total_chunks, total_size: file.size},
+    });
+    const upload_id = start.data.upload_id;
+    for (let i = 0; i < total_chunks; ++i) {
+      const chunk = file.slice(i * chunk_size, Math.min(file.size, (i + 1) * chunk_size));
+      const form = new FormData();
+      form.append('chunk', chunk, `chunk-${i}`);
+      await api_request('POST', `/api/v1/files/upload/${encodeURIComponent(upload_id)}/chunk/${i}`, {
+        form,
+        request: `multipart chunk ${i + 1}/${total_chunks} · ${format_bytes(chunk.size)}`,
+      });
+      set_upload_progress((i + 1) / total_chunks * 85, `Uploaded chunk ${i + 1} of ${total_chunks}`);
+    }
+    await api_request('POST', `/api/v1/files/upload/${encodeURIComponent(upload_id)}/assemble`, {
+      json: {note_uid: state.selected_note.uid, overwrite: false},
+    });
+    set_upload_progress(100, 'Upload assembled and stored');
+    await refresh_files();
+    show_toast('Chunked upload complete.');
+  }
+  catch (error) {
+    set_upload_progress(0, `Failed: ${error.message}`);
+    show_error(error);
+  }
+  finally {
+    set_busy(els.large_upload, false, 'Run chunked upload');
+  }
+}
+
+function set_upload_progress(percent, label)
+{
+  els.upload_progress.style.width = `${percent}%`;
+  els.upload_progress_label.textContent = label;
+}
+
+async function api_request(method, url, options = {})
+{
+  const started = performance.now();
+  const headers = {};
+  let body;
+  let request_text = options.request || '(empty request body)';
+  if (options.json !== undefined) {
+    headers['Content-Type'] = 'application/json';
+    body = JSON.stringify(options.json);
+    request_text = JSON.stringify(options.json, null, 2);
+  }
+  else if (options.form) {
+    body = options.form;
+  }
+
+  let response;
+  try {
+    response = await fetch(url, {method, headers, body});
+  }
+  catch (error) {
+    const activity = add_activity({
+      body: `${error.name}: ${error.message}`,
+      elapsed: performance.now() - started,
+      headers: '',
+      method,
+      ok: false,
+      request: request_text,
+      status: 'Network error',
+      url,
+    });
+    select_activity(activity);
+    throw error;
+  }
+
+  const content_type = response.headers.get('content-type') || '';
+  const blob = await response.blob();
+  let data = null;
+  let response_text;
+  if (!blob.size) {
+    response_text = '(empty response body)';
+  }
+  else if (is_text_content(content_type)) {
+    const text = await blob.text();
+    if (content_type.includes('json')) {
+      try {
+        data = JSON.parse(text);
+        response_text = JSON.stringify(data, null, 2);
+      }
+      catch {
+        response_text = text;
+      }
+    }
+    else {
+      response_text = text;
+    }
+  }
+  else {
+    response_text = `[binary response]\ncontent-type: ${content_type || 'unknown'}\nsize: ${format_bytes(blob.size)}`;
+  }
+
+  const activity = add_activity({
+    blob: is_previewable(content_type) && blob.size <= 25 * 1024 * 1024 ? blob : null,
+    body: response_text,
+    content_type,
+    elapsed: performance.now() - started,
+    headers: format_headers(response.headers),
+    method,
+    ok: response.ok,
+    request: request_text,
+    status: `${response.status} ${response.statusText}`.trim(),
+    url,
+  });
+  select_activity(activity);
+  if (!response.ok) {
+    throw new Error(response_text || activity.status);
+  }
+  return {activity, blob, data, response};
+}
+
+function add_activity(activity)
+{
+  activity.uid = `${Date.now()}-${Math.random()}`;
+  activity.time = new Date();
+  state.activities.unshift(activity);
+  state.activities = state.activities.slice(0, 60);
+  render_activity();
+  return activity;
+}
+
+function add_event_activity(name, data)
+{
+  const activity = add_activity({
+    body: pretty_json(data || '{}'),
+    elapsed: 0,
+    headers: 'content-type: text/event-stream',
+    method: 'SSE',
+    ok: true,
+    request: 'EventSource /api/v1/jobs/events',
+    status: name,
+    url: '/api/v1/jobs/events',
+  });
+  select_activity(activity);
+}
+
+function add_socket_activity(name, data)
+{
+  add_activity({
+    body: String(data || ''),
+    elapsed: 0,
+    headers: '',
+    method: 'WS',
+    ok: true,
+    request: name,
+    status: name,
+    url: 'terminal WebSocket',
+  });
+}
+
+function render_activity()
+{
+  els.activity_count.textContent = state.activities.length;
+  els.activity_list.replaceChildren();
+  if (!state.activities.length) {
+    els.activity_list.innerHTML = '<div class="empty">No API calls yet.</div>';
+    return;
+  }
+  state.activities.forEach(function (activity) {
+    const button = document.createElement('button');
+    button.className = `activity-item${activity === state.selected_activity ? ' active' : ''}`;
+    button.type = 'button';
+    button.addEventListener('click', function () { select_activity(activity); });
+    const method = document.createElement('span');
+    method.className = `method ${activity.method.toLowerCase()}`;
+    method.textContent = activity.method;
+    const path = document.createElement('span');
+    path.className = 'activity-path';
+    path.textContent = activity.url;
+    const status = document.createElement('span');
+    status.className = 'activity-status';
+    status.textContent = activity.status.split(' ')[0];
+    button.append(method, path, status);
+    els.activity_list.appendChild(button);
+  });
+}
+
+function select_activity(activity)
+{
+  revoke_preview();
+  state.selected_activity = activity;
+  state.inspect_tab = 'response';
+  render_activity();
+  render_inspector();
+}
+
+function show_inspect_tab(tab)
+{
+  if (tab === 'preview' && !state.selected_activity?.blob) {
+    return;
+  }
+  state.inspect_tab = tab;
+  render_inspector();
+}
+
+function render_inspector()
+{
+  const activity = state.selected_activity;
+  document.querySelectorAll('.inspect-tab').forEach(function (button) {
+    button.classList.toggle('active', button.dataset.inspect === state.inspect_tab);
+  });
+  if (!activity) {
+    state.inspect_tab = 'response';
+    els.preview_tab.classList.add('hidden');
+    els.inspect_output.classList.remove('hidden');
+    els.preview.classList.add('hidden');
+    els.inspect_title.textContent = 'Request inspector';
+    els.inspect_status.textContent = 'Idle';
+    els.inspect_status.className = 'inspect-status';
+    els.inspect_output.textContent = 'Use the controls to call an API.';
+    els.inspect_output.className = 'inspect-output placeholder';
+    return;
+  }
+  els.inspect_title.textContent = `${activity.method} ${activity.url}`;
+  els.inspect_status.textContent = `${activity.status} · ${Math.round(activity.elapsed)} ms`;
+  els.inspect_status.className = `inspect-status ${activity.ok ? 'ok' : 'error'}`;
+  els.preview_tab.classList.toggle('hidden', !activity.blob);
+  els.inspect_output.classList.toggle('hidden', state.inspect_tab === 'preview');
+  els.preview.classList.toggle('hidden', state.inspect_tab !== 'preview');
+  els.inspect_output.className = 'inspect-output';
+  if (state.inspect_tab === 'request') {
+    els.inspect_output.textContent = activity.request;
+  }
+  else if (state.inspect_tab === 'headers') {
+    els.inspect_output.textContent = activity.headers || '(no response headers)';
+  }
+  else if (state.inspect_tab === 'preview') {
+    render_preview(activity);
+  }
+  else {
+    els.inspect_output.textContent = activity.body;
+  }
+}
+
+function render_preview(activity)
+{
+  revoke_preview();
+  els.preview.replaceChildren();
+  if (!activity.blob) {
+    return;
+  }
+  const url = URL.createObjectURL(activity.blob);
+  state.preview_url = url;
+  const link = document.createElement('a');
+  link.href = url;
+  link.target = '_blank';
+  link.rel = 'noopener';
+  link.textContent = 'Open response in a new tab ↗';
+  els.preview.appendChild(link);
+  let media;
+  if (activity.content_type.startsWith('image/')) {
+    media = document.createElement('img');
+    media.alt = 'API response preview';
+  }
+  else if (activity.content_type.startsWith('audio/')) {
+    media = document.createElement('audio');
+    media.controls = true;
+  }
+  else if (activity.content_type.startsWith('video/')) {
+    media = document.createElement('video');
+    media.controls = true;
+  }
+  else {
+    media = document.createElement('iframe');
+    media.title = 'API response preview';
+  }
+  media.src = url;
+  els.preview.appendChild(media);
+}
+
+function revoke_preview()
+{
+  if (state.preview_url) {
+    URL.revokeObjectURL(state.preview_url);
+    state.preview_url = null;
+  }
+}
+
+function clear_activity()
+{
+  revoke_preview();
+  state.activities = [];
+  state.selected_activity = null;
+  render_activity();
+  render_inspector();
+}
+
+function show_view(view)
+{
+  state.active_view = view;
+  document.querySelectorAll('.view-tab').forEach(function (button) {
+    button.classList.toggle('active', button.dataset.view === view);
+  });
+  els.playground_view.classList.toggle('hidden', view !== 'playground');
+  els.reference_view.classList.toggle('hidden', view !== 'reference');
+  els.refresh_all.classList.toggle('hidden', view !== 'playground');
+  els.live_state.classList.toggle('hidden', view !== 'playground');
+  if (view === 'reference') {
+    els.api_filter.focus();
+  }
+}
+
+function render_api_reference()
+{
+  const query = els.api_filter.value.trim().toLowerCase();
+  els.reference_groups.replaceChildren();
+  let visible = 0;
+  api_reference.forEach(function (group) {
+    const items = group.items.filter(function (item) {
+      return !query || [group.name, item.method, item.path, item.body, item.desc].join(' ').toLowerCase().includes(query);
+    });
+    if (!items.length) {
+      return;
+    }
+    visible += items.length;
+    const section = document.createElement('section');
+    section.className = 'api-group';
+    const head = document.createElement('div');
+    head.className = 'api-group-head';
+    const title = document.createElement('h3');
+    title.textContent = group.name;
+    const count = document.createElement('span');
+    count.className = 'count';
+    count.textContent = items.length;
+    head.append(title, count);
+    section.appendChild(head);
+    items.forEach(function (item) {
+      const row = document.createElement('div');
+      row.className = 'endpoint-row';
+      const method = document.createElement('span');
+      method.className = `method ${item.method.toLowerCase()}`;
+      method.textContent = item.method;
+      const details = document.createElement('div');
+      const path = document.createElement('div');
+      path.className = 'endpoint-path';
+      path.textContent = item.path;
+      if (item.body) {
+        const body = document.createElement('span');
+        body.className = 'endpoint-body';
+        body.textContent = item.body;
+        path.appendChild(body);
+      }
+      const description = document.createElement('div');
+      description.className = 'endpoint-desc';
+      description.textContent = item.desc;
+      details.append(path, description);
+      const copy = document.createElement('button');
+      copy.className = 'button small copy-endpoint';
+      copy.type = 'button';
+      copy.textContent = 'Copy';
+      copy.addEventListener('click', function () { copy_endpoint(item); });
+      row.append(method, details, copy);
+      section.appendChild(row);
+    });
+    els.reference_groups.appendChild(section);
+  });
+  if (!visible) {
+    const empty = document.createElement('div');
+    empty.className = 'reference-empty';
+    empty.textContent = `No APIs match “${els.api_filter.value.trim()}”.`;
+    els.reference_groups.appendChild(empty);
+  }
+}
+
+async function copy_endpoint(item)
+{
+  const signature = `${item.method} ${item.path}${item.body ? ` ${item.body}` : ''}`;
+  try {
+    await navigator.clipboard.writeText(signature);
+    show_toast(`Copied ${item.method} ${item.path}`);
+  }
+  catch (error) {
+    show_error(error);
+  }
+}
+
+function show_pane(pane)
+{
+  state.active_pane = pane;
+  document.querySelectorAll('.workspace-tab').forEach(function (button) {
+    button.classList.toggle('active', button.dataset.pane === pane);
+  });
+  document.querySelectorAll('[data-pane-content]').forEach(function (content) {
+    content.classList.toggle('hidden', content.dataset.paneContent !== pane);
+  });
+}
+
+function encode_path(path)
+{
+  return String(path).split('/').map(encodeURIComponent).join('/');
+}
+
+function first_line(value)
+{
+  return String(value || '').split('\n').find(v => v.trim())?.replace(/^#+\s*/, '').trim() || '';
+}
+
+function file_summary(file)
+{
+  const details = file.details || {};
+  if (details.width && details.height) {
+    return `${details.width}×${details.height}`;
+  }
+  if (details.duration_seconds) {
+    return `${Math.round(details.duration_seconds)} seconds`;
+  }
+  return format_date(file.updated_at);
+}
+
+function format_date(value)
+{
+  const date = new Date(value);
+  return Number.isNaN(date.valueOf()) ? 'unknown date' : date.toLocaleString();
+}
+
+function format_bytes(bytes)
+{
+  bytes = Number(bytes) || 0;
+  if (!bytes) {
+    return '0 B';
+  }
+  const units = ['B', 'KB', 'MB', 'GB'];
+  const i = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
+  return `${(bytes / (1024 ** i)).toFixed(i ? 1 : 0)} ${units[i]}`;
+}
+
+function format_headers(headers)
+{
+  return Array.from(headers.entries()).map(v => `${v[0]}: ${v[1]}`).join('\n');
+}
+
+function is_text_content(content_type)
+{
+  return !content_type || content_type.startsWith('text/') || /json|javascript|xml|svg/.test(content_type);
+}
+
+function is_previewable(content_type)
+{
+  return /^(image|audio|video)\//.test(content_type) || /pdf|html/.test(content_type);
+}
+
+function pretty_json(value)
+{
+  try {
+    return JSON.stringify(JSON.parse(value), null, 2);
+  }
+  catch {
+    return value;
+  }
+}
+
+function strip_ansi(value)
+{
+  return String(value).replace(/\x1B\[[0-?]*[ -/]*[@-~]/g, '');
+}
+
+function set_busy(button, busy, label)
+{
+  button.disabled = busy;
+  button.textContent = label;
+}
+
+async function safely(callback)
+{
+  try {
+    return await callback();
+  }
+  catch (error) {
+    show_error(error);
+    return null;
+  }
+}
+
+function show_error(error)
+{
+  console.error(error);
+  show_toast(error.message || String(error));
+}
+
+let toast_timer;
+function show_toast(message)
+{
+  clearTimeout(toast_timer);
+  els.toast.textContent = message;
+  els.toast.classList.remove('hidden');
+  toast_timer = setTimeout(function () { els.toast.classList.add('hidden'); }, 2600);
+}
+
+init();
+</script>
+</body>
+</html>
