@@ -334,6 +334,16 @@ function http_delete(url, options)
 // return http_post_multipart(`${MAILGUN_BASE}/messages`, items, options);
 function http_post_multipart(url, items, options)
 {
+    return http_multipart('post', url, items, options);
+}
+
+function http_put_multipart(url, items, options)
+{
+    return http_multipart('put', url, items, options);
+}
+
+function http_multipart(method, url, items, options)
+{
     const form = new FormData();
     for (let i = 0, end = items.length; i < end; ++i) {
         const item = items[i];
@@ -346,7 +356,7 @@ function http_post_multipart(url, items, options)
             form.append(item.name, item.body);
         }
     }
-    return axios.post(url, form, options).then(v => v.data);
+    return axios[method](url, form, options).then(v => v.data);
 }
 
 

@@ -1,7 +1,7 @@
 const cache_api = require('./cache_api');
 const fs_path_safe_resolve = require('./fs_path_safe_resolve');
 
-const CACHE_VERSION = 'v2';
+const CACHE_VERSION = 'v3';
 
 function cache_api_notes(req, note_uid, build)
 {

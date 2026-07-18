@@ -33,6 +33,24 @@ async function api_notes_upload_file({note_uid, file, onProgress})
     });
 }
 
+async function api_notes_files_list({note_uid})
+{
+    return http_get_json(`/api/v1/notes/${encodeURIComponent(note_uid)}/files`);
+}
+
+async function api_notes_put_file({note_uid, path, file, onProgress})
+{
+    const items = [{name: 'file', body: file}];
+    return http_put_multipart(api_note_file_url(note_uid, path), items, {
+        onUploadProgress: onProgress,
+    });
+}
+
+async function api_notes_move_file({note_uid, path, destination})
+{
+    return http_patch_json(api_note_file_url(note_uid, path), {path: destination});
+}
+
 async function api_files_upload_start({filename, total_chunks, total_size})
 {
     return http_post_json('/api/v1/files/upload/start', {filename, total_chunks, total_size});
@@ -53,7 +71,13 @@ async function api_files_upload_assemble({upload_id, note_uid, overwrite})
 
 async function api_notes_remove_file({note_uid, filename})
 {
-    return http_delete(`/api/v1/notes/${note_uid}/files/${filename}`);
+    return http_delete(api_note_file_url(note_uid, filename));
+}
+
+function api_note_file_url(note_uid, path)
+{
+    const encoded_path = String(path).split('/').map(encodeURIComponent).join('/');
+    return `/api/v1/notes/${encodeURIComponent(note_uid)}/files/${encoded_path}`;
 }
 
 async function api_jobs_list()

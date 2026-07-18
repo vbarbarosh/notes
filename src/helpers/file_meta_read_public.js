@@ -1,11 +1,11 @@
 const file_meta_cache = require('./file_meta_cache');
 const file_meta_public = require('./file_meta_public');
 const fs_mime = require('./fs_mime');
-const fs_path_safe_resolve = require('./fs_path_safe_resolve');
+const fs_path_strict_resolve = require('./fs_path_strict_resolve');
 
 async function file_meta_read_public({notes_root, notes_meta_root, relative})
 {
-    const source_file = fs_path_safe_resolve(notes_root, relative);
+    const source_file = fs_path_strict_resolve(notes_root, relative);
     const mime = await fs_mime(source_file);
 
     // Deep inspection also computes a content hash. Limit it to formats for

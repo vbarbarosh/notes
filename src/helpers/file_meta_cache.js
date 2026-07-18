@@ -3,7 +3,7 @@ const fs_mime = require('./fs_mime');
 const fs_mkdirp = require('@vbarbarosh/node-helpers/src/fs_mkdirp');
 const fs_path_dirname = require('@vbarbarosh/node-helpers/src/fs_path_dirname');
 const fs_path_safe_relative = require('./fs_path_safe_relative');
-const fs_path_safe_resolve = require('./fs_path_safe_resolve');
+const fs_path_strict_resolve = require('./fs_path_strict_resolve');
 const fs_read_json = require('@vbarbarosh/node-helpers/src/fs_read_json');
 const fs_readdir = require('@vbarbarosh/node-helpers/src/fs_readdir');
 const fs_rmf_and_prune_empty_dirs = require('./fs_rmf_and_prune_empty_dirs');
@@ -19,8 +19,8 @@ const CACHE_VERSION = 3;
 
 async function file_meta_cache({notes_root, notes_meta_root, relative})
 {
-    const source_file = fs_path_safe_resolve(notes_root, relative);
-    const meta_file = fs_path_safe_resolve(notes_meta_root, `${relative}.json`);
+    const source_file = fs_path_strict_resolve(notes_root, relative);
+    const meta_file = fs_path_strict_resolve(notes_meta_root, `${relative}.json`);
     const lstat = await fs_stat(source_file);
 
     if (!lstat.isFile()) {
@@ -79,7 +79,7 @@ async function file_meta_cache({notes_root, notes_meta_root, relative})
 
 async function remove_file_meta_cache(notes_meta_root, relative, notes_thumbnails_root = null)
 {
-    const meta_file = fs_path_safe_resolve(notes_meta_root, `${relative}.json`);
+    const meta_file = fs_path_strict_resolve(notes_meta_root, `${relative}.json`);
 
     await fs_rmf_and_prune_empty_dirs(notes_meta_root, meta_file);
     await remove_file_thumbnails(notes_thumbnails_root, relative);
@@ -87,7 +87,7 @@ async function remove_file_meta_cache(notes_meta_root, relative, notes_thumbnail
 
 async function remove_dir_meta_cache(notes_meta_root, note_uid, notes_thumbnails_root = null)
 {
-    const meta_dir = fs_path_safe_resolve(notes_meta_root, note_uid);
+    const meta_dir = fs_path_strict_resolve(notes_meta_root, note_uid);
 
     await fs_rmrf(meta_dir);
     await remove_dir_thumbnails(notes_thumbnails_root, note_uid);
@@ -131,8 +131,8 @@ async function remove_file_thumbnails(notes_thumbnails_root, relative)
     }
 
     await Promise.all(sizes.map(async function (size) {
-        const size_root = fs_path_safe_resolve(notes_thumbnails_root, size);
-        const thumbnail_file = fs_path_safe_resolve(size_root, `notes/${relative}`);
+        const size_root = fs_path_strict_resolve(notes_thumbnails_root, size);
+        const thumbnail_file = fs_path_strict_resolve(size_root, `notes/${relative}`);
         await fs_rmf_and_prune_empty_dirs(size_root, thumbnail_file);
     }));
 }
@@ -152,7 +152,7 @@ async function remove_dir_thumbnails(notes_thumbnails_root, note_uid)
     }
 
     await Promise.all(sizes.map(async function (size) {
-        const note_thumbnail_dir = fs_path_safe_resolve(notes_thumbnails_root, `${size}/notes/${note_uid}`);
+        const note_thumbnail_dir = fs_path_strict_resolve(notes_thumbnails_root, `${size}/notes/${note_uid}`);
         await fs_rmrf(note_thumbnail_dir);
     }));
 }

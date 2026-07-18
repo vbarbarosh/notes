@@ -10,9 +10,18 @@ GET /api/v1/notes/:note_uid             Get a note and its files
 POST /api/v1/notes {body}               Create a note
 PATCH /api/v1/notes/:note_uid {body}    Replace the note body
 DELETE /api/v1/notes/:note_uid          Move a note to trash
+```
 
-POST /api/v1/notes/:note_uid/files {file}   Upload a multipart file; optional ?overwrite=1
-DELETE /api/v1/notes/:note_uid/files/*      Move a file to trash
+## Files
+
+```
+GET /api/v1/notes/:note_uid/files                  List files
+POST /api/v1/notes/:note_uid/files {file}          Upload a multipart file; optional ?overwrite=1
+HEAD /api/v1/notes/:note_uid/files/*               Get file headers
+GET /api/v1/notes/:note_uid/files/*                Read a file
+PUT /api/v1/notes/:note_uid/files/* {file}         Create or replace an exact path
+PATCH /api/v1/notes/:note_uid/files/* {path}       Rename or move a file
+DELETE /api/v1/notes/:note_uid/files/*             Move a file to trash
 ```
 
 ## Chunked uploads
