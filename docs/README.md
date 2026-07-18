@@ -58,7 +58,9 @@ GET /r/*            Read note resources and files
 
 # Adding standalone apps
 
-Apps such as `pdf.html` and `api.html` are standalone pages, not iframes. Files under `src/static/` are served from the site root, and the app launchers create ordinary links from entries in `src/static/apps/apps.json`.
+Apps such as `pdf.html` and `api.html` are standalone pages, not iframes. Files
+under `src/static/` are served from the site root, and the app launchers create
+ordinary links from entries in `src/static/apps/apps.json`.
 
 ## Add a local app
 
@@ -136,15 +138,26 @@ if (!response.ok) throw new Error(`Could not load note: ${response.status}`);
 const note = await response.json();
 ```
 
-An app-catalog entry only launches the app; it cannot supply a particular note UID. If the Notes page needs a per-note app button, add a link where that note is rendered. The PDF link in `src/static/js/components/note-card.js` is the current example.
+An app-catalog entry only launches the app; it cannot supply a particular note
+UID. If the Notes page needs a per-note app button, add a link where that note
+is rendered. The PDF link in `src/static/js/components/note-card.js` is the
+current example.
 
 ## Store app state in a note
 
-Keep app-owned files below `files/apps/<app-id>/` so they do not collide with user attachments. For example:
+Apps may store their settings and other private state under `apps/<app-name>/*`
+in the note's file namespace. Use the app's stable catalog `id` as `<app-name>`
+so different apps do not collide.
+
+For example, the API file path:
 
 ```text
-files/apps/my-app/state.json
+apps/my-app/settings.json
 ```
+
+is stored on disk as `<note>/files/apps/my-app/settings.json`. The PDF app
+follows this convention with paths such as `apps/pdf/_session.json` and
+`apps/pdf/<pdf-path>.bookmarks.json`.
 
 Use `PUT` when the app owns an exact path:
 
@@ -153,11 +166,11 @@ function encode_path(value) {
   return value.split('/').map(encodeURIComponent).join('/');
 }
 
-const path = 'apps/my-app/state.json';
+const path = 'apps/my-app/settings.json';
 const form = new FormData();
 form.append('file', new Blob([JSON.stringify(state)], {
   type: 'application/json',
-}), 'state.json');
+}), 'settings.json');
 
 const response = await fetch(
   `/api/v1/notes/${note_uid}/files/${encode_path(path)}`,
@@ -191,7 +204,10 @@ The catalog also accepts an absolute URL:
 }
 ```
 
-This navigates to the remote site; it does not embed it. A remote app cannot use the same-origin Notes APIs unless the server explicitly permits its origin. If API access is required, hosting the page under `src/static/` is the simplest option.
+This navigates to the remote site; it does not embed it. A remote app cannot
+use the same-origin Notes APIs unless the server explicitly permits its origin.
+If API access is required, hosting the page under `src/static/` is the simplest
+option.
 
 ## Checklist
 
@@ -199,6 +215,6 @@ This navigates to the remote site; it does not embed it. A remote app cannot use
 - The catalog contains a unique `id` and the correct absolute `url`.
 - Both `/apps/` and `/apps2/` show a usable card.
 - Note UIDs are used directly; arbitrary file path segments are URL-encoded.
-- App-owned state is kept below `files/apps/<app-id>/`.
+- App settings and state use `apps/<app-name>/*` file paths.
 - The app handles API errors and missing note or file data.
 - The layout remains usable on a narrow screen.
