@@ -112,6 +112,7 @@
   #cm-host{position:absolute;inset:0;overflow:hidden;background:var(--panel)}
   #editor-msg{position:absolute;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;gap:13px;background:var(--panel);text-align:center;padding:24px;z-index:6}
   iframe.preview{flex:1;width:100%;border:0;background:var(--panel-2);min-height:0}
+  #tree{display:flex;flex-direction:column}#tree>*{flex:none}
   #preview-stack{flex:1;position:relative;min-height:0}
   iframe.pv{position:absolute;inset:0;width:100%;height:100%;border:0;background:var(--panel-2)}
   #json-frame,#drawio-frame,#excalidraw-frame{z-index:2}
@@ -1619,8 +1620,8 @@
     html += trashHTML();
     var sysf = NOTE ? fileById(NOTE_SYS_ID) : null;
     if(sysf){
-      html += '<div class="trash-divider"></div>'
-        + '<div class="row file'+(sysf.id===S.activeId?' active':'')+'" data-row="file" data-id="'+sysf.id+'" title="Note body (system file)">'
+      html += '<div class="trash-divider" style="margin-top:auto"></div>'
+        + '<div class="row file'+(sysf.id===S.activeId?' active':'')+'" data-row="file" data-id="'+sysf.id+'" title="Note body (system file)" style="position:sticky;bottom:0;background:var(--panel)">'
         + '<span class="caret" style="cursor:default"></span>'
         + '<span class="ico file" style="color:#c9962e">'+SVG_FILE+'</span>'
         + '<span class="nm" style="color:#c9962e">README.md</span>'
