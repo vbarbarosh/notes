@@ -55,3 +55,150 @@ GET /r/:note_uid    Open the single-note page
 GET /t/:size/*      Get an image thumbnail; size must be 32–2048
 GET /r/*            Read note resources and files
 ```
+
+# Adding standalone apps
+
+Apps such as `pdf.html` and `api.html` are standalone pages, not iframes. Files under `src/static/` are served from the site root, and the app launchers create ordinary links from entries in `src/static/apps/apps.json`.
+
+## Add a local app
+
+1. Create the page. Use a root-level HTML file for a substantial standalone app:
+
+   ```text
+   src/static/my-app.html  ->  /my-app.html
+   ```
+
+   A small app may instead use its own directory:
+
+   ```text
+   src/static/apps/my-app/index.html  ->  /apps/my-app/
+   ```
+
+2. Register it in `src/static/apps/apps.json`:
+
+   ```json
+   {
+     "id": "my-app",
+     "name": "My App",
+     "desc": "What the app does.",
+     "icon": "ti ti-apps",
+     "emoji": "🧩",
+     "url": "/my-app.html"
+   }
+   ```
+
+   - `id` must be a stable, unique slug.
+   - `name` and `desc` are displayed on the app card.
+   - `icon` is a Tabler Icons class used by `/apps2/`.
+   - `emoji` is used by `/apps/`.
+   - `url` should normally be an absolute site path beginning with `/`.
+   - Catalog order controls card order.
+
+3. Open `/apps/` or `/apps2/` and select the new card. No server route is needed for a static page.
+
+A minimal page looks like this:
+
+```html
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>My App</title>
+</head>
+<body>
+  <a href="/">Back to Notes</a>
+  <main id="app"></main>
+  <script>
+    // The Notes APIs are available at same-origin /api/v1/* URLs.
+  </script>
+</body>
+</html>
+```
+
+## Make an app note-aware
+
+Pass the note UID in the URL, as the PDF app does:
+
+```text
+/my-app.html?note=20260718_120000
+```
+
+Read it and load the note with the API:
+
+```js
+const params = new URLSearchParams(location.search);
+const note_uid = params.get('note');
+if (!note_uid) throw new Error('Missing ?note=<note_uid>');
+
+const response = await fetch(`/api/v1/notes/${note_uid}`);
+if (!response.ok) throw new Error(`Could not load note: ${response.status}`);
+const note = await response.json();
+```
+
+An app-catalog entry only launches the app; it cannot supply a particular note UID. If the Notes page needs a per-note app button, add a link where that note is rendered. The PDF link in `src/static/js/components/note-card.js` is the current example.
+
+## Store app state in a note
+
+Keep app-owned files below `files/apps/<app-id>/` so they do not collide with user attachments. For example:
+
+```text
+files/apps/my-app/state.json
+```
+
+Use `PUT` when the app owns an exact path:
+
+```js
+function encode_path(value) {
+  return value.split('/').map(encodeURIComponent).join('/');
+}
+
+const path = 'apps/my-app/state.json';
+const form = new FormData();
+form.append('file', new Blob([JSON.stringify(state)], {
+  type: 'application/json',
+}), 'state.json');
+
+const response = await fetch(
+  `/api/v1/notes/${note_uid}/files/${encode_path(path)}`,
+  {method: 'PUT', body: form},
+);
+if (!response.ok) throw new Error(`Could not save state: ${response.status}`);
+```
+
+Read the state through the file API or resource route:
+
+```js
+const response = await fetch(
+  `/r/${note_uid}/files/${encode_path(path)}`,
+);
+if (!response.ok) throw new Error(`Could not load state: ${response.status}`);
+const state = await response.json();
+```
+
+## Link to a remotely hosted app
+
+The catalog also accepts an absolute URL:
+
+```json
+{
+  "id": "remote-app",
+  "name": "Remote App",
+  "desc": "Hosted outside Notes.",
+  "icon": "ti ti-external-link",
+  "emoji": "↗️",
+  "url": "https://example.com/app/"
+}
+```
+
+This navigates to the remote site; it does not embed it. A remote app cannot use the same-origin Notes APIs unless the server explicitly permits its origin. If API access is required, hosting the page under `src/static/` is the simplest option.
+
+## Checklist
+
+- The page works at its direct URL.
+- The catalog contains a unique `id` and the correct absolute `url`.
+- Both `/apps/` and `/apps2/` show a usable card.
+- Note UIDs are used directly; arbitrary file path segments are URL-encoded.
+- App-owned state is kept below `files/apps/<app-id>/`.
+- The app handles API errors and missing note or file data.
+- The layout remains usable on a narrow screen.
