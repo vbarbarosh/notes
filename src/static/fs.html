@@ -123,6 +123,12 @@
   .console-body{flex:1;overflow-y:auto;min-height:0}
   .log{padding:4px 14px;border-top:1px solid var(--border);font-family:'JetBrains Mono',monospace;font-size:12px;line-height:1.5;white-space:pre-wrap;word-break:break-word;display:flex}
   .log .tag{opacity:.7;margin-right:8px;font-weight:600;text-transform:uppercase;font-size:10px}
+  .log-table{width:100%;border-collapse:collapse;font-family:'JetBrains Mono',monospace;font-size:12px;line-height:1.5}
+  .log-table td{padding:4px 12px;border-top:1px solid var(--border);border-left:1px solid var(--border);vertical-align:top;width:1%;white-space:pre}
+  .log-table td:last-child{width:99%;white-space:pre-wrap;word-break:break-word}
+  .log-table td:first-child{border-left:none;padding-left:14px}
+  .log-table td.logtag{width:1%;white-space:nowrap}
+  .console-head .smallbtn.on{color:var(--fg);background:var(--border)}
   .badge{font-size:10px;font-weight:700;color:var(--accent-fg);background:var(--accent);border-radius:9px;padding:1px 6px}
   .badge.empty{background:var(--muted);opacity:.4}
   .smallbtn{height:24px;padding:0 9px;display:grid;place-items:center;border-radius:6px;border:1px solid var(--border);background:transparent;color:var(--muted);cursor:pointer;font-size:11px}
@@ -301,7 +307,7 @@
   var NOTE = null;
   try{ NOTE = new URLSearchParams(location.search).get('note') || null; }catch(e){}
   var NOTE_SETTINGS_PATH = 'apps/sandbox/settings.json';
-  var NOTE_DEFAULTS = { activeId:null, title:'Sandbox', sidebarW:248, editorPct:0.5, consoleOpen:false, consoleH:180, sidebarHidden:false, jsonMode:'tree', templates:{}, viewState:{} };
+  var NOTE_DEFAULTS = { activeId:null, title:'Sandbox', sidebarW:248, editorPct:0.5, consoleOpen:false, consoleH:180, consoleTable:false, sidebarHidden:false, jsonMode:'tree', templates:{}, viewState:{} };
   var noteSaveTimer = null, noteDirty = false, noteBlocked = false, noteErrShown = false;
   var noteSettingsBusy = false, noteSettingsQueued = false, noteSettingsExists = false;
   var noteSyncBusy = false, noteSyncQueued = false, noteAssetPvTimer = null;
@@ -1170,7 +1176,7 @@
   }
   window.addEventListener('message', function(e){
     var raw = e && e.data;
-    if(raw && raw.__sb===1){ logs.push({type:raw.t, text:(raw.a||[]).join('  ')}); if(logs.length>300) logs.shift(); renderConsole(); return; }
+    if(raw && raw.__sb===1){ logs.push({type:raw.t, args:(raw.a||[]).slice(), text:(raw.a||[]).join('  ')}); if(logs.length>300) logs.shift(); renderConsole(); return; }
     if(raw && raw.__sbscroll===1){ if(previewShownId!=null){ (viewState[previewShownId]=viewState[previewShownId]||{}).pv={x:raw.x||0,y:raw.y||0}; clearTimeout(pvSaveTimer); pvSaveTimer=setTimeout(save,400); } return; }
     if(raw && raw.__sbiz===1){ if(previewShownId!=null){ (viewState[previewShownId]=viewState[previewShownId]||{}).iz=!!raw.z; clearTimeout(pvSaveTimer); pvSaveTimer=setTimeout(save, 800); } return; }
     if(raw && raw.__sbmt===1){ if(previewShownId!=null && typeof raw.t==='number'){ (viewState[previewShownId]=viewState[previewShownId]||{}).mt=raw.t; clearTimeout(pvSaveTimer); pvSaveTimer=setTimeout(save, 1500); } return; }
@@ -1692,21 +1698,38 @@
   function renderConsole(){
     var host=document.getElementById('console-host');
     if(!S.consoleOpen){ host.innerHTML=''; return; }
-    var rows = logs.map(function(l){
-      var c = l.type==='error'?'#f87171':l.type==='warn'?'#fbbf24':l.type==='info'?'#60a5fa':'var(--muted2)';
-      var tag = l.type==='log'?'':('<span class="tag" style="color:'+c+'">'+l.type+'</span>');
-      return '<div class="log" style="color:'+c+'">'+tag+esc(l.text)+'</div>';
-    }).join('');
+    var asTable = !!S.consoleTable;
+    var rows;
+    if(asTable && logs.length){
+      var maxCols=1, hasTag=false;
+      logs.forEach(function(l){ var n=(l.args&&l.args.length)||1; if(n>maxCols) maxCols=n; if(l.type!=='log') hasTag=true; });
+      rows='<table class="log-table">'+logs.map(function(l){
+        var c = l.type==='error'?'#f87171':l.type==='warn'?'#fbbf24':l.type==='info'?'#60a5fa':'var(--muted2)';
+        var tag = l.type==='log'?'':('<span class="tag" style="color:'+c+'">'+l.type+'</span>');
+        var args = (l.args&&l.args.length)?l.args:[l.text];
+        var cells='';
+        for(var i=0;i<maxCols;i++) cells+='<td>'+(i<args.length?esc(args[i]):'')+'</td>';
+        return '<tr style="color:'+c+'">'+(hasTag?'<td class="logtag">'+tag+'</td>':'')+cells+'</tr>';
+      }).join('')+'</table>';
+    } else {
+      rows = logs.map(function(l){
+        var c = l.type==='error'?'#f87171':l.type==='warn'?'#fbbf24':l.type==='info'?'#60a5fa':'var(--muted2)';
+        var tag = l.type==='log'?'':('<span class="tag" style="color:'+c+'">'+l.type+'</span>');
+        return '<div class="log" style="color:'+c+'">'+tag+esc(l.text)+'</div>';
+      }).join('');
+    }
     if(!logs.length) rows='<div style="padding:14px;color:var(--muted);font-size:12px;font-family:\'JetBrains Mono\',monospace">console output appears here…</div>';
     host.innerHTML='<div class="console" style="height:'+(S.consoleH||180)+'px">'
       + '<div class="resizer hz" id="console-resizer" title="Drag to resize"></div>'
       + '<div class="console-head">'
       + '<span style="font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)">Console</span>'
       + '<span class="badge'+(logs.length?'':' empty')+'">'+logs.length+'</span>'
+      + '<button class="smallbtn'+(asTable?' on':'')+'" id="table-console" title="Show each console.log argument in its own column">Table</button>'
       + '<div style="flex:1"></div>'
       + '<button class="smallbtn" id="clear-console">Clear</button>'
       + '<button class="iconbtn" style="width:26px;height:24px" id="close-console"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 6l12 12M18 6 6 18"></path></svg></button>'
       + '</div><div class="console-body">'+rows+'</div></div>';
+    host.querySelector('#table-console').addEventListener('click', function(){ S.consoleTable=!S.consoleTable; save(); renderConsole(); });
     host.querySelector('#clear-console').addEventListener('click', function(){ logs=[]; renderConsole(); });
     host.querySelector('#close-console').addEventListener('click', function(){ S.consoleOpen=false; save(); renderConsole(); syncConsoleBtn(); });
     host.querySelector('#console-resizer').addEventListener('mousedown', function(e){
