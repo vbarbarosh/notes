@@ -33,9 +33,9 @@ async function api_notes_upload_file({note_uid, file, onProgress})
     });
 }
 
-async function api_notes_files_list({note_uid})
+async function api_notes_files_list({note_uid, q, mime, limit, offset})
 {
-    return http_get_json(`/api/v1/notes/${encodeURIComponent(note_uid)}/files`);
+    return http_get_json(urlmod(`/api/v1/notes/${encodeURIComponent(note_uid)}/files`, {q, mime, limit, offset}));
 }
 
 async function api_notes_put_file({note_uid, path, file, onProgress})
@@ -80,9 +80,9 @@ function api_note_file_url(note_uid, path)
     return `/api/v1/notes/${encodeURIComponent(note_uid)}/files/${encoded_path}`;
 }
 
-async function api_jobs_list()
+async function api_jobs_list(filters)
 {
-    return http_get_json('/api/v1/jobs');
+    return http_get_json(urlmod('/api/v1/jobs', filters));
 }
 
 async function api_jobs_create({job_name, note_uid})

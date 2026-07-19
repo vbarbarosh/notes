@@ -28,7 +28,7 @@ const routes = [
     {req: 'POST /api/v1/jobs/:job_uid/confirm', fn: jobs_confirm},
 ];
 
-// GET /api/v1/jobs
+// GET /api/v1/jobs?status=xxx&bucket=xxx&job_name=xxx&note_uid=xxx&limit=xxx&offset=xxx
 async function jobs_list(req, res)
 {
     await ensure_jobs_dirs(req);
@@ -68,7 +68,50 @@ async function jobs_list(req, res)
     });
 
     items.sort((a, b) => fcmp_strings_ascii(b.created_at || b.uid, a.created_at || a.uid));
-    res.send({items});
+    res.send(list_response(filter_jobs(items, req.query), req.query));
+}
+
+function filter_jobs(items, query)
+{
+    const filters = {};
+
+    const status = make(query.status, {type: 'str'});
+    if (status) {
+        filters.status = status;
+        items = items.filter(item => item.status === status);
+    }
+
+    const bucket = make(query.bucket, {type: 'str'});
+    if (bucket) {
+        filters.bucket = bucket;
+        items = items.filter(item => item.bucket === bucket);
+    }
+
+    const job_name = make(query.job_name, {type: 'str'});
+    if (job_name) {
+        filters.job_name = job_name;
+        items = items.filter(item => item.job_name === job_name);
+    }
+
+    const note_uid = make(query.note_uid, {type: 'str'});
+    if (note_uid) {
+        filters.note_uid = note_uid;
+        items = items.filter(item => (item.note_uid || '').startsWith(note_uid));
+    }
+
+    return {items, filters};
+}
+
+function list_response({items, filters}, query)
+{
+    const limit = make(query.limit, {type: 'int', min: 0, default: 0});
+    const offset = make(query.offset, {type: 'int', min: 0, default: 0});
+    return {
+        items: items.slice(offset, limit ? offset + limit : items.length),
+        limit,
+        offset,
+        filters,
+    };
 }
 
 // GET /api/v1/jobs/events

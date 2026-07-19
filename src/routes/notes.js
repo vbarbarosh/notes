@@ -18,6 +18,7 @@ const fs_rmf = require('@vbarbarosh/node-helpers/src/fs_rmf');
 const fs_write = require('@vbarbarosh/node-helpers/src/fs_write');
 const fs_write_over_file = require('../helpers/fs_write_over_file');
 const fs_write_unique_file = require('../helpers/fs_write_unique_file');
+const make = require('@vbarbarosh/type-helpers');
 const multer = require('multer');
 const note_file_item = require('../helpers/note_file_item');
 
@@ -50,10 +51,42 @@ const routes = [
     {req: 'DELETE /api/v1/notes/:note_uid/files/*', fn: notes_remove_file},
 ];
 
-// GET /api/v1/notes
+// GET /api/v1/notes?q=xxx&uid=xxx&created_after=xxx&created_before=xxx&limit=xxx&offset=xxx
 async function notes_list(req, res)
 {
-    res.send(await cache_api_notes(req, null, () => read_notes_list(req)));
+    const out = await cache_api_notes(req, null, () => read_notes_list(req));
+    res.send(list_response(filter_notes(out.items, req.query), req.query));
+}
+
+function filter_notes(items, query)
+{
+    const filters = {};
+
+    const q = make(query.q, {type: 'str'}).toLowerCase();
+    if (q) {
+        filters.q = q;
+        items = items.filter(item => [item.uid, item.name, item.body].some(v => v.toLowerCase().includes(q)));
+    }
+
+    const uid = make(query.uid, {type: 'str'});
+    if (uid) {
+        filters.uid = uid;
+        items = items.filter(item => item.uid === uid);
+    }
+
+    const created_after = date_ms(query.created_after);
+    if (created_after !== null) {
+        filters.created_after = new Date(created_after).toJSON();
+        items = items.filter(item => date_ms(item.created_at) >= created_after);
+    }
+
+    const created_before = date_ms(query.created_before);
+    if (created_before !== null) {
+        filters.created_before = new Date(created_before).toJSON();
+        items = items.filter(item => date_ms(item.created_at) <= created_before);
+    }
+
+    return {items, filters};
 }
 
 async function read_notes_list(req)
@@ -76,12 +109,31 @@ async function notes_fetch(req, res)
     res.send(note);
 }
 
-// GET /api/v1/notes/:note_uid/files
+// GET /api/v1/notes/:note_uid/files?q=xxx&mime=xxx&limit=xxx&offset=xxx
 async function notes_files_list(req, res)
 {
     const note_root_name = await resolve_note_root_name(req, req.params.note_uid);
     const note = await cache_api_notes(req, note_root_name, () => read_note(req, note_root_name));
-    res.send({items: note.files});
+    res.send(list_response(filter_note_files(note.files, req.query), req.query));
+}
+
+function filter_note_files(items, query)
+{
+    const filters = {};
+
+    const q = make(query.q, {type: 'str'}).toLowerCase();
+    if (q) {
+        filters.q = q;
+        items = items.filter(item => item.path.toLowerCase().includes(q));
+    }
+
+    const mime = make(query.mime, {type: 'str'});
+    if (mime) {
+        filters.mime = mime;
+        items = items.filter(item => item.mime.startsWith(mime));
+    }
+
+    return {items, filters};
 }
 
 // GET|HEAD /api/v1/notes/:note_uid/files/*
@@ -395,6 +447,24 @@ function now_fs()
         now.getMinutes(),
         now.getSeconds()
     ].map(n => n.toString().padStart(2, '0')).join('').replace('xx', '_');
+}
+
+function list_response({items, filters}, query)
+{
+    const limit = make(query.limit, {type: 'int', min: 0, default: 0});
+    const offset = make(query.offset, {type: 'int', min: 0, default: 0});
+    return {
+        items: items.slice(offset, limit ? offset + limit : items.length),
+        limit,
+        offset,
+        filters,
+    };
+}
+
+function date_ms(value)
+{
+    const out = Date.parse(value);
+    return Number.isNaN(out) ? null : out;
 }
 
 function fcmp_strings_ascii(a, b)

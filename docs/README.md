@@ -2,10 +2,15 @@
 
 The server listens on port `3000` by default.
 
+List endpoints respond with `{items, limit, offset, filters}`. `limit` and
+`offset` are the applied values (`limit: 0` means unlimited), and `filters`
+contains the normalized filters that were actually applied — not the raw
+query input.
+
 ## Notes
 
 ```
-GET /api/v1/notes                       List notes
+GET /api/v1/notes                       List notes; optional ?q=, ?uid=, ?created_after=, ?created_before=, ?limit=, ?offset=
 GET /api/v1/notes/:note_uid             Get a note and its files
 POST /api/v1/notes {body}               Create a note
 PATCH /api/v1/notes/:note_uid {body}    Replace the note body
@@ -15,7 +20,7 @@ DELETE /api/v1/notes/:note_uid          Move a note to trash
 ## Files
 
 ```
-GET /api/v1/notes/:note_uid/files                  List files
+GET /api/v1/notes/:note_uid/files                  List files; optional ?q=, ?mime=, ?limit=, ?offset=
 POST /api/v1/notes/:note_uid/files {file}          Upload a multipart file; optional ?overwrite=1
 HEAD /api/v1/notes/:note_uid/files/*               Get file headers
 GET /api/v1/notes/:note_uid/files/*                Read a file
@@ -40,7 +45,7 @@ POST /api/v1/files/upload/:upload_id/assemble {note_uid, overwrite}
 ## Jobs
 
 ```
-GET /api/v1/jobs                            List active, finished, and failed jobs
+GET /api/v1/jobs                            List active, finished, and failed jobs; optional ?status=, ?bucket=, ?job_name=, ?note_uid=, ?limit=, ?offset=
 GET /api/v1/jobs/events                     Subscribe to job events using SSE
 POST /api/v1/jobs/:job_name {note_uid}      Start a job
 POST /api/v1/jobs/:job_uid/confirm          Confirm a finished or failed job
