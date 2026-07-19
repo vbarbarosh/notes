@@ -88,6 +88,7 @@ body {
     font-weight: 700;
     color: #3b4273;
     margin-bottom: 6px;
+    flex-wrap: wrap;
 }
 
 .note-date {
@@ -106,6 +107,84 @@ body {
     color: #8d94aa;
     font-size: 0.92rem;
     font-weight: 600;
+}
+
+.note-actions {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 4px;
+}
+
+.note-actions button {
+    padding: 2px 8px;
+    line-height: 1.4;
+}
+
+.note-actions-menu {
+    position: relative;
+}
+
+.note-actions-menu > button.active {
+    background: #b8c7ee;
+    color: #222c52;
+}
+
+.note-actions-dropdown {
+    position: absolute;
+    top: calc(100% + 6px);
+    right: 0;
+    z-index: 30;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 250px;
+    padding: 8px;
+    background: #fff;
+    border: 1px solid #c7cde2;
+    border-radius: 8px;
+    box-shadow: 0 6px 24px #23263426;
+    font-size: 0.9rem;
+    font-weight: 400;
+}
+
+.note-actions-dropdown input {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 5px 8px;
+    margin-bottom: 4px;
+    border: 1px solid #c7cde2;
+    border-radius: 6px;
+    font: inherit;
+    background: #f7f8fb;
+}
+
+.note-actions-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 5px 8px;
+    border-radius: 6px;
+    background: transparent;
+    color: #27336a;
+    font-size: inherit;
+    text-align: left;
+    text-decoration: none;
+    transition: background 0.14s, color 0.14s;
+}
+
+.note-actions-row:hover {
+    background: #e3e8f7;
+    color: #222c52;
+}
+
+.note-actions-row-icon {
+    flex: none;
+}
+
+.note-actions-empty {
+    padding: 5px 8px;
+    color: #8d94aa;
 }
 
 .filters-bar {

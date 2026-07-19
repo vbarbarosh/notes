@@ -38,55 +38,53 @@ app.component('note-card', {
             <h2 class="rel flex-row-center gap5">
                 <note-calendar v-bind:value="note.uid" v-bind:data-u="note.uid" class="abs w64 h64" style="top:-32px;left:-96px;" />
                 <a v-bind:href="note.prefix" class="note-date" title="Open this note">{{ format_note_uid_date(note.uid) }}</a>
-                <span v-if="note_header_has_buttons" class="note-header-separator">•</span>
+                <span v-if="note.name" class="note-header-separator">•</span>
                 <span v-if="note.name" class="note-name">{{ note.name }}</span>
-                <button
-                    v-if="note.youtube_items.length"
-                    v-on:click.stop="$emit('play-youtube', note, note.youtube_items[0])"
-                    class="note-play-button"
-                    title="Play YouTube">
-                    ▶️
-                </button>
-                <button
-                    v-if="note.youtube_items.length"
-                    v-on:click.stop="click_youtube_thumbnails"
-                    v-bind:disabled="!!note_active_job('youtube-thumbnails')"
-                    title="Extract YouTube thumbnails">
-                    🖼️
-                </button>
-                <button
-                    v-if="note.youtube_items.length"
-                    v-on:click.stop="click_youtube_mp3"
-                    v-bind:disabled="!!note_active_job('youtube-mp3')"
-                    title="Extract YouTube MP3">
-                    🎵
-                </button>
-                <button
-                    v-on:click.stop="click_terminal"
-                    title="Open a terminal in this note">
-                    🖥️
-                </button>
-                <a
-                    v-if="note_has_pdf"
-                    v-bind:href="'/pdf.html?note=' + note.uid"
-                    target="_blank"
-                    class="note-pdf-link">PDF</a>
-                <a
-                    v-bind:href="'/fs.html?note=' + note.uid"
-                    target="_blank"
-                    rel="noopener"
-                    title="Open Coding Sandbox"
-                    class="note-app-link">FS</a>
-                <a
-                    v-bind:href="'/api/v1/notes/' + note.uid"
-                    target="_blank"
-                    rel="noopener"
-                    title="Open raw note API response"
-                    class="note-app-link note-api-link">API</a>
-                <button v-on:click="click_h2_copy" class="mla">📋️</button>
-                <button v-on:click="click_h2_paste">📥</button>
-                <button v-on:click="$emit('edit', note)">✏️</button>
-                <button v-on:click="$emit('remove', note)">🗑️</button>
+                <div class="note-actions mla">
+                    <button
+                        v-for="action in note_tools"
+                        v-bind:key="action.key"
+                        v-on:click="action.run($event)"
+                        v-bind:title="action.title"
+                        type="button">{{ action.label }}</button>
+                    <div ref="actions_menu" class="note-actions-menu">
+                        <button
+                            v-on:click="click_actions_toggle"
+                            v-bind:class="{active: menu_open}"
+                            v-bind:title="(menu_open ? 'Close actions' : 'Note actions')"
+                            type="button">⋯</button>
+                        <div v-if="menu_open" class="note-actions-dropdown">
+                            <input
+                                v-autofocus
+                                v-model="action_query"
+                                v-on:keydown="keydown_action_query"
+                                type="search"
+                                placeholder="Search actions">
+                            <template v-for="action in matched_actions" v-bind:key="action.key">
+                                <a
+                                    v-if="action.href"
+                                    v-bind:href="action.href"
+                                    v-on:click="click_action_link"
+                                    class="note-actions-row"
+                                    target="_blank"
+                                    rel="noopener">
+                                    <span v-bind:class="['note-actions-row-icon', action.css]">{{ action.label }}</span>
+                                    {{ action.title }}
+                                </a>
+                                <button
+                                    v-else
+                                    v-on:click.stop="run_action(action, $event)"
+                                    v-bind:disabled="action.disabled"
+                                    class="note-actions-row"
+                                    type="button">
+                                    <span v-bind:class="['note-actions-row-icon', action.css]">{{ action.label }}</span>
+                                    {{ action.title }}
+                                </button>
+                            </template>
+                            <div v-if="!matched_actions.length" class="note-actions-empty">No matching actions</div>
+                        </div>
+                    </div>
+                </div>
             </h2>
 
             <div v-if="note_jobs.length" class="job-list">
@@ -246,6 +244,8 @@ app.component('note-card', {
             dropping: false,
             drag_depth: 0,
             file_query: '',
+            menu_open: false,
+            action_query: '',
         };
     },
     computed: {
@@ -255,9 +255,41 @@ app.component('note-card', {
         note_has_pdf: function () {
             return this.note.files.some(f => f.path.toLowerCase().endsWith('.pdf'));
         },
-        note_header_has_buttons: function () {
-            // The terminal button is always shown, so the header always has buttons.
-            return true;
+        // Contextual actions shown in the ⋯ header menu. To add an action,
+        // push a descriptor: {key, label, title} plus either {run} for a
+        // button (optionally {disabled, css}) or {href, css} for a link.
+        note_actions: function () {
+            const note = this.note;
+            const out = [];
+            if (note.youtube_items.length) {
+                out.push({key: 'youtube-play', label: '▶️', title: 'Play YouTube', css: 'note-play-button', run: () => this.$emit('play-youtube', note, note.youtube_items[0])});
+                out.push({key: 'youtube-thumbnails', label: '🖼️', title: 'Extract YouTube thumbnails', disabled: !!this.note_active_job('youtube-thumbnails'), run: this.click_youtube_thumbnails});
+                out.push({key: 'youtube-mp3', label: '🎵', title: 'Extract YouTube MP3', disabled: !!this.note_active_job('youtube-mp3'), run: this.click_youtube_mp3});
+            }
+            out.push({key: 'terminal', label: '🖥️', title: 'Open a terminal in this note', run: this.click_terminal});
+            if (this.note_has_pdf) {
+                out.push({key: 'pdf', label: 'PDF', title: 'Open PDF app', href: '/pdf.html?note=' + note.uid, css: 'note-pdf-link'});
+            }
+            out.push({key: 'fs', label: 'FS', title: 'Open Coding Sandbox', href: '/fs.html?note=' + note.uid, css: 'note-app-link'});
+            out.push({key: 'api', label: 'API', title: 'Open raw note API response', href: '/api/v1/notes/' + note.uid, css: 'note-app-link note-api-link'});
+            return out;
+        },
+        // Note-management tools pinned to the right edge of the header.
+        note_tools: function () {
+            const note = this.note;
+            const out = [];
+            out.push({key: 'copy', label: '📋️', title: 'Copy note body', run: this.click_h2_copy});
+            out.push({key: 'paste', label: '📥', title: 'Paste image from clipboard', run: this.click_h2_paste});
+            out.push({key: 'edit', label: '✏️', title: 'Edit note', run: () => this.$emit('edit', note)});
+            out.push({key: 'remove', label: '🗑️', title: 'Delete note', run: () => this.$emit('remove', note)});
+            return out;
+        },
+        matched_actions: function () {
+            const query = this.action_query.trim().toLowerCase();
+            if (!query) {
+                return this.note_actions;
+            }
+            return this.note_actions.filter(action => `${action.label} ${action.title}`.toLowerCase().includes(query));
         },
         filtered_note_files: function () {
             const query = this.file_query.trim().toLowerCase();
@@ -273,7 +305,23 @@ app.component('note-card', {
             return `${files.length}${filtered_count} file${files.length === 1 ? '' : 's'} · ${format_bytes(total_size)} total`;
         },
     },
+    mounted: function () {
+        document.addEventListener('mousedown', this.mousedown_document);
+    },
+    unmounted: function () {
+        document.removeEventListener('mousedown', this.mousedown_document);
+    },
     methods: {
+        mousedown_document: function (event) {
+            if (!this.menu_open) {
+                return;
+            }
+            if (this.$refs.actions_menu?.contains(event.target)) {
+                return;
+            }
+            this.menu_open = false;
+            this.action_query = '';
+        },
         note_active_job: function (job_name) {
             return this.note_jobs.find(job => job.job_name === job_name && job.bucket === 'active');
         },
@@ -369,6 +417,38 @@ app.component('note-card', {
                 await do_upload_file(note_uid, new File([blob], 'image.png'));
             }
             this.$emit('uploaded', this.note);
+        },
+        click_actions_toggle: function () {
+            this.menu_open = !this.menu_open;
+            this.action_query = '';
+        },
+        click_action_link: function () {
+            this.menu_open = false;
+            this.action_query = '';
+        },
+        keydown_action_query: function (event) {
+            if (event.key === 'Escape') {
+                this.menu_open = false;
+                this.action_query = '';
+                return;
+            }
+            if (event.key !== 'Enter') {
+                return;
+            }
+            const action = this.matched_actions[0];
+            if (!action || action.disabled) {
+                return;
+            }
+            this.run_action(action, event);
+        },
+        run_action: function (action, event) {
+            this.menu_open = false;
+            this.action_query = '';
+            if (action.href) {
+                window.open(action.href, '_blank');
+                return;
+            }
+            action.run(event);
         },
         click_terminal: async function () {
             const job = await api_jobs_create({job_name: 'terminal', note_uid: this.note.uid});
