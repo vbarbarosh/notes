@@ -5,6 +5,10 @@ A minimal note-taking app backed by the file system.
 Supports creating, editing, deleting, and listing notes.
 Each note is stored as a directory with associated files.
 
+## Demo
+
+https://github.com/user-attachments/assets/15b29105-69e5-49c8-892c-4da7226dec2d
+
 ## Authentication
 
 Natively supports [authwall](https://github.com/vbarbarosh/authwall) — a minimal login
@@ -16,5 +20,3 @@ The bundled `docker-compose.yaml` runs this setup out of the box:
 
     docker compose up
     # http://localhost:3000 — sign in via authwall (seed user foo, password foo)
-
-https://github.com/user-attachments/assets/15b29105-69e5-49c8-892c-4da7226dec2d
