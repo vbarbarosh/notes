@@ -16,3 +16,5 @@ The bundled `docker-compose.yaml` runs this setup out of the box:
 
     docker compose up
     # http://localhost:3000 — sign in via authwall (seed user foo, password foo)
+
+https://github.com/user-attachments/assets/15b29105-69e5-49c8-892c-4da7226dec2d
