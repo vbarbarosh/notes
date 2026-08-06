@@ -1,0 +1,87 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="800" viewBox="0 0 1600 800">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#0b0d10"/>
+      <stop offset="1" stop-color="#11151b"/>
+    </linearGradient>
+    <radialGradient id="glow">
+      <stop offset="0" stop-color="#3b82f6" stop-opacity="0.16"/>
+      <stop offset="1" stop-color="#3b82f6" stop-opacity="0"/>
+    </radialGradient>
+    <pattern id="dots" width="28" height="28" patternUnits="userSpaceOnUse">
+      <circle cx="2" cy="2" r="1.5" fill="#e7eaf0" opacity="0.05"/>
+    </pattern>
+  </defs>
+
+  <rect width="1600" height="800" fill="url(#bg)"/>
+  <rect width="1600" height="800" fill="url(#dots)"/>
+
+  
+      <g>
+        <!-- glow -->
+        <ellipse cx="290" cy="400" rx="300" ry="260" fill="url(#glow)"/>
+        <!-- back card -->
+        <g transform="rotate(-8 290 400)">
+          <rect x="150" y="245" width="250" height="310" rx="18"
+                fill="#131820" stroke="#232a34" stroke-width="2"/>
+        </g>
+        <!-- front card with folded top-right corner -->
+        <g transform="rotate(2 290 400)">
+          <path d="M 188 250
+                   L 356 250
+                   L 412 306
+                   L 412 532
+                   Q 412 550 394 550
+                   L 188 550
+                   Q 170 550 170 532
+                   L 170 268
+                   Q 170 250 188 250 Z"
+                fill="#1a1f27" stroke="#2a313b" stroke-width="2"/>
+          <!-- fold -->
+          <path d="M 356 250 L 412 306 L 356 306 Z" fill="#3b82f6"/>
+          <path d="M 356 250 L 356 306 L 412 306" fill="none" stroke="#2f6ad0" stroke-width="2" stroke-linejoin="round"/>
+          <!-- note title line (accent) -->
+          <rect x="200" y="288" width="104" height="16" rx="8" fill="#3b82f6"/>
+          <!-- note text lines -->
+          <rect x="200" y="332" width="176" height="13" rx="6.5" fill="#3a4351"/>
+          <rect x="200" y="364" width="148" height="13" rx="6.5" fill="#3a4351"/>
+          <rect x="200" y="396" width="164" height="13" rx="6.5" fill="#3a4351"/>
+          <rect x="200" y="428" width="118" height="13" rx="6.5" fill="#3a4351"/>
+          <!-- attachment thumbnail -->
+          <rect x="200" y="464" width="76" height="56" rx="8"
+                fill="none" stroke="#3a4351" stroke-width="2.5"/>
+          <path d="M 208 508 L 228 484 L 242 500 L 252 490 L 268 508 Z" fill="#3a4351"/>
+          <circle cx="255" cy="480" r="6" fill="#3b82f6"/>
+          <!-- authwall lock badge -->
+          <circle cx="400" cy="536" r="36" fill="#3b82f6" stroke="#11151b" stroke-width="5"/>
+          <path d="M 390 532 v -7 a 10 10 0 0 1 20 0 v 7" fill="none" stroke="#ffffff" stroke-width="5" stroke-linecap="round"/>
+          <rect x="385" y="531" width="30" height="23" rx="5" fill="#ffffff"/>
+        </g>
+      </g>
+
+  <text x="540" y="330" font-family="DejaVu Sans" font-weight="700" font-size="128" fill="#e7eaf0">Notes</text>
+  <text x="540" y="412" font-family="DejaVu Sans" font-size="31" fill="#9aa3b2">A minimal note-taking app backed by the file system.</text>
+
+  
+          <rect x="540" y="470" width="236" height="46" rx="23"
+                fill="#161b22" stroke="#2a313b" stroke-width="1.5"/>
+          <text x="658" y="500" text-anchor="middle"
+                font-family="DejaVu Sans" font-size="20" fill="#9aa3b2">file-system storage</text>
+          <rect x="794" y="470" width="206" height="46" rx="23"
+                fill="#161b22" stroke="#2a313b" stroke-width="1.5"/>
+          <text x="897" y="500" text-anchor="middle"
+                font-family="DejaVu Sans" font-size="20" fill="#9aa3b2">file attachments</text>
+          <rect x="1018" y="470" width="185" height="46" rx="23"
+                fill="#161b22" stroke="#2a313b" stroke-width="1.5"/>
+          <text x="1110.5" y="500" text-anchor="middle"
+                font-family="DejaVu Sans" font-size="20" fill="#9aa3b2">authwall login</text>
+          <rect x="1221" y="470" width="175" height="46" rx="23"
+                fill="#161b22" stroke="#2a313b" stroke-width="1.5"/>
+          <text x="1308.5" y="500" text-anchor="middle"
+                font-family="DejaVu Sans" font-size="20" fill="#9aa3b2">zero database</text>
+  
+      <rect x="540" y="548" width="274" height="48" rx="10"
+            fill="#132036" stroke="#1f3a63" stroke-width="1.5"/>
+      <text x="677" y="580" text-anchor="middle"
+            font-family="DejaVu Sans Mono" font-size="22" fill="#6ea8ff">@vbarbarosh/notes</text>
+</svg>
