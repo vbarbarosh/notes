@@ -14,6 +14,7 @@ app.component('note-card', {
         'activate',
         'deactivate',
         'toggle-tag',
+        'filter-links',
         'play-youtube',
         'open-terminal',
         'refresh-jobs',
@@ -117,6 +118,26 @@ app.component('note-card', {
                     v-bind:title="tag">
                     {{ tag }}
                 </button>
+            </div>
+
+            <div v-if="note_links.length" class="note-links">
+                <button
+                    type="button"
+                    v-on:click.stop="$emit('filter-links', note)"
+                    class="note-links-filter"
+                    title="Show only this note and the notes it is connected to">
+                    <i class="ti ti-link" aria-hidden="true"></i>
+                    Linked <span>{{ note_links.length }}</span>
+                </button>
+                <a
+                    v-for="link in note_links"
+                    v-bind:key="link.uid"
+                    v-bind:href="link.prefix"
+                    v-bind:class="['note-link', link.direction]"
+                    v-bind:title="link_title(link)">
+                    <i v-bind:class="['ti', link_icon_class(link)]" aria-hidden="true"></i>
+                    {{ link_label(link) }}
+                </a>
             </div>
 
             <div v-if="editing?.uid === note.uid" class="mb20">
@@ -252,6 +273,26 @@ app.component('note-card', {
         note_jobs: function () {
             return this.jobs.filter(job => job.note_uid === this.note.uid || String(job.note_uid || '').startsWith(this.note.uid + '-'));
         },
+        // Notes connected to this one, in both directions: `out` is a link written
+        // in this note, `in` is another note pointing here, `both` is a pair that
+        // links each other.
+        note_links: function () {
+            const out = [];
+            const index_by_uid = new Map();
+            (this.note.links || []).forEach(function (link) {
+                index_by_uid.set(link.uid, out.length);
+                out.push({...link, direction: 'out'});
+            });
+            (this.note.backlinks || []).forEach(function (link) {
+                const index = index_by_uid.get(link.uid);
+                if (index === undefined) {
+                    out.push({...link, direction: 'in'});
+                    return;
+                }
+                out[index] = {...out[index], direction: 'both'};
+            });
+            return out;
+        },
         note_has_pdf: function () {
             return this.note.files.some(f => f.path.toLowerCase().endsWith('.pdf'));
         },
@@ -350,6 +391,24 @@ app.component('note-card', {
             }
             const pad = value => String(value).padStart(2, '0');
             return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
+        },
+        link_label: function (link) {
+            return link.name || this.format_note_uid_date(link.uid);
+        },
+        link_title: function (link) {
+            const label = this.link_label(link);
+            return {
+                out: `This note links to ${label}`,
+                in: `${label} links to this note`,
+                both: `Linked both ways with ${label}`,
+            }[link.direction];
+        },
+        link_icon_class: function (link) {
+            return {
+                out: 'ti-arrow-narrow-right',
+                in: 'ti-arrow-narrow-left',
+                both: 'ti-arrows-left-right',
+            }[link.direction];
         },
         is_system_file: function (file) {
             return String(file.path || '').toLowerCase().startsWith('apps/');

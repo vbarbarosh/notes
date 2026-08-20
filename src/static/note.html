@@ -40,6 +40,7 @@ const app = Vue.createApp({
                 v-bind:hovered-file-path="mouseover_file_path"
                 v-bind:playing-youtube-id="youtube_player?.id"
                 v-on:toggle-tag="open_tag"
+                v-on:filter-links="open_links"
                 v-on:play-youtube="play_youtube"
                 v-on:open-terminal="open_terminal"
                 v-on:refresh-jobs="refresh_jobs"
@@ -91,15 +92,17 @@ const app = Vue.createApp({
     },
     methods: {
         refresh: async function () {
-            const note = await api_notes_fetch(NOTE_UID);
+            const [note, notes] = await Promise.all([api_notes_fetch(NOTE_UID), api_notes_list().then(v => v.items)]);
             const parsed = parse_note_tags(note.body);
             const youtube_items = extract_youtube_items(note.body);
-            this.note = {
+            const decorated = {
                 ...note,
                 display_tags: youtube_items.length ? Array.from(new Set([...parsed.tags, '#youtube'])) : parsed.tags,
                 display_body: parsed.display_body,
                 youtube_items,
             };
+            // Backlinks live in the other notes, so this page needs the whole list.
+            this.note = decorate_note_links([decorated, ...notes.filter(v => v.uid !== note.uid)])[0];
             this.ready = true;
         },
         refresh_jobs: async function () {
@@ -151,6 +154,10 @@ const app = Vue.createApp({
         },
         open_tag: function (tag) {
             localStorage.setItem(TAG_FILTER_STORAGE_KEY, JSON.stringify([tag]));
+            window.location.href = '/';
+        },
+        open_links: function (note) {
+            localStorage.setItem(LINK_FOCUS_STORAGE_KEY, note.uid);
             window.location.href = '/';
         },
         edit_note: async function (note) {

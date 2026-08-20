@@ -95,6 +95,15 @@ const app = Vue.createApp({
                     </div>
                 </div>
 
+                <button
+                    v-if="linked_notes_count"
+                    type="button"
+                    v-on:click="click_linked"
+                    v-bind:class="['filter-button', {active: links_only}]"
+                    title="Show only notes connected to another note">
+                    Linked <span>{{ linked_notes_count }}</span>
+                </button>
+
                 <input
                     v-model="note_query"
                     type="search"
@@ -130,6 +139,23 @@ const app = Vue.createApp({
                     v-on:click="toggle_exclude_tag(tag)"
                     v-bind:title="'Remove hidden tag ' + tag">
                     - {{ tag }}
+                </button>
+                <button
+                    v-if="links_only"
+                    type="button"
+                    class="active-filter include"
+                    v-on:click="click_linked"
+                    title="Show notes without links too">
+                    Linked
+                </button>
+                <button
+                    v-if="link_focus_note"
+                    type="button"
+                    class="active-filter include"
+                    v-on:click="filter_links(link_focus_note)"
+                    title="Show notes not connected to this one too">
+                    <i class="ti ti-link" aria-hidden="true"></i>
+                    {{ link_focus_note.name || link_focus_note.uid }}
                 </button>
                 <button
                     v-if="note_query.trim()"
@@ -170,6 +196,7 @@ const app = Vue.createApp({
                         v-on:activate="activate_note"
                         v-on:deactivate="deactivate_note"
                         v-on:toggle-tag="toggle_include_tag"
+                        v-on:filter-links="filter_links"
                         v-on:play-youtube="play_youtube"
                         v-on:open-terminal="open_terminal"
                         v-on:refresh-jobs="refresh_jobs"
@@ -224,6 +251,8 @@ const app = Vue.createApp({
             tag_query: '',
             tag_sort: 'count',
             note_query: '',
+            links_only: load_links_only(),
+            link_focus_uid: load_link_focus_uid(),
             youtube_player: null,
             jobs: [],
             jobs_loaded: false,
@@ -239,7 +268,7 @@ const app = Vue.createApp({
     },
     computed: {
         decorated_notes: function () {
-            return this.notes.map(note => {
+            return decorate_note_links(this.notes.map(note => {
                 const parsed = parse_note_tags(note.body);
                 const youtube_items = extract_youtube_items(note.body);
                 const system_tags = [];
@@ -255,7 +284,7 @@ const app = Vue.createApp({
                     display_body: parsed.display_body,
                     youtube_items,
                 };
-            });
+            }));
         },
         all_tags: function () {
             const counts = new Map();
@@ -279,9 +308,30 @@ const app = Vue.createApp({
                     return a.name.localeCompare(b.name);
                 });
         },
+        linked_notes_count: function () {
+            return this.decorated_notes.filter(note => note.links.length || note.backlinks.length).length;
+        },
+        link_focus_note: function () {
+            return this.decorated_notes.find(note => note.uid === this.link_focus_uid) || null;
+        },
+        // The focused note plus everything connected to it, in either direction.
+        link_focus_uids: function () {
+            const note = this.link_focus_note;
+            if (!note) {
+                return null;
+            }
+            return new Set([note.uid, ...note.links.map(v => v.uid), ...note.backlinks.map(v => v.uid)]);
+        },
         filtered_notes: function () {
             const query = this.note_query.trim().toLowerCase();
+            const link_focus_uids = this.link_focus_uids;
             return this.decorated_notes.filter(note => {
+                if (link_focus_uids && !link_focus_uids.has(note.uid)) {
+                    return false;
+                }
+                if (this.links_only && !note.links.length && !note.backlinks.length) {
+                    return false;
+                }
                 if (!this.selected_tags.every(tag => note.display_tags.includes(tag))) {
                     return false;
                 }
@@ -304,7 +354,7 @@ const app = Vue.createApp({
             return !!(this.selected_tags.length || this.excluded_tags.length);
         },
         has_any_filter: function () {
-            return !!(this.has_tag_filter || this.note_query.trim());
+            return !!(this.has_tag_filter || this.links_only || this.link_focus_uid || this.note_query.trim());
         },
         media_tracks: function () {
             return this.notes.flatMap(note => {
@@ -337,6 +387,8 @@ const app = Vue.createApp({
         },
         filter_label: function () {
             return [
+                ...(this.links_only ? ['with links'] : []),
+                ...(this.link_focus_note ? [`connected to ${this.link_focus_note.name || this.link_focus_note.uid}`] : []),
                 ...this.selected_tags,
                 ...this.excluded_tags.map(tag => `without ${tag}`),
                 ...(this.note_query.trim() ? [`matching "${this.note_query.trim()}"`] : []),
@@ -355,6 +407,16 @@ const app = Vue.createApp({
             handler: function () {
                 localStorage.setItem(TAG_EXCLUDE_STORAGE_KEY, JSON.stringify(this.excluded_tags));
             },
+        },
+        links_only: function () {
+            localStorage.setItem(LINKS_ONLY_STORAGE_KEY, this.links_only ? '1' : '0');
+        },
+        link_focus_uid: function () {
+            if (this.link_focus_uid) {
+                localStorage.setItem(LINK_FOCUS_STORAGE_KEY, this.link_focus_uid);
+                return;
+            }
+            localStorage.removeItem(LINK_FOCUS_STORAGE_KEY);
         },
     },
     methods: {
@@ -447,6 +509,7 @@ const app = Vue.createApp({
             const notes = await api_notes_list().then(v => v.items);
             this.notes = this.merge_notes_from_backend(notes);
             this.prune_selected_tags();
+            this.prune_link_focus();
             this.load_all_hearts();
         },
         merge_notes_from_backend: function (notes) {
@@ -605,7 +668,20 @@ const app = Vue.createApp({
         clear_filters: function () {
             this.selected_tags = [];
             this.excluded_tags = [];
+            this.links_only = false;
+            this.link_focus_uid = null;
             this.note_query = '';
+        },
+        click_linked: function () {
+            this.links_only = !this.links_only;
+        },
+        filter_links: function (note) {
+            this.link_focus_uid = this.link_focus_uid === note.uid ? null : note.uid;
+        },
+        prune_link_focus: function () {
+            if (this.link_focus_uid && !this.notes.some(note => note.uid === this.link_focus_uid)) {
+                this.link_focus_uid = null;
+            }
         },
         toggle_tag_sort: function () {
             this.tag_sort = this.tag_sort === 'count' ? 'name' : 'count';

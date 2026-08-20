@@ -188,8 +188,8 @@ body {
 }
 
 .filters-bar {
-    display: grid;
-    grid-template-columns: auto minmax(140px, 1fr) auto auto;
+    display: flex;
+    flex-wrap: wrap;
     gap: 8px;
     align-items: center;
     margin: -16px auto 12px;
@@ -207,6 +207,8 @@ body {
 .tag-name,
 .tag-state,
 .note-tag,
+.note-link,
+.note-links-filter,
 .active-filter {
     display: inline-flex;
     align-items: center;
@@ -274,6 +276,8 @@ body {
 .tag-name:hover,
 .tag-state:hover,
 .note-tag:hover,
+.note-link:hover,
+.note-links-filter:hover,
 .active-filter:hover {
     background: #edf3ff;
     border-color: #91a6e6;
@@ -299,7 +303,13 @@ body {
     background: #fff;
 }
 
+.filters-bar .note-search {
+    flex: 1 1 140px;
+    width: auto;
+}
+
 .filter-count {
+    margin-left: auto;
     color: #636b8f;
     font-size: 0.88rem;
     font-weight: 650;
@@ -380,6 +390,7 @@ body {
 }
 
 .active-filter {
+    gap: 6px;
     min-height: 28px;
     border-radius: 999px;
     padding: 4px 10px;
@@ -404,6 +415,49 @@ body {
     border-radius: 999px;
     padding: 4px 9px;
     font-size: 0.84rem;
+}
+
+.note-links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 7px;
+    margin: 10px 0 12px;
+}
+
+.note-link,
+.note-links-filter {
+    gap: 6px;
+    max-width: 100%;
+    border-radius: 999px;
+    padding: 4px 9px;
+    font-size: 0.84rem;
+    text-decoration: none;
+}
+
+.note-links-filter {
+    background: #31416f;
+    border-color: #31416f;
+    color: #fff;
+}
+
+.note-links-filter span {
+    min-width: 18px;
+    padding: 1px 6px;
+    border-radius: 999px;
+    background: #f2f5ff;
+    color: #31416f;
+    font-size: 0.78rem;
+    text-align: center;
+}
+
+.note-link.in {
+    background: #eef2fb;
+    border-color: #b3c0e6;
+    color: #465097;
+}
+
+.note-link.both {
+    border-color: #7f8fc8;
 }
 
 .note-play-button {

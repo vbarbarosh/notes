@@ -624,6 +624,62 @@ function load_tag_list(key)
     }
 }
 
+const LINKS_ONLY_STORAGE_KEY = 'notes.links_only';
+const LINK_FOCUS_STORAGE_KEY = 'notes.link_focus_uid';
+// A note links to another note when its body mentions that note page url:
+// https://notes.vbarbarosh.com/r/20260803_205301/ or a bare /r/20260803_205301.
+const NOTE_LINK_PATTERN = /(?:https?:\/\/[^\s<>"'`/]+)?\/r\/\d{8}_\d{6}/g;
+const NOTE_UID_PATTERN = /\d{8}_\d{6}/;
+
+function extract_note_link_uids(body)
+{
+    const matches = String(body || '').match(NOTE_LINK_PATTERN) || [];
+    return Array.from(new Set(matches.map(v => v.match(NOTE_UID_PATTERN)[0])));
+}
+
+/**
+ * Connect notes both ways: `links` are the notes this one points at, `backlinks`
+ * are the notes pointing back at it. Computed in the browser over the whole list
+ * because a backlink of one note changes when another note is edited.
+ */
+function decorate_note_links(notes)
+{
+    const notes_by_uid = new Map(notes.map(note => [note.uid, note]));
+    const links_by_uid = new Map();
+    const backlinks_by_uid = new Map();
+
+    notes.forEach(function (note) {
+        const uids = extract_note_link_uids(note.body).filter(uid => uid !== note.uid && notes_by_uid.has(uid));
+        links_by_uid.set(note.uid, uids);
+        uids.forEach(function (uid) {
+            backlinks_by_uid.set(uid, [...(backlinks_by_uid.get(uid) || []), note.uid]);
+        });
+    });
+
+    return notes.map(function (note) {
+        return {
+            ...note,
+            links: (links_by_uid.get(note.uid) || []).map(uid => note_link_item(notes_by_uid.get(uid))),
+            backlinks: (backlinks_by_uid.get(note.uid) || []).map(uid => note_link_item(notes_by_uid.get(uid))),
+        };
+    });
+}
+
+function note_link_item(note)
+{
+    return {uid: note.uid, name: note.name, prefix: note.prefix};
+}
+
+function load_links_only()
+{
+    return localStorage.getItem(LINKS_ONLY_STORAGE_KEY) === '1';
+}
+
+function load_link_focus_uid()
+{
+    return localStorage.getItem(LINK_FOCUS_STORAGE_KEY) || null;
+}
+
 function extract_youtube_items(body)
 {
     const urls = String(body || '').match(URL_PATTERN) || [];
