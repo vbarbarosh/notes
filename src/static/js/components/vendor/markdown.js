@@ -2,8 +2,12 @@
 app.component('markdown', {
     emits: [],
     props: ['value', 'prefix'],
+    // Rendered markdown is inserted as sanitized, inert HTML via v-html. It must
+    // NOT be compiled as a Vue template (the previous approach): compiling user
+    // content executes Vue interpolation and directives, and markdown-it's
+    // html:true passes raw tags/handlers through — both are arbitrary script.
     template: `
-        <div class="markdown"><component ref="component" v-bind:is="spec" v-bind:key="html" /></div>
+        <div class="markdown" v-html="safe_html"></div>
     `,
     data: function () {
         const md = Vue.markRaw(markdownit({
@@ -43,30 +47,23 @@ app.component('markdown', {
 
         return {
             md,
-            spec: null,
         };
     },
     computed: {
-        html: function () {
-            return this.md.render(this.value, {prefix: this.prefix || ''});
+        safe_html: function () {
+            const raw = this.md.render(this.value || '', {prefix: this.prefix || ''});
+            const purifier = window.DOMPurify;
+            // Fail closed: if the sanitizer has not loaded, never inject raw
+            // markup — degrade to escaped plain text instead.
+            if (!purifier || typeof purifier.sanitize !== 'function') {
+                return escape_html(this.value || '');
+            }
+            return purifier.sanitize(raw, {
+                ADD_ATTR: ['target', 'loading', 'decoding'],
+                FORBID_TAGS: ['style', 'form'],
+                FORBID_ATTR: ['srcset'],
+            });
         },
-    },
-    watch: {
-        html: {
-            immediate: true,
-            handler: function () {
-                this.spec = Vue.markRaw({template: this.html || '<span></span>', data: () => this.data ?? {}});
-                if (this.$refs.component) {
-                    this.$refs.component.$forceUpdate();
-                }
-            },
-        },
-    },
-    methods: {
-    },
-    mounted: function () {
-    },
-    unmounted: function () {
     },
 });
 
@@ -109,6 +106,7 @@ function escape_html(value)
 }
 
 html`
+    <script src="https://cdn.jsdelivr.net/npm/dompurify@3.2.4/dist/purify.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/markdown-it@14.1.0/dist/markdown-it.min.js"></script>
     <link href="https://cdn.jsdelivr.net/npm/@highlightjs/cdn-assets@11.11.1/styles/github-dark.min.css" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/@highlightjs/cdn-assets@11.11.1/highlight.min.js"></script>

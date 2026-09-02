@@ -18,6 +18,12 @@ const {WebSocketServer, WebSocket} = require('ws');
 
 const TERMINAL_SCROLLBACK_MAX = 256 * 1024;
 
+// The terminal job hands the caller an interactive shell inside the container.
+// It is disabled unless the request is authenticated (carries X-Auth-User), so
+// an app reachable without the authwall proxy can not spawn an anonymous shell.
+// Set TERMINAL_ENABLED=false to turn the feature off entirely.
+const TERMINAL_ENABLED = process.env.TERMINAL_ENABLED !== 'false' && process.env.TERMINAL_ENABLED !== '0';
+
 const jobs_events = new Map();
 const terminal_sessions = new Map();
 let shutdown_hooks_bound = false;
@@ -366,6 +372,15 @@ function spawn_job_process({job_root, run_file, note_root, status})
 // `attach_ws`), so the session has to be tracked in memory.
 async function jobs_create_terminal(req, res, note_root_name, note_root)
 {
+    if (!TERMINAL_ENABLED) {
+        res.status(403).send('Terminal is disabled');
+        return;
+    }
+    if (!req.user_uid) {
+        res.status(403).send('Terminal requires an authenticated user');
+        return;
+    }
+
     bind_shutdown_hooks();
     await ensure_jobs_dirs(req);
 
@@ -407,7 +422,7 @@ function spawn_terminal_session({job_root, note_root, status})
         cols: 80,
         rows: 24,
         cwd: note_root,
-        env: {...process.env, TERM: 'xterm-256color'},
+        env: terminal_env(shell),
     });
 
     const session = {
@@ -623,6 +638,20 @@ function resolve_ws_user(req)
 function session_key(user_uid, uid)
 {
     return `${user_uid || ''}::${uid}`;
+}
+
+// Minimal environment for the interactive shell. The full process environment
+// is deliberately NOT forwarded: a user typing `env` would otherwise read every
+// secret the server holds (e.g. TRUSTED_PROXY_SECRET).
+function terminal_env(shell)
+{
+    const out = {TERM: 'xterm-256color', SHELL: shell};
+    for (const key of ['PATH', 'HOME', 'USER', 'LOGNAME', 'LANG', 'LC_ALL', 'LC_CTYPE', 'TZ']) {
+        if (process.env[key] != null) {
+            out[key] = process.env[key];
+        }
+    }
+    return out;
 }
 
 // Constant-time comparison of the tty session token supplied on the WebSocket
