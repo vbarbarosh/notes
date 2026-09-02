@@ -1157,7 +1157,15 @@ function connect_terminal(job)
 {
   close_terminal();
   const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
-  const socket = new WebSocket(`${protocol}//${location.host}/api/v1/jobs/${encodeURIComponent(job.uid)}/tty`);
+  const params = new URLSearchParams();
+  if (job.user_uid) {
+    params.set('user', job.user_uid);
+  }
+  if (job.tty_token) {
+    params.set('token', job.tty_token);
+  }
+  const query = params.toString();
+  const socket = new WebSocket(`${protocol}//${location.host}/api/v1/jobs/${encodeURIComponent(job.uid)}/tty${query ? `?${query}` : ''}`);
   state.socket = socket;
   els.terminal_box.classList.remove('hidden');
   els.terminal_title.textContent = `${job.uid} · connecting`;

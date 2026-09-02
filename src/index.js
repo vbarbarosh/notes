@@ -2,6 +2,7 @@
 
 const UserFriendlyError = require('@vbarbarosh/node-helpers/src/errors/UserFriendlyError');
 const body_parser = require('body-parser');
+const crypto = require('crypto');
 const cli = require('@vbarbarosh/node-helpers/src/cli');
 const express = require('express');
 const express_log = require('@vbarbarosh/express-helpers/src/express_log');
@@ -14,6 +15,7 @@ const fs_mkdirp = require('@vbarbarosh/node-helpers/src/fs_mkdirp');
 const fs_path_dirname = require('@vbarbarosh/node-helpers/src/fs_path_dirname');
 const fs_path_resolve = require('@vbarbarosh/node-helpers/src/fs_path_resolve');
 const fs_path_safe_resolve = require('./helpers/fs_path_safe_resolve');
+const harden_download_headers = require('./helpers/harden_download_headers');
 const make = require('@vbarbarosh/type-helpers');
 const sharp = require('sharp');
 
@@ -35,8 +37,27 @@ async function main()
     app.use(body_parser.json());
 
     const data_dir = fs_path_resolve(__dirname, '../data');
+
+    // The current user is read from the `X-Auth-User` header injected by the
+    // authwall reverse proxy. When TRUSTED_PROXY_SECRET is set, the app only
+    // honors that header on requests that also carry a matching `X-Auth-Secret`,
+    // proving the request came from the proxy rather than from a client that
+    // reached the app port directly and spoofed an identity. Configure the same
+    // value on the proxy so it forwards the secret.
+    const proxy_secret = process.env.TRUSTED_PROXY_SECRET || null;
+    if (!proxy_secret) {
+        console.warn('[auth] TRUSTED_PROXY_SECRET is not set — X-Auth-User is trusted unconditionally. Do not expose this app without a proxy that controls that header.');
+    }
+
     app.use(function (req, res, next) {
-        req.user_uid = req.headers['x-auth-user'] ?? null;
+        const claimed_user = req.headers['x-auth-user'] ?? null;
+
+        if (proxy_secret && claimed_user && !secret_ok(req.headers['x-auth-secret'], proxy_secret)) {
+            res.status(403).send('Forbidden: untrusted X-Auth-User');
+            return;
+        }
+
+        req.user_uid = claimed_user;
 
         if (!req.user_uid) {
             req.user_dir = data_dir;
@@ -74,6 +95,15 @@ async function main()
 async function echo(req, res)
 {
     res.status(200).send(express_params(req));
+}
+
+// Constant-time comparison of the proxy secret forwarded on a request against
+// the configured TRUSTED_PROXY_SECRET.
+function secret_ok(provided, expected)
+{
+    const a = Buffer.from(String(provided ?? ''));
+    const b = Buffer.from(String(expected));
+    return a.length > 0 && a.length === b.length && crypto.timingSafeEqual(a, b);
 }
 
 function x_perf(req, res, next)
@@ -131,6 +161,7 @@ async function data_fetch(req, res)
     }
 
     try {
+        harden_download_headers(res, full);
         await new Promise(function (resolve, reject) {
             res.sendFile(full, error => error ? reject(error) : resolve());
         });
@@ -199,6 +230,7 @@ async function thumbnail(req, res)
 
     const source_file = `${req.user_dir}/notes/${meta.source.relative}`;
     if (meta.mime === 'image/svg+xml') {
+        harden_download_headers(res, source_file);
         res.type(meta.mime).sendFile(source_file);
         return;
     }

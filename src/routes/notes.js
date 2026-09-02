@@ -18,6 +18,7 @@ const fs_rmf = require('@vbarbarosh/node-helpers/src/fs_rmf');
 const fs_write = require('@vbarbarosh/node-helpers/src/fs_write');
 const fs_write_over_file = require('../helpers/fs_write_over_file');
 const fs_write_unique_file = require('../helpers/fs_write_unique_file');
+const harden_download_headers = require('../helpers/harden_download_headers');
 const make = require('@vbarbarosh/type-helpers');
 const multer = require('multer');
 const note_file_item = require('../helpers/note_file_item');
@@ -145,6 +146,7 @@ async function notes_file_fetch(req, res)
         return;
     }
 
+    harden_download_headers(res, target.file_path);
     res.sendFile(target.file_path);
 }
 

@@ -1,6 +1,7 @@
 const Promise = require('bluebird');
 const cache_api_notes_invalidate = require('../helpers/cache_api_notes_invalidate');
 const child_process = require('child_process');
+const crypto = require('crypto');
 const fs = require('fs');
 const fs_exists = require('@vbarbarosh/node-helpers/src/fs_exists');
 const fs_mkdirp = require('@vbarbarosh/node-helpers/src/fs_mkdirp');
@@ -380,6 +381,11 @@ async function jobs_create_terminal(req, res, note_root_name, note_root)
         job_kind: 'terminal',
         status: 'queued',
         user_friendly_status: 'Starting terminal',
+        // Unguessable per-session secret. The browser WebSocket API can not set
+        // headers, so the tty upgrade is authorized by this token rather than by
+        // the (non-secret, guessable) user_uid + job uid pair. Only the owner
+        // receives it (via this create response and their own job list).
+        tty_token: crypto.randomBytes(32).toString('hex'),
         created_at: now,
         started_at: null,
         finished_at: null,
@@ -407,6 +413,7 @@ function spawn_terminal_session({job_root, note_root, status})
     const session = {
         uid: status.uid,
         user_uid: status.user_uid,
+        tty_token: status.tty_token,
         job_root,
         pty,
         sockets: new Set(),
@@ -495,16 +502,16 @@ function attach_ws(server)
     const wss = new WebSocketServer({noServer: true});
 
     server.on('upgrade', function (req, socket, head) {
-        let pathname;
+        let url;
         try {
-            pathname = new URL(req.url, 'http://localhost').pathname;
+            url = new URL(req.url, 'http://localhost');
         }
         catch (error) {
             socket.destroy();
             return;
         }
 
-        const match = pathname.match(/^\/api\/v1\/jobs\/([^/]+)\/tty$/);
+        const match = url.pathname.match(/^\/api\/v1\/jobs\/([^/]+)\/tty$/);
         if (!match) {
             socket.destroy();
             return;
@@ -524,6 +531,13 @@ function attach_ws(server)
 
         const session = terminal_sessions.get(session_key(user_uid, uid));
         if (!session || session.finished) {
+            socket.destroy();
+            return;
+        }
+
+        // Authorize by the per-session secret. Without it, knowing the (public)
+        // user_uid and job uid would be enough to attach to someone's shell.
+        if (!ws_token_ok(session, url.searchParams.get('token'))) {
             socket.destroy();
             return;
         }
@@ -609,6 +623,17 @@ function resolve_ws_user(req)
 function session_key(user_uid, uid)
 {
     return `${user_uid || ''}::${uid}`;
+}
+
+// Constant-time comparison of the tty session token supplied on the WebSocket
+// upgrade against the one minted when the terminal was created.
+function ws_token_ok(session, token)
+{
+    const expected = Buffer.from(String(session.tty_token || ''));
+    const actual = Buffer.from(String(token || ''));
+    return expected.length > 0
+        && expected.length === actual.length
+        && crypto.timingSafeEqual(expected, actual);
 }
 
 async function finish_job_process(job_root, code, signal)

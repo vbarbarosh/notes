@@ -109,6 +109,9 @@ app.component('terminal-panel', {
             if (this.job.user_uid) {
                 params.set('user', this.job.user_uid);
             }
+            if (this.job.tty_token) {
+                params.set('token', this.job.tty_token);
+            }
             const query = params.toString();
             const url = `${proto}://${location.host}/api/v1/jobs/${encodeURIComponent(this.job.uid)}/tty${query ? `?${query}` : ''}`;
             const ws = new WebSocket(url);
