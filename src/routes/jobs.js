@@ -24,6 +24,10 @@ const TERMINAL_SCROLLBACK_MAX = 256 * 1024;
 // Set TERMINAL_ENABLED=false to turn the feature off entirely.
 const TERMINAL_ENABLED = process.env.TERMINAL_ENABLED !== 'false' && process.env.TERMINAL_ENABLED !== '0';
 
+// Cap concurrent live shells per user so a caller can not exhaust container
+// memory/PIDs by opening terminals without bound.
+const MAX_TERMINALS_PER_USER = Math.max(1, Number(process.env.MAX_TERMINALS_PER_USER) || 5);
+
 const jobs_events = new Map();
 const terminal_sessions = new Map();
 let shutdown_hooks_bound = false;
@@ -380,6 +384,10 @@ async function jobs_create_terminal(req, res, note_root_name, note_root)
         res.status(403).send('Terminal requires an authenticated user');
         return;
     }
+    if (count_live_terminals(req.user_uid) >= MAX_TERMINALS_PER_USER) {
+        res.status(429).send('Too many active terminal sessions');
+        return;
+    }
 
     bind_shutdown_hooks();
     await ensure_jobs_dirs(req);
@@ -640,6 +648,17 @@ function session_key(user_uid, uid)
     return `${user_uid || ''}::${uid}`;
 }
 
+function count_live_terminals(user_uid)
+{
+    let count = 0;
+    for (const session of terminal_sessions.values()) {
+        if (session.user_uid === user_uid && !session.finished) {
+            count++;
+        }
+    }
+    return count;
+}
+
 // Minimal environment for the interactive shell. The full process environment
 // is deliberately NOT forwarded: a user typing `env` would otherwise read every
 // secret the server holds (e.g. TRUSTED_PROXY_SECRET).
@@ -718,7 +737,9 @@ async function resolve_note_root_name(req, note_uid)
 {
     const d = `${req.user_dir}/notes`;
     const names = await fs_readdir(d);
-    const out = names.find(name => name.startsWith(note_uid));
+    // Match the exact note dir name, or the `<uid>-<name>` form of the same uid.
+    // A bare prefix must not resolve to a different, longer uid (finding S11).
+    const out = names.find(name => name === note_uid || name.startsWith(`${note_uid}-`));
     if (out) {
         return out;
     }

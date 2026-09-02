@@ -3,6 +3,7 @@
 const UserFriendlyError = require('@vbarbarosh/node-helpers/src/errors/UserFriendlyError');
 const body_parser = require('body-parser');
 const crypto = require('crypto');
+const fs = require('fs');
 const cli = require('@vbarbarosh/node-helpers/src/cli');
 const express = require('express');
 const express_log = require('@vbarbarosh/express-helpers/src/express_log');
@@ -29,9 +30,13 @@ async function main()
 
     const app = express();
 
+    app.use(security_headers);
     app.use(x_perf);
+    const log_file = () => `${__dirname}/../data/logs/http-${new Date().toJSON().substring(0, 10)}.log`;
     app.use(express_log({
-        file: () => `${__dirname}/../data/logs/http-${new Date().toJSON().substring(0, 10)}.log`,
+        file: log_file,
+        // Redact credentials from the request-header dump before it is written.
+        append: message => fs.promises.appendFile(log_file(), `[${new Date().toJSON()}]${redact_log(message)}\n`),
     }));
     app.use(express.static(fs_path_resolve(__dirname, 'static')));
     app.use(body_parser.json());
@@ -95,6 +100,50 @@ async function main()
 async function echo(req, res)
 {
     res.status(200).send(express_params(req));
+}
+
+// Baseline security headers on every response (including static assets). The
+// script/style sources are a superset of what the SPA and bundled mini-apps
+// already load, so this does not break them; the value is object-src/base-uri/
+// form-action/frame-ancestors (clickjacking, base-tag and form-exfil defense)
+// plus nosniff and a restrictive referrer policy. A tighter script-src would
+// require dropping runtime Vue template compilation (vue.global + inline).
+const CSP = [
+    "default-src 'self'",
+    "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://unpkg.com https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://esm.sh",
+    "style-src 'self' 'unsafe-inline' https:",
+    "img-src * data: blob:",
+    "media-src 'self' https: blob:",
+    "font-src 'self' https: data:",
+    "connect-src 'self' ws: wss:",
+    "frame-src 'self' https: blob:",
+    "worker-src 'self' blob:",
+    "object-src 'none'",
+    "base-uri 'self'",
+    "form-action 'self'",
+    "frame-ancestors 'self'",
+].join('; ');
+
+function security_headers(req, res, next)
+{
+    res.set('Content-Security-Policy', CSP);
+    res.set('X-Content-Type-Options', 'nosniff');
+    res.set('X-Frame-Options', 'SAMEORIGIN');
+    res.set('Referrer-Policy', 'no-referrer');
+    res.set('Cross-Origin-Opener-Policy', 'same-origin');
+    res.set('Permissions-Policy', 'geolocation=(), microphone=(), camera=()');
+    next();
+}
+
+// Removes credentials from a formatted log line before it is persisted. The
+// request-header dump is JSON, so cookie/authorization/proxy-secret values are
+// quoted strings; the identity (x-auth-user) is kept as a non-secret audit key.
+function redact_log(message)
+{
+    return String(message).replace(
+        /("(?:cookie|set-cookie|authorization|proxy-authorization|x-auth-secret)":\s*")(?:[^"\\]|\\.)*(")/gi,
+        '$1[redacted]$2',
+    );
 }
 
 // Constant-time comparison of the proxy secret forwarded on a request against

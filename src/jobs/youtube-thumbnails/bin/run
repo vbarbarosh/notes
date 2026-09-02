@@ -140,13 +140,45 @@ function clean_youtube_id(value)
     return /^[A-Za-z0-9_-]{6,}$/.test(id) ? id : null;
 }
 
-function download(url, file)
+// Redirect targets are re-validated against this allowlist so a redirect can
+// not turn the fixed YouTube thumbnail URL into a request to an arbitrary host
+// (finding S10).
+const ALLOWED_THUMBNAIL_HOSTS = /(^|\.)(youtube\.com|ytimg\.com|googleusercontent\.com|ggpht\.com|googlevideo\.com)$/i;
+
+function is_allowed_thumbnail_url(url)
+{
+    try {
+        const parsed = new URL(url);
+        return parsed.protocol === 'https:' && ALLOWED_THUMBNAIL_HOSTS.test(parsed.hostname);
+    }
+    catch (error) {
+        return false;
+    }
+}
+
+function download(url, file, redirects_left = 5)
 {
     return new Promise(function (resolve, reject) {
+        if (!is_allowed_thumbnail_url(url)) {
+            reject(new Error(`Refusing to download from a disallowed host: ${url}`));
+            return;
+        }
         const req = https.get(url, function (res) {
             if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
                 res.resume();
-                download(res.headers.location, file).then(resolve, reject);
+                if (redirects_left <= 0) {
+                    reject(new Error('Too many redirects'));
+                    return;
+                }
+                let next;
+                try {
+                    next = new URL(res.headers.location, url).toString();
+                }
+                catch (error) {
+                    reject(new Error(`Invalid redirect location: ${res.headers.location}`));
+                    return;
+                }
+                download(next, file, redirects_left - 1).then(resolve, reject);
                 return;
             }
 

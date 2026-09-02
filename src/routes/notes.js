@@ -372,7 +372,9 @@ async function resolve_note_root_name(req, note_uid)
 {
     const d = `${req.user_dir}/notes`;
     const names = await fs_readdir(d);
-    const out = names.find(name => name.startsWith(note_uid));
+    // Match the exact note dir name, or the `<uid>-<name>` form of the same uid.
+    // A bare prefix must not resolve to a different, longer uid (finding S11).
+    const out = names.find(name => name === note_uid || name.startsWith(`${note_uid}-`));
     if (out) {
         return out;
     }
