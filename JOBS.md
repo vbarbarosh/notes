@@ -284,18 +284,12 @@ Job name: `youtube-video`. Handler: `src/jobs/youtube-video/bin/run`.
 
 Uses the shared YouTube downloader with the same note-link extraction, temporary
 storage, and output-file idempotency as `youtube-mp3`. Downloads video and audio,
-merges/remuxes them into MP4 with ffmpeg, and saves
-`files/youtube/<video_id>.mp4`. The note menu and API demo expose this action.
-
-## YouTube Video (max quality)
-
-Job name: `youtube-video-max`. Handler: `src/jobs/youtube-video-max/bin/run`.
-
-Same downloader and idempotency as `youtube-video`, but selects the best
-available video and audio with no codec or container preference and merges them
-into a single Matroska file, `files/youtube/<video_id>.mkv`. This typically means
-AV1 video with Opus audio, which mp4 does not carry well and browsers usually
-cannot play inline. Prefer `youtube-video` for in-app playback.
+merges them into one file with ffmpeg. No codec preference is applied, so this
+is the best quality YouTube offers — normally AV1 plus Opus, saved as
+`files/youtube/<video_id>.webm`. The container is yt-dlp's choice: the job asks
+for WebM and stores the file under the extension yt-dlp actually produced, and
+looks existing downloads up by video id rather than by extension. The note menu
+and API demo expose this action.
 
 All media jobs write per-video results to `output.json`, keep successful
 attachments after partial failures, and exit unsuccessfully if any video fails.

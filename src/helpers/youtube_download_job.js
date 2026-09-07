@@ -69,9 +69,6 @@ async function main(format)
     try {
         for (let i = 0; i < ids.length; ++i) {
             const id = ids[i];
-            const rel = `files/youtube/${id}.${format}`;
-            const final_file = path.resolve(files_root, `${id}.${format}`);
-            const tmp_file = path.resolve(tmp_root, `${id}.${format}`);
             const url = `https://www.youtube.com/watch?v=${id}`;
 
             const prefix = `Downloading ${i + 1}/${ids.length}`;
@@ -81,8 +78,11 @@ async function main(format)
                 user_friendly_status: prefix,
             });
 
-            if (await exists(final_file)) {
-                skipped.push(rel);
+            // The container is yt-dlp's choice, so a download for this id counts
+            // whatever extension it was saved under.
+            const existing = await find_download(files_root, id);
+            if (existing) {
+                skipped.push(`files/youtube/${existing}`);
                 continue;
             }
 
@@ -90,9 +90,14 @@ async function main(format)
                 await yt_dlp.download({url, output_template: path.resolve(tmp_root, `${id}.%(ext)s`), format,
                     proxy: tor_session && tor_session.proxy,
                     user_friendly_status: v => user_friendly_status(`${prefix}: ${v}`)});
+                const name = await find_download(tmp_root, id);
+                if (!name) {
+                    throw new Error(`yt-dlp wrote no output file for ${id}`);
+                }
+                const tmp_file = path.resolve(tmp_root, name);
                 await assert_nonempty_file(tmp_file);
-                await fs.promises.copyFile(tmp_file, final_file, fs.constants.COPYFILE_EXCL);
-                created.push(rel);
+                await fs.promises.copyFile(tmp_file, path.resolve(files_root, name), fs.constants.COPYFILE_EXCL);
+                created.push(`files/youtube/${name}`);
             }
             catch (error) {
                 errors.push({
@@ -228,15 +233,12 @@ async function write_status_now(patch)
     await write_file_atomic(file, JSON.stringify({...current, ...patch}, null, 4));
 }
 
-async function exists(file)
+// yt-dlp names the file after the container it chose, so look the download up
+// by video id rather than by an extension the caller guessed.
+async function find_download(dir, id)
 {
-    try {
-        await fs.promises.access(file);
-        return true;
-    }
-    catch (error) {
-        return false;
-    }
+    const names = await fs.promises.readdir(dir).catch(() => []);
+    return names.find(v => v.startsWith(`${id}.`) && !/\.(part|ytdl)$/.test(v)) || null;
 }
 
 async function write_file_atomic(filename, data, options = {})

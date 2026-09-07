@@ -66,16 +66,11 @@ async function download({url, output_template, format, proxy, user_friendly_stat
         if (format === 'mp3') {
             args.push('--extract-audio', '--audio-format', 'mp3', '--audio-quality', '0');
         }
-        else if (format === 'mp4') {
-            // Prefer H.264/AAC for playback in the app, without CPU-heavy encoding.
-            args.push('--format', 'bv*[ext=mp4][vcodec^=avc1]+ba[ext=m4a]/b[ext=mp4]/bv*+ba/b',
-                '--merge-output-format', 'mp4', '--remux-video', 'mp4');
-        }
-        else if (format === 'mkv') {
-            // Highest quality streams whatever their codec. Matroska can carry
-            // any combination, including the AV1/Opus that mp4 handles poorly.
-            args.push('--format', 'bv*+ba/b',
-                '--merge-output-format', 'mkv', '--remux-video', 'mkv');
+        else if (format === 'video') {
+            // Best video and audio whatever their codec, muxed into one file.
+            // YouTube serves AV1/Opus, so this lands in WebM; yt-dlp falls back
+            // to another container if a video cannot be carried in WebM.
+            args.push('--format', 'bv*+ba/b', '--merge-output-format', 'webm');
         }
         else {
             throw new Error(`Unsupported YouTube output format: ${format}`);

@@ -117,20 +117,21 @@ function finish() {
         return JSON.parse(await fs.readFile(path.join(job, name), 'utf8'));
     }
 
-    it('downloads one MP4 per distinct video, keeps job identity, and skips existing outputs', async function () {
+    it('downloads one file per distinct video, keeps job identity, and skips existing outputs', async function () {
         const result = await run();
         assert.equal(result.code, 0, result.stderr);
         assert.match(result.stdout, /test-yt-dlp/);
         assert.match(result.stdout, /\[download\] 100%/);
-        assert.equal(await fs.readFile(path.join(note, 'files/youtube', `${first_id}.mp4`), 'utf8'), 'media fixture');
-        assert.deepEqual(await json('output.json'), {created: [`files/youtube/${first_id}.mp4`], skipped: [], errors: []});
+        assert.equal(await fs.readFile(path.join(note, 'files/youtube', `${first_id}.webm`), 'utf8'), 'media fixture');
+        assert.deepEqual(await json('output.json'), {created: [`files/youtube/${first_id}.webm`], skipped: [], errors: []});
         assert.equal((await json('status.json')).uid, 'test-job');
         const args = JSON.parse((await fs.readFile(path.join(job, 'calls.jsonl'), 'utf8')).trim());
         assert.ok(args.includes('--no-playlist'));
         assert.equal(args[args.indexOf('--js-runtimes') + 1], `node:${process.execPath}`);
-        assert.equal(args[args.indexOf('--remux-video') + 1], 'mp4');
+        assert.equal(args[args.indexOf('--format') + 1], 'bv*+ba/b');
+        assert.equal(args[args.indexOf('--merge-output-format') + 1], 'webm');
         assert.equal((await run()).code, 0);
-        assert.deepEqual((await json('output.json')).skipped, [`files/youtube/${first_id}.mp4`]);
+        assert.deepEqual((await json('output.json')).skipped, [`files/youtube/${first_id}.webm`]);
         assert.equal((await fs.readFile(path.join(job, 'calls.jsonl'), 'utf8')).trim().split('\n').length, 1);
     });
 
@@ -140,7 +141,7 @@ function finish() {
         assert.deepEqual((await json('output.json')).created, [`files/youtube/${first_id}.mp3`]);
         const args = JSON.parse((await fs.readFile(path.join(job, 'calls.jsonl'), 'utf8')).trim());
         assert.ok(args.includes('--extract-audio'));
-        assert.ok(!args.includes('--remux-video'));
+        assert.ok(!args.includes('--merge-output-format'));
     });
 
     it('uses a writable private cookie copy, forwards operator settings, and removes the copy', async function () {
@@ -171,7 +172,7 @@ function finish() {
         const result = await run();
         assert.equal(result.code, 1);
         const output = await json('output.json');
-        assert.deepEqual(output.created, [`files/youtube/${first_id}.mp4`]);
+        assert.deepEqual(output.created, [`files/youtube/${first_id}.webm`]);
         assert.equal(output.errors[0].id, second_id);
         assert.match(output.errors[0].message, /YT_DLP_PROXY/);
         assert.equal((await json('status.json')).status, 'failed');
@@ -193,7 +194,7 @@ function finish() {
         assert.equal((await run()).code, 1);
         assert.equal((await json('status.json')).status, 'failed');
         assert.deepEqual((await json('output.json')).created, []);
-        await assert.rejects(fs.stat(path.join(note, 'files/youtube', `${first_id}.mp4`)), {code: 'ENOENT'});
+        await assert.rejects(fs.stat(path.join(note, 'files/youtube', `${first_id}.webm`)), {code: 'ENOENT'});
     });
 
     it('reports live download progress into status.json instead of a frozen line', async function () {
@@ -228,15 +229,12 @@ function finish() {
         assert.ok(seen.some(v => /^Downloading 1\/1: Merging\.\.\. duration=\d\d:\d\d:\d\d$/.test(v)), seen.join(' | '));
     });
 
-    it('downloads max quality as a single MKV holding video and audio', async function () {
-        const result = await run('youtube-video-max');
-        assert.equal(result.code, 0, result.stderr);
-        assert.deepEqual((await json('output.json')).created, [`files/youtube/${first_id}.mkv`]);
-        assert.equal(await fs.readFile(path.join(note, 'files/youtube', `${first_id}.mkv`), 'utf8'), 'media fixture');
-        const args = JSON.parse((await fs.readFile(path.join(job, 'calls.jsonl'), 'utf8')).trim());
-        assert.equal(args[args.indexOf('--format') + 1], 'bv*+ba/b');
-        assert.equal(args[args.indexOf('--merge-output-format') + 1], 'mkv');
-        assert.equal(args[args.indexOf('--remux-video') + 1], 'mkv');
+    it('keeps an existing download whatever container it was saved under', async function () {
+        await fs.mkdir(path.join(note, 'files/youtube'), {recursive: true});
+        await fs.writeFile(path.join(note, 'files/youtube', `${first_id}.mp4`), 'older download');
+        assert.equal((await run()).code, 0);
+        assert.deepEqual(await json('output.json'), {created: [], skipped: [`files/youtube/${first_id}.mp4`], errors: []});
+        await assert.rejects(fs.stat(path.join(job, 'calls.jsonl')), {code: 'ENOENT'});
     });
 
     it('starts Tor for the job, routes yt-dlp through it, then stops it and drops its data directory', async function () {
@@ -244,7 +242,7 @@ function finish() {
         const result = await run();
         assert.equal(result.code, 0, result.stderr);
         assert.match(result.stdout, /\[tor\] .*Bootstrapped 100%/);
-        assert.deepEqual((await json('output.json')).created, [`files/youtube/${first_id}.mp4`]);
+        assert.deepEqual((await json('output.json')).created, [`files/youtube/${first_id}.webm`]);
 
         const args = JSON.parse((await fs.readFile(path.join(job, 'calls.jsonl'), 'utf8')).trim());
         assert.equal(args[args.indexOf('--proxy') + 1], 'socks5h://127.0.0.1:19050');

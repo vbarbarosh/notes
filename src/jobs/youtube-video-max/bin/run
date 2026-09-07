@@ -1,3 +1,0 @@
-#!/usr/bin/env node
-
-require('../../../helpers/youtube_download_job')('mkv');

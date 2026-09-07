@@ -1,7 +1,7 @@
 # YouTube downloads on a VPS
 
-The `youtube-video`, `youtube-video-max` and `youtube-mp3` jobs read YouTube links
-from a note and save media in `files/youtube/<video_id>.<ext>`. Use the note's
+The `youtube-video` and `youtube-mp3` jobs read YouTube links from a note and
+save media in `files/youtube/<video_id>.<ext>`. Use the note's
 **⋯** menu or `POST /api/v1/jobs/youtube-video` with `{"note_uid":"<note_uid>"}`.
 Downloads run sequentially within each job. Existing files are skipped; a retry
 after partial failure downloads only the missing files.
@@ -9,14 +9,17 @@ after partial failure downloads only the missing files.
 | Job | Output | Picks |
 | --- | --- | --- |
 | `youtube-mp3` | `<id>.mp3` | Best audio, converted to MP3. |
-| `youtube-video` | `<id>.mp4` | Prefers H.264/AAC for browser playback, falling back to other codecs. |
-| `youtube-video-max` | `<id>.mkv` | Highest available video plus best audio, muxed into one Matroska file. |
+| `youtube-video` | usually `<id>.webm` | Best available video plus best audio, muxed into one file. |
 
-`youtube-video-max` applies no codec or container preference, so it commonly
-yields 4K AV1 video with Opus audio in a single `.mkv`. That is the highest
-quality YouTube offers, but browsers generally will not play the result inline
-and the files are large — a ten-minute 4K video runs to several hundred MB. Use
-`youtube-video` when the file needs to play in the app.
+`youtube-video` applies no codec preference, so it takes whatever YouTube rates
+highest — in practice AV1 video with Opus audio, which lands in WebM. The job
+does not force a container: it asks yt-dlp to prefer WebM and then saves the
+file under whatever extension yt-dlp actually chose, so an unusual video that
+cannot be carried in WebM is still saved correctly rather than being mislabelled.
+
+Max quality means large files; a ten-minute 4K video runs to several hundred MB.
+A download is matched by video id, not by extension, so a file fetched under an
+earlier version of this job is still recognised and skipped.
 
 ## Job progress
 
