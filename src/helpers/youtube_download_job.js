@@ -1,0 +1,232 @@
+const yt_dlp = require('./yt_dlp');
+const fs = require('fs');
+const path = require('path');
+const crypto = require('crypto');
+
+const URL_PATTERN = /https?:\/\/[^\s<>"'`]+/g;
+
+function youtube_download_job(format)
+{
+    return main(format).catch(async function (error) {
+        await write_status({
+            status: 'failed',
+            user_friendly_status: error.message || 'Failed',
+            finished_at: new Date().toJSON(),
+        }).catch(() => {});
+        await fs.promises.writeFile(path.resolve(process.cwd(), 'error.txt'), error.stack || String(error));
+        process.exitCode = 1;
+    });
+}
+
+async function main(format)
+{
+    const note_arg = process.argv[2];
+    if (!note_arg) {
+        throw new Error('Usage: run <note_path>');
+    }
+
+    yt_dlp.check_dependencies();
+
+    const app_root = path.resolve(__dirname, '../..');
+    const note_root = path.isAbsolute(note_arg) ? note_arg : path.resolve(app_root, note_arg);
+    const tmp_root = path.resolve(process.cwd(), 'tmp');
+    const files_root = path.resolve(note_root, 'files', 'youtube');
+
+    await fs.promises.mkdir(tmp_root, {recursive: true});
+    await fs.promises.mkdir(files_root, {recursive: true});
+
+    await write_status({
+        status: 'running',
+        user_friendly_status: 'Reading note',
+    });
+
+    const body = await fs.promises.readFile(path.resolve(note_root, 'README.md'), 'utf8');
+    const ids = extract_youtube_ids(body);
+    const created = [];
+    const skipped = [];
+    const errors = [];
+
+    for (let i = 0; i < ids.length; ++i) {
+        const id = ids[i];
+        const rel = `files/youtube/${id}.${format}`;
+        const final_file = path.resolve(files_root, `${id}.${format}`);
+        const tmp_file = path.resolve(tmp_root, `${id}.${format}`);
+        const url = `https://www.youtube.com/watch?v=${id}`;
+
+        await write_status({
+            status: 'running',
+            user_friendly_status: `Downloading ${i + 1}/${ids.length}`,
+        });
+
+        if (await exists(final_file)) {
+            skipped.push(rel);
+            continue;
+        }
+
+        try {
+            await yt_dlp.download({url, output_template: path.resolve(tmp_root, `${id}.%(ext)s`), format});
+            await assert_nonempty_file(tmp_file);
+            await fs.promises.copyFile(tmp_file, final_file, fs.constants.COPYFILE_EXCL);
+            created.push(rel);
+        }
+        catch (error) {
+            errors.push({
+                id,
+                message: error.message,
+            });
+        }
+    }
+
+    await fs.promises.writeFile(path.resolve(process.cwd(), 'output.json'), JSON.stringify({
+        created,
+        skipped,
+        errors,
+    }, null, 4));
+
+    if (errors.length) {
+        throw new Error(`Created ${created.length}, skipped ${skipped.length}, errors ${errors.length}\n`
+            + errors.map(error => `${error.id}: ${error.message}`).join('\n'));
+    }
+
+    await write_status({
+        status: 'finished',
+        user_friendly_status: `Created ${created.length}, skipped ${skipped.length}, errors ${errors.length}`,
+        finished_at: new Date().toJSON(),
+    });
+}
+
+async function assert_nonempty_file(file)
+{
+    const stat = await fs.promises.stat(file);
+    if (!stat.isFile() || stat.size <= 0) {
+        throw new Error(`Output file is empty: ${file}`);
+    }
+}
+
+function extract_youtube_ids(body)
+{
+    const urls = String(body || '').match(URL_PATTERN) || [];
+    const seen = new Set();
+    const out = [];
+
+    urls.forEach(function (raw_url) {
+        const url = raw_url.replace(/[)\].,!?;:]+$/g, '');
+        const id = parse_youtube_id(url);
+        if (!id || seen.has(id)) {
+            return;
+        }
+        seen.add(id);
+        out.push(id);
+    });
+
+    return out;
+}
+
+function parse_youtube_id(url)
+{
+    try {
+        const parsed = new URL(url);
+        const host = parsed.hostname.replace(/^www\./, '');
+
+        if (host === 'youtu.be') {
+            return clean_youtube_id(parsed.pathname.split('/').filter(Boolean)[0]);
+        }
+
+        const is_youtube = host === 'youtube.com' || host.endsWith('.youtube.com');
+        const is_youtube_nocookie = host === 'youtube-nocookie.com' || host.endsWith('.youtube-nocookie.com');
+        if (!is_youtube && !is_youtube_nocookie) {
+            return null;
+        }
+
+        if (parsed.pathname === '/watch') {
+            return clean_youtube_id(parsed.searchParams.get('v'));
+        }
+
+        const parts = parsed.pathname.split('/').filter(Boolean);
+        if (['embed', 'shorts', 'live'].includes(parts[0])) {
+            return clean_youtube_id(parts[1]);
+        }
+    }
+    catch (error) {
+    }
+
+    return null;
+}
+
+function clean_youtube_id(value)
+{
+    const id = String(value || '').trim();
+    return /^[A-Za-z0-9_-]{6,}$/.test(id) ? id : null;
+}
+
+async function write_status(patch)
+{
+    const file = path.resolve(process.cwd(), 'status.json');
+    let current = {};
+    for (let i = 0; i < 5; ++i) {
+        let buf;
+        try {
+            buf = await fs.promises.readFile(file, 'utf8');
+            current = JSON.parse(buf);
+            break;
+        }
+        catch (error) {
+            await new Promise(resolve => setTimeout(resolve, 20));
+        }
+    }
+    await write_file_atomic(file, JSON.stringify({...current, ...patch}, null, 4));
+}
+
+async function exists(file)
+{
+    try {
+        await fs.promises.access(file);
+        return true;
+    }
+    catch (error) {
+        return false;
+    }
+}
+
+async function write_file_atomic(filename, data, options = {})
+{
+    const dir = path.dirname(filename);
+    const base = path.basename(filename);
+    const tmp = path.join(dir, `.${base}.${process.pid}.${crypto.randomUUID()}.tmp`);
+
+    let handler;
+
+    try {
+        handler = await fs.promises.open(tmp, 'w', options.mode ?? 0o666);
+        await handler.writeFile(data, options);
+        await handler.sync();
+        await handler.close();
+        handler = null;
+
+        await fs.promises.rename(tmp, filename);
+
+        // Best effort: persist directory entry too.
+        try {
+            const handler = await fs.promises.open(dir, 'r');
+            try {
+                await handler.sync();
+            }
+            finally {
+                await handler.close();
+            }
+        }
+        catch {
+            // Some platforms/filesystems do not allow fsync on directories.
+        }
+    }
+    catch (error) {
+        if (handler) {
+            await handler.close().catch(() => {});
+        }
+
+        await fs.promises.unlink(tmp).catch(() => {});
+        throw error;
+    }
+}
+
+module.exports = youtube_download_job;

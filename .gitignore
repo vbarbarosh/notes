@@ -3,3 +3,6 @@
 /data-authwall/
 /data-notes/
 /node_modules
+/.env
+/secrets/
+/docker-compose.override.yaml

@@ -278,6 +278,20 @@ data/jobs/active/<job_uid>/tmp/<video_id>.mp3
 The job should be idempotent at the output-file level. If the final MP3 already
 exists, the job should skip it instead of creating a duplicate.
 
+## YouTube Video
+
+Job name: `youtube-video`. Handler: `src/jobs/youtube-video/bin/run`.
+
+Uses the shared YouTube downloader with the same note-link extraction, temporary
+storage, and output-file idempotency as `youtube-mp3`. Downloads video and audio,
+merges/remuxes them into MP4 with ffmpeg, and saves
+`files/youtube/<video_id>.mp4`. The note menu and API demo expose this action.
+
+Both media jobs write per-video results to `output.json`, keep successful
+attachments after partial failures, and exit unsuccessfully if any video fails.
+See [YouTube configuration and troubleshooting](docs/youtube.md) for dependencies,
+proxy/cookie settings, and VPS-specific failures.
+
 ## Terminal Job
 
 Job name:

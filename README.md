@@ -20,3 +20,13 @@ The bundled `docker-compose.yaml` runs this setup out of the box:
 
     docker compose up
     # http://localhost:3000 — sign in via authwall (seed user foo, password foo)
+
+## YouTube downloads
+
+Add a YouTube link to a note, then open its **⋯** menu and choose **Download
+YouTube video** (MP4) or **Extract YouTube MP3**. Files appear as attachments
+under `files/youtube/`. Repeating a job skips existing files.
+
+See [YouTube setup and VPS troubleshooting](docs/youtube.md) for installation,
+proxy/cookie configuration, and diagnosing downloads that work on a PC but fail
+on a server.
