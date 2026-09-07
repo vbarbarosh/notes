@@ -115,7 +115,9 @@ const CSP = [
     "img-src * data: blob:",
     "media-src 'self' https: blob:",
     "font-src 'self' https: data:",
-    "connect-src 'self' ws: wss:",
+    // The CDN origins are needed for source maps, which DevTools fetches with
+    // fetch() rather than as a script.
+    "connect-src 'self' ws: wss: https://unpkg.com https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://esm.sh",
     "frame-src 'self' https: blob:",
     "worker-src 'self' blob:",
     "object-src 'none'",
