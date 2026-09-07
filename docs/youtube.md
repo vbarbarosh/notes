@@ -1,11 +1,40 @@
 # YouTube downloads on a VPS
 
-The `youtube-video` and `youtube-mp3` jobs read YouTube links from a note and save
-MP4 video or MP3 audio in `files/youtube/<video_id>.<ext>`. Use the note's **⋯**
-menu or `POST /api/v1/jobs/youtube-video` with `{"note_uid":"<note_uid>"}`.
+The `youtube-video`, `youtube-video-max` and `youtube-mp3` jobs read YouTube links
+from a note and save media in `files/youtube/<video_id>.<ext>`. Use the note's
+**⋯** menu or `POST /api/v1/jobs/youtube-video` with `{"note_uid":"<note_uid>"}`.
 Downloads run sequentially within each job. Existing files are skipped; a retry
-after partial failure downloads only the missing files. Video prefers H.264/AAC
-and falls back to other codecs if needed; browser playback depends on the codec.
+after partial failure downloads only the missing files.
+
+| Job | Output | Picks |
+| --- | --- | --- |
+| `youtube-mp3` | `<id>.mp3` | Best audio, converted to MP3. |
+| `youtube-video` | `<id>.mp4` | Prefers H.264/AAC for browser playback, falling back to other codecs. |
+| `youtube-video-max` | `<id>.mkv` | Highest available video plus best audio, muxed into one Matroska file. |
+
+`youtube-video-max` applies no codec or container preference, so it commonly
+yields 4K AV1 video with Opus audio in a single `.mkv`. That is the highest
+quality YouTube offers, but browsers generally will not play the result inline
+and the files are large — a ten-minute 4K video runs to several hundred MB. Use
+`youtube-video` when the file needs to play in the app.
+
+## Job progress
+
+While a job runs, its status line reports what the download is actually doing:
+
+```text
+Downloading 1/2: 42.00% | [1/2] 4.63MB of 11.03MB at 1.20MB/s ETA 00:12 duration=00:00:09
+```
+
+The leading `Downloading 1/2` counts videos found in the note. The `[1/2]` counts
+the streams of the current video, because yt-dlp fetches video and audio
+separately before merging them. Merging reports as `Merging... duration=…`, and
+an enabled Tor client reports its bootstrap percentage the same way.
+
+Progress lines are parsed by `stream_ytdlp_progress` from
+`@vbarbarosh/node-helpers`, and delivered through a `user_friendly_status`
+callback. Because every status write is fsynced, the job rewrites `status.json`
+at most once per second no matter how fast yt-dlp reports.
 
 ## Installation
 
@@ -53,7 +82,7 @@ network access, or YouTube session.
 | Error | Next step |
 | --- | --- |
 | Missing runtime, challenge solving failure, or unknown `--js-runtimes` option | Rebuild with a current upstream yt-dlp plus matching EJS scripts. |
-| “Sign in to confirm you're not a bot” or HTTP 429 | YouTube is challenging or blocking the IP/session. Stop repeated retries; test an outbound connection that is known to work using `YT_DLP_PROXY`. Cookies can help with a session challenge but do not guarantee access from a blocked server IP. |
+| “Sign in to confirm you're not a bot” or HTTP 429 | YouTube is challenging or blocking the IP/session. Stop repeated retries; test an outbound connection that is known to work using `YT_DLP_PROXY`, or try `YT_DLP_TOR=true` and rerun for new circuits. Cookies can help with a session challenge but do not guarantee access from a blocked server IP. |
 | HTTP 403 or PO Token warning | Check current yt-dlp, the outbound IP/session, and [YouTube's PO Token requirements](https://github.com/yt-dlp/yt-dlp/wiki/PO-Token-Guide). A 403 alone does not identify the cause. |
 | Sign-in required, age restriction, or expired cookies | Supply a fresh YouTube cookies file for an account with access. |
 | Connection timeout / network unreachable | Check VPS outbound connectivity, DNS, and proxy reachability. Try `YT_DLP_FORCE_IPV4=true` if IPv6 is broken. |
@@ -72,6 +101,7 @@ The bundled Compose file forwards these environment variables to the jobs:
 | Variable | Purpose |
 | --- | --- |
 | `YT_DLP_PROXY` | HTTP/HTTPS/SOCKS proxy URL, e.g. `socks5://proxy-host:1080`. |
+| `YT_DLP_TOR` | Set to `true` or `1` to route downloads through a Tor client that the job starts and stops itself. Mutually exclusive with `YT_DLP_PROXY`. Default: off. |
 | `YT_DLP_COOKIES_FILE` | Absolute path **inside the container** to a Netscape-format cookies file. |
 | `YT_DLP_CONFIG_FILE` | Absolute path inside the container to a trusted yt-dlp config file for advanced extractor/PO Token options. |
 | `YT_DLP_FORCE_IPV4` | Set to `true` or `1` to force IPv4. Default: off. |
@@ -85,6 +115,40 @@ YT_DLP_PROXY=socks5://proxy-host:1080
 Use a proxy you control or trust. In Docker, `localhost` is the notes container,
 so use an address reachable from that container. The setting applies to all
 YouTube jobs in this app instance.
+
+### On-demand Tor
+
+`YT_DLP_TOR=true` routes YouTube downloads through Tor without running a Tor
+service. The job starts a Tor client when it has videos to fetch, waits for
+bootstrap, downloads through it, and stops it when the last download ends.
+Nothing listens between jobs, and an idle container has no Tor process.
+
+```dotenv
+YT_DLP_TOR=true
+```
+
+The client binds a SOCKS port on loopback only, chosen by the OS, and is given a
+fresh data directory that is deleted when the job ends. Two jobs can therefore
+run at once without sharing a port or a Tor identity. The job passes yt-dlp a
+`socks5h://` URL, so DNS is resolved inside Tor rather than by the container.
+`tor` is installed in the image but is never started by the image itself.
+
+Costs and caveats:
+
+* Each job pays one bootstrap, normally a few seconds, before the first
+  download. Nothing is cached between jobs.
+* YouTube challenges a substantial share of Tor exits. In local testing 4 of 6
+  exits served the same video and 2 returned the bot challenge, so a failure
+  here does not mean Tor is broken; the job simply used a challenged exit. The
+  job does not rotate exits or retry on its own — run it again to get new
+  circuits.
+* Downloads through Tor are slower and the exit is shared with other users.
+* `YT_DLP_TOR` and `YT_DLP_PROXY` cannot both be set; the job fails immediately
+  with a configuration error rather than silently picking one.
+* Cookies are still sent if `YT_DLP_COOKIES_FILE` is configured. Sending account
+  cookies over Tor ties that account to the download and forfeits the anonymity
+  Tor provides. Leave cookies unset when using Tor unless you specifically want
+  that trade-off.
 
 For cookies, export **YouTube-only** cookies following the [upstream instructions](https://github.com/yt-dlp/yt-dlp/wiki/Extractors#exporting-youtube-cookies).
 Store the file at `secrets/youtube-cookies.txt`, outside the app's served data

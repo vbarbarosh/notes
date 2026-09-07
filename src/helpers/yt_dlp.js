@@ -1,11 +1,20 @@
 const child_process = require('child_process');
+const format_seconds = require('@vbarbarosh/node-helpers/src/format_seconds');
 const fs = require('fs/promises');
 const path = require('path');
 const readline = require('readline');
+const stream = require('stream');
+const stream_each = require('@vbarbarosh/node-helpers/src/stream_each');
+const stream_ytdlp_progress = require('@vbarbarosh/node-helpers/src/stream_ytdlp_progress');
+const tor = require('./tor');
 
 function check_dependencies()
 {
-    for (const [command, args] of [['yt-dlp', ['--ignore-config', '--version']], ['ffmpeg', ['-version']]]) {
+    const commands = [['yt-dlp', ['--ignore-config', '--version']], ['ffmpeg', ['-version']]];
+    if (tor.enabled()) {
+        commands.push(['tor', ['--version']]);
+    }
+    for (const [command, args] of commands) {
         const result = child_process.spawnSync(command, args, {encoding: 'utf8', timeout: 15000});
         if (result.error || result.status !== 0) {
             throw new Error(`${command} is missing or cannot start. Rebuild the Docker image or install the dependencies in docs/youtube.md.`);
@@ -15,7 +24,7 @@ function check_dependencies()
     console.log(`YouTube JavaScript runtime: Node ${process.version}`);
 }
 
-async function download({url, output_template, format})
+async function download({url, output_template, format, proxy, user_friendly_status})
 {
     const env = process.env;
     // Jobs have a different working directory from the app and should not pick
@@ -39,8 +48,10 @@ async function download({url, output_template, format})
             await fs.writeFile(cookies_file, await fs.readFile(env.YT_DLP_COOKIES_FILE), {mode: 0o600});
             args.push('--cookies', cookies_file);
         }
-        if (env.YT_DLP_PROXY) {
-            args.push('--proxy', env.YT_DLP_PROXY);
+        // A per-job Tor client, when enabled, supplies the proxy instead of
+        // the operator's fixed YT_DLP_PROXY.
+        if (proxy || env.YT_DLP_PROXY) {
+            args.push('--proxy', proxy || env.YT_DLP_PROXY);
         }
         if (['true', '1'].includes(env.YT_DLP_FORCE_IPV4)) {
             args.push('--force-ipv4');
@@ -48,7 +59,7 @@ async function download({url, output_template, format})
         args.push(
             '--js-runtimes', `node:${process.execPath}`,
             '--no-playlist', '--no-simulate',
-            '--newline', '--no-colors', '--no-cache-dir',
+            '--newline', '--no-colors', '--no-cache-dir', '--progress',
             '--socket-timeout', '30', '--retries', '3', '--fragment-retries', '3',
             '--abort-on-unavailable-fragments',
         );
@@ -60,11 +71,17 @@ async function download({url, output_template, format})
             args.push('--format', 'bv*[ext=mp4][vcodec^=avc1]+ba[ext=m4a]/b[ext=mp4]/bv*+ba/b',
                 '--merge-output-format', 'mp4', '--remux-video', 'mp4');
         }
+        else if (format === 'mkv') {
+            // Highest quality streams whatever their codec. Matroska can carry
+            // any combination, including the AV1/Opus that mp4 handles poorly.
+            args.push('--format', 'bv*+ba/b',
+                '--merge-output-format', 'mkv', '--remux-video', 'mkv');
+        }
         else {
             throw new Error(`Unsupported YouTube output format: ${format}`);
         }
         args.push('--output', output_template, '--', url);
-        await run(args);
+        await run(args, user_friendly_status);
     }
     finally {
         if (cookies_dir) {
@@ -101,7 +118,11 @@ function redact(value)
 function failure_hint(text)
 {
     if (/sign in to confirm.*not a bot|HTTP Error 429|Too Many Requests/i.test(text)) {
-        return 'YouTube blocked or challenged this IP/session. A VPS may need a working outbound proxy (YT_DLP_PROXY); cookies alone may not resolve an IP block. See docs/youtube.md.';
+        if (tor.enabled()) {
+            // Each job gets fresh circuits, and only some exits are challenged.
+            return 'YouTube challenged this Tor exit. Run the job again to draw new circuits; the job does not rotate exits by itself. See docs/youtube.md.';
+        }
+        return 'YouTube blocked or challenged this IP/session. A VPS may need a working outbound proxy (YT_DLP_PROXY) or YT_DLP_TOR; cookies alone may not resolve an IP block. See docs/youtube.md.';
     }
     if (/JavaScript runtime|challenge solving|n challenge|nsig|yt-dlp-ejs|no such option: --js-runtimes/i.test(text)) {
         return 'Update yt-dlp together with its default dependencies and enable Node. Rebuild the Docker image; see docs/youtube.md.';
@@ -115,25 +136,50 @@ function failure_hint(text)
     return '';
 }
 
-function run(args)
+function run(args, user_friendly_status)
 {
     return new Promise(function (resolve, reject) {
         const proc = child_process.spawn('yt-dlp', args, {stdio: ['ignore', 'pipe', 'pipe']});
+        const time0 = Date.now();
         let tail = '';
+
+        // Reuse the shared yt-dlp progress parser, but feed it the redacted
+        // lines rather than the raw stream so credentials can not slip through.
+        const progress = new stream.PassThrough();
+        stream.promises.pipeline(progress, stream_ytdlp_progress(), stream_each(report)).catch(() => {});
+
+        function report(v)
+        {
+            if (!user_friendly_status) {
+                return;
+            }
+            const duration = format_seconds((Date.now() - time0) / 1000);
+            if (v.merging) {
+                user_friendly_status(`Merging... duration=${duration}`);
+            }
+            else {
+                user_friendly_status(`${v.perc} | [${v.current_part}/${v.total_parts}] ${v.done} of ${v.total} at ${v.speed} ETA ${v.eta} duration=${duration}`);
+            }
+        }
+
         // Forward output to the existing job logs; retain only a bounded tail in
         // memory. Line buffering also keeps split proxy credentials redacted.
-        for (const [stream, target] of [[proc.stdout, process.stdout], [proc.stderr, process.stderr]]) {
-            const lines = readline.createInterface({input: stream, crlfDelay: Infinity});
+        for (const [source, target] of [[proc.stdout, process.stdout], [proc.stderr, process.stderr]]) {
+            const lines = readline.createInterface({input: source, crlfDelay: Infinity});
             lines.on('line', function (line) {
                 const safe_line = redact(line);
                 target.write(safe_line + '\n');
                 tail = (tail + safe_line + '\n').slice(-16384);
+                progress.write(safe_line + '\n');
             });
         }
+
         proc.once('error', function (error) {
+            progress.end();
             reject(new Error(`Cannot start yt-dlp: ${error.code || 'unknown error'}. Check the app/container installation.`));
         });
         proc.once('close', function (code, signal) {
+            progress.end();
             if (code === 0) {
                 resolve();
                 return;

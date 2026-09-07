@@ -17,6 +17,7 @@ services:
     restart: unless-stopped
     environment:
       YT_DLP_PROXY: ${YT_DLP_PROXY:-}
+      YT_DLP_TOR: ${YT_DLP_TOR:-false}
       YT_DLP_COOKIES_FILE: ${YT_DLP_COOKIES_FILE:-}
       YT_DLP_CONFIG_FILE: ${YT_DLP_CONFIG_FILE:-}
       YT_DLP_FORCE_IPV4: ${YT_DLP_FORCE_IPV4:-false}

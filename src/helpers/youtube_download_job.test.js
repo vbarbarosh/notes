@@ -27,8 +27,25 @@ describe('YouTube download jobs', function () {
         await fs.writeFile(path.join(note, 'README.md'), `https://youtu.be/${first_id}\nhttps://www.youtube.com/watch?v=${first_id}`);
         await fs.writeFile(path.join(job, 'status.json'), JSON.stringify({uid: 'test-job', note_uid: 'test-note'}));
         env = {...process.env, PATH: `${bin}:${process.env.PATH}`, YT_DLP_PROXY: '', YT_DLP_COOKIES_FILE: '',
-            YT_DLP_CONFIG_FILE: '', YT_DLP_FORCE_IPV4: '', FAKE_FAIL_ID: '', FAKE_NO_OUTPUT: '', FAKE_CHECK_COOKIE: ''};
+            YT_DLP_CONFIG_FILE: '', YT_DLP_FORCE_IPV4: '', YT_DLP_TOR: '', FAKE_FAIL_ID: '', FAKE_NO_OUTPUT: '',
+            FAKE_CHECK_COOKIE: '', FAKE_SLOW: ''};
         await fs.writeFile(path.join(bin, 'ffmpeg'), `#!${process.execPath}\nprocess.exit(process.argv[2] === '-version' ? 0 : 1);\n`, {mode: 0o755});
+        await fs.writeFile(path.join(bin, 'tor'), `#!${process.execPath}
+const fs = require('fs');
+const args = process.argv.slice(2);
+if (args.includes('--version')) {
+    console.log('Tor version test-tor.');
+    process.exit(0);
+}
+fs.writeFileSync('tor-args.json', JSON.stringify(args));
+process.on('SIGTERM', function () {
+    fs.writeFileSync('tor-stopped.txt', 'stopped');
+    process.exit(0);
+});
+console.log('[notice] Opened Socks listener connection (ready) on 127.0.0.1:19050');
+console.log('[notice] Bootstrapped 100% (done): Done');
+setInterval(function () {}, 1000);
+`, {mode: 0o755});
         await fs.writeFile(path.join(bin, 'yt-dlp'), `#!${process.execPath}
 const fs = require('fs');
 const args = process.argv.slice(2);
@@ -54,8 +71,28 @@ if (process.env.FAKE_FAIL_ID && args.at(-1).includes(process.env.FAKE_FAIL_ID)) 
     });
 }
 else if (!process.env.FAKE_NO_OUTPUT) {
+    // Real yt-dlp output, as parsed by @vbarbarosh/node-helpers. The merge is
+    // emitted after the download, exactly as yt-dlp orders them.
+    console.log('[info] test: Downloading 2 format(s): 401+251');
+    console.log('[download] Destination: /tmp/test.f401.webm');
+    console.log('[download]  42.0% of   11.03MiB at    1.20MiB/s ETA 00:12');
+    const slow = Number(process.env.FAKE_SLOW || 0);
+    if (slow) {
+        // Hold the job open so the test can observe the live status.
+        setTimeout(function () {
+            console.log('[Merger] Merging formats into "/tmp/test.mkv"');
+            setTimeout(finish, slow);
+        }, slow);
+    }
+    else {
+        console.log('[Merger] Merging formats into "/tmp/test.mkv"');
+        finish();
+    }
+}
+function finish() {
     const template = args[args.indexOf('--output') + 1];
-    fs.writeFileSync(template.replace('%(ext)s', args.includes('--extract-audio') ? 'mp3' : 'mp4'), 'media fixture');
+    const ext = args.includes('--extract-audio') ? 'mp3' : args[args.indexOf('--merge-output-format') + 1];
+    fs.writeFileSync(template.replace('%(ext)s', ext), 'media fixture');
     console.log('[download] 100%');
 }
 `, {mode: 0o755});
@@ -157,6 +194,93 @@ else if (!process.env.FAKE_NO_OUTPUT) {
         assert.equal((await json('status.json')).status, 'failed');
         assert.deepEqual((await json('output.json')).created, []);
         await assert.rejects(fs.stat(path.join(note, 'files/youtube', `${first_id}.mp4`)), {code: 'ENOENT'});
+    });
+
+    it('reports live download progress into status.json instead of a frozen line', async function () {
+        env.FAKE_SLOW = '1500';
+        const pending = run();
+        let seen = null;
+        for (let i = 0; i < 60 && !seen; ++i) {
+            await new Promise(resolve => setTimeout(resolve, 50));
+            const status = await json('status.json').catch(() => ({}));
+            if (/\d%/.test(status.user_friendly_status || '')) {
+                seen = status.user_friendly_status;
+            }
+        }
+        assert.equal((await pending).code, 0);
+        assert.match(seen, /^Downloading 1\/1: 42\.00% \| \[1\/2\] 4\.63MB of 11\.03MB at 1\.20MB\/s ETA 00:12 duration=\d\d:\d\d:\d\d$/);
+    });
+
+    it('reports the merge step and counts the parts of a multi-format download', async function () {
+        env.FAKE_SLOW = '1500';
+        const pending = run();
+        const seen = [];
+        for (let i = 0; i < 60 && !seen.some(v => /Merging/.test(v)); ++i) {
+            await new Promise(resolve => setTimeout(resolve, 50));
+            const status = await json('status.json').catch(() => ({}));
+            const text = status.user_friendly_status || '';
+            if (text && seen.at(-1) !== text) {
+                seen.push(text);
+            }
+        }
+        assert.equal((await pending).code, 0);
+        assert.ok(seen.some(v => /\[1\/2\]/.test(v)), seen.join(' | '));
+        assert.ok(seen.some(v => /^Downloading 1\/1: Merging\.\.\. duration=\d\d:\d\d:\d\d$/.test(v)), seen.join(' | '));
+    });
+
+    it('downloads max quality as a single MKV holding video and audio', async function () {
+        const result = await run('youtube-video-max');
+        assert.equal(result.code, 0, result.stderr);
+        assert.deepEqual((await json('output.json')).created, [`files/youtube/${first_id}.mkv`]);
+        assert.equal(await fs.readFile(path.join(note, 'files/youtube', `${first_id}.mkv`), 'utf8'), 'media fixture');
+        const args = JSON.parse((await fs.readFile(path.join(job, 'calls.jsonl'), 'utf8')).trim());
+        assert.equal(args[args.indexOf('--format') + 1], 'bv*+ba/b');
+        assert.equal(args[args.indexOf('--merge-output-format') + 1], 'mkv');
+        assert.equal(args[args.indexOf('--remux-video') + 1], 'mkv');
+    });
+
+    it('starts Tor for the job, routes yt-dlp through it, then stops it and drops its data directory', async function () {
+        env.YT_DLP_TOR = 'true';
+        const result = await run();
+        assert.equal(result.code, 0, result.stderr);
+        assert.match(result.stdout, /\[tor\] .*Bootstrapped 100%/);
+        assert.deepEqual((await json('output.json')).created, [`files/youtube/${first_id}.mp4`]);
+
+        const args = JSON.parse((await fs.readFile(path.join(job, 'calls.jsonl'), 'utf8')).trim());
+        assert.equal(args[args.indexOf('--proxy') + 1], 'socks5h://127.0.0.1:19050');
+
+        // The client must not outlive the job, and must leave nothing behind.
+        assert.equal(await fs.readFile(path.join(job, 'tor-stopped.txt'), 'utf8'), 'stopped');
+        const tor_args = await json('tor-args.json');
+        const data_dir = tor_args[tor_args.indexOf('--DataDirectory') + 1];
+        assert.ok(data_dir.includes('notes-tor-'), data_dir);
+        await assert.rejects(fs.stat(data_dir), {code: 'ENOENT'});
+    });
+
+    it('tells the operator to rerun for new circuits when a Tor exit is challenged', async function () {
+        env.YT_DLP_TOR = 'true';
+        env.FAKE_FAIL_ID = first_id;
+        assert.equal((await run()).code, 1);
+        const output = await json('output.json');
+        assert.match(output.errors[0].message, /YouTube challenged this Tor exit/);
+        assert.doesNotMatch(output.errors[0].message, /YT_DLP_PROXY/);
+        assert.equal(await fs.readFile(path.join(job, 'tor-stopped.txt'), 'utf8'), 'stopped');
+    });
+
+    it('does not start Tor when YT_DLP_TOR is off', async function () {
+        assert.equal((await run()).code, 0);
+        await assert.rejects(fs.stat(path.join(job, 'tor-args.json')), {code: 'ENOENT'});
+        const args = JSON.parse((await fs.readFile(path.join(job, 'calls.jsonl'), 'utf8')).trim());
+        assert.ok(!args.includes('--proxy'));
+    });
+
+    it('refuses to run when YT_DLP_TOR and YT_DLP_PROXY are both set', async function () {
+        env.YT_DLP_TOR = 'true';
+        env.YT_DLP_PROXY = 'socks5://user:very-secret@localhost:1080';
+        assert.equal((await run()).code, 1);
+        assert.match((await json('status.json')).user_friendly_status, /YT_DLP_TOR and YT_DLP_PROXY are both set/);
+        await assert.rejects(fs.stat(path.join(job, 'calls.jsonl')), {code: 'ENOENT'});
+        await assert.rejects(fs.stat(path.join(job, 'tor-args.json')), {code: 'ENOENT'});
     });
 
     it('fails early when an installed dependency cannot run', async function () {

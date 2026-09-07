@@ -287,8 +287,23 @@ storage, and output-file idempotency as `youtube-mp3`. Downloads video and audio
 merges/remuxes them into MP4 with ffmpeg, and saves
 `files/youtube/<video_id>.mp4`. The note menu and API demo expose this action.
 
-Both media jobs write per-video results to `output.json`, keep successful
+## YouTube Video (max quality)
+
+Job name: `youtube-video-max`. Handler: `src/jobs/youtube-video-max/bin/run`.
+
+Same downloader and idempotency as `youtube-video`, but selects the best
+available video and audio with no codec or container preference and merges them
+into a single Matroska file, `files/youtube/<video_id>.mkv`. This typically means
+AV1 video with Opus audio, which mp4 does not carry well and browsers usually
+cannot play inline. Prefer `youtube-video` for in-app playback.
+
+All media jobs write per-video results to `output.json`, keep successful
 attachments after partial failures, and exit unsuccessfully if any video fails.
+While running they report live progress in `status.json`'s
+`user_friendly_status`, parsed by `stream_ytdlp_progress` from
+`@vbarbarosh/node-helpers` and delivered through a `user_friendly_status`
+callback — percentage, part, size, speed, ETA and elapsed duration during a
+download, `Merging...` while merging — rate-limited to one write per second.
 See [YouTube configuration and troubleshooting](docs/youtube.md) for dependencies,
 proxy/cookie settings, and VPS-specific failures.
 

@@ -1,9 +1,16 @@
+const tor = require('./tor');
 const yt_dlp = require('./yt_dlp');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 
 const URL_PATTERN = /https?:\/\/[^\s<>"'`]+/g;
+// How often the job may rewrite status.json while a download runs. Progress
+// arrives many times per second; the status file is fsynced on every write.
+const PROGRESS_INTERVAL = 1000;
+
+let last_status_at = 0;
+let status_queue = Promise.resolve();
 
 function youtube_download_job(format)
 {
@@ -46,34 +53,58 @@ async function main(format)
     const skipped = [];
     const errors = [];
 
-    for (let i = 0; i < ids.length; ++i) {
-        const id = ids[i];
-        const rel = `files/youtube/${id}.${format}`;
-        const final_file = path.resolve(files_root, `${id}.${format}`);
-        const tmp_file = path.resolve(tmp_root, `${id}.${format}`);
-        const url = `https://www.youtube.com/watch?v=${id}`;
-
+    // Tor, when enabled, is started here and stopped right after the last
+    // download. It never outlives the job.
+    let tor_session = null;
+    if (ids.length && tor.enabled()) {
         await write_status({
             status: 'running',
-            user_friendly_status: `Downloading ${i + 1}/${ids.length}`,
+            user_friendly_status: 'Starting Tor',
         });
+        tor_session = await tor.start({
+            user_friendly_status: v => user_friendly_status(`Starting Tor: ${v}`),
+        });
+    }
 
-        if (await exists(final_file)) {
-            skipped.push(rel);
-            continue;
-        }
+    try {
+        for (let i = 0; i < ids.length; ++i) {
+            const id = ids[i];
+            const rel = `files/youtube/${id}.${format}`;
+            const final_file = path.resolve(files_root, `${id}.${format}`);
+            const tmp_file = path.resolve(tmp_root, `${id}.${format}`);
+            const url = `https://www.youtube.com/watch?v=${id}`;
 
-        try {
-            await yt_dlp.download({url, output_template: path.resolve(tmp_root, `${id}.%(ext)s`), format});
-            await assert_nonempty_file(tmp_file);
-            await fs.promises.copyFile(tmp_file, final_file, fs.constants.COPYFILE_EXCL);
-            created.push(rel);
-        }
-        catch (error) {
-            errors.push({
-                id,
-                message: error.message,
+            const prefix = `Downloading ${i + 1}/${ids.length}`;
+
+            await write_status({
+                status: 'running',
+                user_friendly_status: prefix,
             });
+
+            if (await exists(final_file)) {
+                skipped.push(rel);
+                continue;
+            }
+
+            try {
+                await yt_dlp.download({url, output_template: path.resolve(tmp_root, `${id}.%(ext)s`), format,
+                    proxy: tor_session && tor_session.proxy,
+                    user_friendly_status: v => user_friendly_status(`${prefix}: ${v}`)});
+                await assert_nonempty_file(tmp_file);
+                await fs.promises.copyFile(tmp_file, final_file, fs.constants.COPYFILE_EXCL);
+                created.push(rel);
+            }
+            catch (error) {
+                errors.push({
+                    id,
+                    message: error.message,
+                });
+            }
+        }
+    }
+    finally {
+        if (tor_session) {
+            await tor_session.stop();
         }
     }
 
@@ -159,7 +190,27 @@ function clean_youtube_id(value)
     return /^[A-Za-z0-9_-]{6,}$/.test(id) ? id : null;
 }
 
-async function write_status(patch)
+// Show the end user what the job is doing right now. Every write is an fsync,
+// so progress, which arrives many times per second, is rate-limited here.
+function user_friendly_status(s)
+{
+    const now = Date.now();
+    if (now - last_status_at < PROGRESS_INTERVAL) {
+        return;
+    }
+    last_status_at = now;
+    write_status({status: 'running', user_friendly_status: s});
+}
+
+// Writes are queued so that a progress line reported just before the job ends
+// can not land after the final status.
+function write_status(patch)
+{
+    status_queue = status_queue.then(() => write_status_now(patch), () => write_status_now(patch));
+    return status_queue;
+}
+
+async function write_status_now(patch)
 {
     const file = path.resolve(process.cwd(), 'status.json');
     let current = {};

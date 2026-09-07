@@ -24,8 +24,10 @@ The bundled `docker-compose.yaml` runs this setup out of the box:
 ## YouTube downloads
 
 Add a YouTube link to a note, then open its **⋯** menu and choose **Download
-YouTube video** (MP4) or **Extract YouTube MP3**. Files appear as attachments
-under `files/youtube/`. Repeating a job skips existing files.
+YouTube video** (MP4), **Download YouTube video at max quality** (MKV, video and
+audio in one file), or **Extract YouTube MP3**. Files appear as attachments
+under `files/youtube/`. Repeating a job skips existing files. A running job shows
+live progress with speed and ETA.
 
 See [YouTube setup and VPS troubleshooting](docs/youtube.md) for installation,
 proxy/cookie configuration, and diagnosing downloads that work on a PC but fail

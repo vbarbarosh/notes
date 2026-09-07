@@ -307,6 +307,7 @@ app.component('note-card', {
                 out.push({key: 'youtube-thumbnails', label: '🖼️', title: 'Extract YouTube thumbnails', disabled: !!this.note_active_job('youtube-thumbnails'), run: this.click_youtube_thumbnails});
                 out.push({key: 'youtube-mp3', label: '🎵', title: 'Extract YouTube MP3', disabled: !!this.note_active_job('youtube-mp3'), run: this.click_youtube_mp3});
                 out.push({key: 'youtube-video', label: '📥', title: 'Download YouTube video', disabled: !!this.note_active_job('youtube-video'), run: this.click_youtube_video});
+                out.push({key: 'youtube-video-max', label: '🎬', title: 'Download YouTube video at max quality (MKV, video + audio)', disabled: !!this.note_active_job('youtube-video-max'), run: this.click_youtube_video_max});
             }
             out.push({key: 'terminal', label: '🖥️', title: 'Open a terminal in this note', run: this.click_terminal});
             if (this.note_has_pdf) {
@@ -525,6 +526,10 @@ app.component('note-card', {
         },
         click_youtube_video: async function () {
             await api_jobs_create({job_name: 'youtube-video', note_uid: this.note.uid});
+            this.$emit('refresh-jobs');
+        },
+        click_youtube_video_max: async function () {
+            await api_jobs_create({job_name: 'youtube-video-max', note_uid: this.note.uid});
             this.$emit('refresh-jobs');
         },
         click_job_confirm: async function (job) {
