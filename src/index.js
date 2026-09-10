@@ -10,6 +10,7 @@ const express_log = require('@vbarbarosh/express-helpers/src/express_log');
 const express_params = require('@vbarbarosh/express-helpers/src/express_params');
 const express_routes = require('./helpers/express/express_routes');
 const express_run = require('./helpers/express/express_run');
+const express_static_html = require('./helpers/express/express_static_html');
 const file_meta_cache = require('./helpers/file_meta_cache');
 const fs_exists = require('@vbarbarosh/node-helpers/src/fs_exists');
 const fs_mkdirp = require('@vbarbarosh/node-helpers/src/fs_mkdirp');
@@ -17,6 +18,7 @@ const fs_path_dirname = require('@vbarbarosh/node-helpers/src/fs_path_dirname');
 const fs_path_resolve = require('@vbarbarosh/node-helpers/src/fs_path_resolve');
 const fs_path_safe_resolve = require('./helpers/fs_path_safe_resolve');
 const harden_download_headers = require('./helpers/harden_download_headers');
+const html_page_send = require('./helpers/html_page_send');
 const make = require('@vbarbarosh/type-helpers');
 const sharp = require('sharp');
 
@@ -40,7 +42,9 @@ async function main()
         // Redact credentials from the request-header dump before it is written.
         append: message => fs.promises.appendFile(log_file(), `[${new Date().toJSON()}]${redact_log(message)}\n`),
     }));
-    app.use(express.static(fs_path_resolve(__dirname, 'static')));
+    const static_root = fs_path_resolve(__dirname, 'static');
+    app.use(express_static_html(static_root));
+    app.use(express.static(static_root, {setHeaders: static_cache_headers}));
     app.use(body_parser.json());
 
     const data_dir = fs_path_resolve(__dirname, '../data');
@@ -195,7 +199,17 @@ async function note_page(req, res)
         return;
     }
 
-    res.sendFile(fs_path_resolve(__dirname, 'static/note.html'));
+    await html_page_send(res, fs_path_resolve(__dirname, 'static'), fs_path_resolve(__dirname, 'static/note.html'));
+}
+
+// Pages carry `?v=<mtime>` on their asset references (see html_page_send), so
+// an asset fetched under a tag never changes: a new deployment changes the
+// tag instead. Untagged requests keep revalidating.
+function static_cache_headers(res)
+{
+    if (res.req.query.v) {
+        res.set('Cache-Control', 'public, max-age=31536000, immutable');
+    }
 }
 
 async function data_fetch(req, res)
