@@ -24,6 +24,7 @@ app.component('note-card', {
         'remove',
         'remove-file',
         'hover-file',
+        'play-file',
         'uploaded',
     ],
     template: `
@@ -235,6 +236,15 @@ app.component('note-card', {
                         </div>
                         <div class="note-file-size">{{ format_bytes(file.size) }}</div>
                         <div class="note-file-actions">
+                            <button
+                                v-if="is_media_file(file)"
+                                type="button"
+                                class="note-file-button play"
+                                v-on:click="$emit('play-file', note, file)"
+                                v-bind:aria-label="'Play ' + file.path + ' in media player'"
+                                title="Play in media player">
+                                <i class="ti ti-player-play" aria-hidden="true"></i>
+                            </button>
                             <button
                                 type="button"
                                 class="note-file-button open"
@@ -450,6 +460,9 @@ app.component('note-card', {
                 json: 'ti-code',
                 file: 'ti-file',
             }[this.file_type(file)];
+        },
+        is_media_file: function (file) {
+            return is_audio_file(file) || is_video_file(file);
         },
         is_file_hovered: function (file) {
             return this.hoveredNoteUid === this.note.uid && this.hoveredFilePath === file.path;

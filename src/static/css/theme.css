@@ -697,6 +697,7 @@ img.checkerboard {
     --file-muted: #6e6e9c;
     --file-subtle: #9494b8;
     --file-open: #4a4a8c;
+    --file-play: #2f7d4f;
     --file-delete: #c03434;
 
     margin: 0 -22px -12px;
@@ -989,6 +990,16 @@ img.checkerboard {
 
 .note-file-button i {
     font-size: 15px;
+}
+
+.note-file-button.play {
+    color: var(--file-play);
+}
+
+.note-file-button.play:hover {
+    border-color: #b9dcc4;
+    background: #e0f3e6;
+    color: var(--file-play);
 }
 
 .note-file-button.open {

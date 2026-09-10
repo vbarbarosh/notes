@@ -207,15 +207,17 @@ const app = Vue.createApp({
                         v-on:remove="remove_note"
                         v-on:remove-file="remove_note_file"
                         v-on:hover-file="hover_file"
+                        v-on:play-file="play_file"
                         v-on:uploaded="refresh_preserving_note_files" />
         </div>
 
         <uploads-panel />
 
         <mini-player
+            ref="player"
             v-on:select-note="select_notes_overview"
             v-on:heart="heart_track"
-            v-on:hover-track="set_hover_track"
+            v-on:hover-track="hover_file"
             v-bind:tracks="media_tracks"
             v-bind:hovered-note-uid="mouseover_note_uid"
             v-bind:hovered-file-path="mouseover_file_path" />
@@ -923,17 +925,8 @@ const app = Vue.createApp({
             this.mouseover_note_uid = note_uid;
             this.mouseover_file_path = file_path;
         },
-        set_hover_track: function (note_uid, file_path) {
-            this.mouseover_note_uid = note_uid;
-            this.mouseover_file_path = file_path;
-            if (!note_uid || !file_path) {
-                return;
-            }
-            this.$nextTick(() => {
-                const note_elem = this.$refs.list?.note_elem(note_uid);
-                const row = note_elem?.querySelector(`[data-file-path="${CSS.escape(file_path)}"]`);
-                row?.scrollIntoView({block: 'nearest', behavior: 'smooth'});
-            });
+        play_file: function (note, file) {
+            this.$refs.player?.play(`${note.uid}:${file.path}`);
         },
     },
     created: async function () {

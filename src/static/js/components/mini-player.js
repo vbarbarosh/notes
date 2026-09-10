@@ -376,12 +376,6 @@ app.component('mini-player', {
         'state.key': function () {
             this.$nextTick(this.scroll_active_into_view);
         },
-        hoveredNoteUid: function () {
-            this.$nextTick(this.scroll_hovered_into_view);
-        },
-        hoveredFilePath: function () {
-            this.$nextTick(this.scroll_hovered_into_view);
-        },
         'state.volume': function (value) {
             if (this.$refs.media) {
                 this.$refs.media.volume = value;
@@ -409,14 +403,6 @@ app.component('mini-player', {
                 return;
             }
             const row = root.querySelector('.mini-player-list-row.active');
-            row?.scrollIntoView({block: 'nearest', behavior: 'smooth'});
-        },
-        scroll_hovered_into_view: function () {
-            const root = this.$refs.root;
-            if (!root || !this.hoveredNoteUid || !this.hoveredFilePath) {
-                return;
-            }
-            const row = root.querySelector('.mini-player-list-row.hovered');
             row?.scrollIntoView({block: 'nearest', behavior: 'smooth'});
         },
         heart_current: function () {
