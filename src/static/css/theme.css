@@ -829,7 +829,7 @@ img.checkerboard {
 
 .note-files-row {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) 82px 78px;
+    grid-template-columns: minmax(0, 1fr) 82px 102px;
     gap: 10px;
     align-items: center;
     padding: 11px 14px;
@@ -977,6 +977,7 @@ img.checkerboard {
 .note-file-button {
     width: 30px;
     height: 30px;
+    flex-shrink: 0;
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -1046,7 +1047,7 @@ img.checkerboard {
     }
 
     .note-files-row {
-        grid-template-columns: minmax(0, 1fr) 64px 68px;
+        grid-template-columns: minmax(0, 1fr) 64px 96px;
         gap: 8px;
         padding: 10px;
     }
