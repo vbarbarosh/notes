@@ -8,6 +8,13 @@ const URL_PATTERN = /https?:\/\/[^\s<>"'`]+/g;
 // How often the job may rewrite status.json while a download runs. Progress
 // arrives many times per second; the status file is fsynced on every write.
 const PROGRESS_INTERVAL = 1000;
+// Containers yt-dlp may save each kind of download under. The thumbnails and
+// mp3 jobs share files/youtube, so a lookup by id alone would take a
+// <id>.jpg or <id>.mp3 for an already downloaded video.
+const EXTENSIONS = {
+    mp3: ['mp3'],
+    video: ['webm', 'mkv', 'mp4'],
+};
 
 let last_status_at = 0;
 let status_queue = Promise.resolve();
@@ -80,7 +87,7 @@ async function main(format)
 
             // The container is yt-dlp's choice, so a download for this id counts
             // whatever extension it was saved under.
-            const existing = await find_download(files_root, id);
+            const existing = await find_download(files_root, id, format);
             if (existing) {
                 skipped.push(`files/youtube/${existing}`);
                 continue;
@@ -90,7 +97,7 @@ async function main(format)
                 await yt_dlp.download({url, output_template: path.resolve(tmp_root, `${id}.%(ext)s`), format,
                     proxy: tor_session && tor_session.proxy,
                     user_friendly_status: v => user_friendly_status(`${prefix}: ${v}`)});
-                const name = await find_download(tmp_root, id);
+                const name = await find_download(tmp_root, id, format);
                 if (!name) {
                     throw new Error(`yt-dlp wrote no output file for ${id}`);
                 }
@@ -234,11 +241,16 @@ async function write_status_now(patch)
 }
 
 // yt-dlp names the file after the container it chose, so look the download up
-// by video id rather than by an extension the caller guessed.
-async function find_download(dir, id)
+// by video id and the containers this format can land in, rather than by an
+// extension the caller guessed.
+async function find_download(dir, id, format)
 {
+    const extensions = EXTENSIONS[format];
+    if (!extensions) {
+        throw new Error(`Unsupported YouTube output format: ${format}`);
+    }
     const names = await fs.promises.readdir(dir).catch(() => []);
-    return names.find(v => v.startsWith(`${id}.`) && !/\.(part|ytdl)$/.test(v)) || null;
+    return names.find(v => extensions.includes(path.extname(v).slice(1)) && path.basename(v, path.extname(v)) === id) || null;
 }
 
 async function write_file_atomic(filename, data, options = {})

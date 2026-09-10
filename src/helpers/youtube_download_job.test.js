@@ -237,6 +237,17 @@ function finish() {
         await assert.rejects(fs.stat(path.join(job, 'calls.jsonl')), {code: 'ENOENT'});
     });
 
+    it('does not take a thumbnail or an mp3 from the sibling jobs for an existing video', async function () {
+        await fs.mkdir(path.join(note, 'files/youtube'), {recursive: true});
+        await fs.writeFile(path.join(note, 'files/youtube', `${first_id}.jpg`), 'thumbnail');
+        await fs.writeFile(path.join(note, 'files/youtube', `${first_id}.mp3`), 'audio');
+        const result = await run();
+        assert.equal(result.code, 0, result.stderr);
+        assert.deepEqual(await json('output.json'), {created: [`files/youtube/${first_id}.webm`], skipped: [], errors: []});
+        assert.deepEqual((await run('youtube-mp3')).code, 0);
+        assert.deepEqual((await json('output.json')).skipped, [`files/youtube/${first_id}.mp3`]);
+    });
+
     it('starts Tor for the job, routes yt-dlp through it, then stops it and drops its data directory', async function () {
         env.YT_DLP_TOR = 'true';
         const result = await run();
