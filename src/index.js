@@ -21,6 +21,8 @@ const make = require('@vbarbarosh/type-helpers');
 const sharp = require('sharp');
 
 const THUMBNAIL_VERSION = 'v3';
+const PORT = process.env.PORT || 3000;
+const LISTEN = process.env.LISTEN || '127.0.0.1';
 
 cli(main);
 
@@ -94,7 +96,7 @@ async function main()
 
     app.use(error_handler);
 
-    await express_run(app, 3000, process.env.LISTEN || 'localhost', jobs_routes.attach_ws);
+    await express_run(app, PORT, LISTEN, jobs_routes.attach_ws);
 }
 
 async function echo(req, res)
