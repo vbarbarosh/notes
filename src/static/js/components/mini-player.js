@@ -10,6 +10,9 @@ const MINI_PLAYER_MIN_COVER_HEIGHT = 56;
 const MINI_PLAYER_MAX_COVER_HEIGHT = 360;
 const MINI_PLAYER_SNAP_THRESHOLD = 24;
 const MINI_PLAYER_EDGE_MARGIN = 18;
+// How long the controls stay over the cover after the pointer stops moving.
+const MINI_PLAYER_OVERLAY_IDLE = 2500;
+const MINI_PLAYER_VIEWS = ['full', 'compact', 'cover'];
 
 app.component('mini-player', {
     props: {
@@ -31,6 +34,8 @@ app.component('mini-player', {
         </div>
         <div
             v-show="(tracks.length && !state.hidden)"
+            v-on:pointermove="overlay_touch"
+            v-on:mouseleave="overlay_leave"
             v-bind:class="root_class"
             v-bind:style="player_style"
             ref="root">
@@ -64,11 +69,19 @@ app.component('mini-player', {
                 </div>
                 <button
                     v-on:pointerdown.stop
-                    v-on:click="toggle_compact"
-                    v-bind:title="(state.compact ? 'Show playlist' : 'Hide playlist')"
+                    v-on:click="toggle_cover_only"
+                    v-bind:title="(state.view === 'cover' ? 'Show controls' : 'Cover only')"
+                    type="button"
+                    class="mini-player-hide mini-player-cover-toggle">
+                    <i v-bind:class="cover_icon_class" aria-hidden="true"></i>
+                </button>
+                <button
+                    v-on:pointerdown.stop
+                    v-on:click="toggle_playlist"
+                    v-bind:title="(state.view === 'full' ? 'Hide playlist' : 'Show playlist')"
                     type="button"
                     class="mini-player-hide mini-player-compact-toggle">
-                    <i v-bind:class="compact_icon_class" aria-hidden="true"></i>
+                    <i v-bind:class="playlist_icon_class" aria-hidden="true"></i>
                 </button>
                 <button
                     v-on:pointerdown.stop
@@ -92,7 +105,7 @@ app.component('mini-player', {
                 v-bind:src="current_track.url"
                 ref="media"
                 preload="metadata"></audio>
-            <div class="mini-player-seek-row">
+            <div v-on:mouseenter="overlay_pin" v-on:mouseleave="overlay_unpin" class="mini-player-seek-row">
                 <span class="mini-player-time">{{ format_time(current_time) }}</span>
                 <input
                     v-on:input="seek($event.target.value)"
@@ -106,7 +119,7 @@ app.component('mini-player', {
                     step="0.1">
                 <span class="mini-player-time">{{ format_time(duration) }}</span>
             </div>
-            <div class="mini-player-controls">
+            <div v-on:mouseenter="overlay_pin" v-on:mouseleave="overlay_unpin" class="mini-player-controls">
                 <button
                     v-on:click="prev"
                     type="button"
@@ -175,7 +188,7 @@ app.component('mini-player', {
                     </template>
                 </button>
             </div>
-            <div v-show="!state.compact" v-bind:style="list_style" class="mini-player-list">
+            <div v-show="(state.view === 'full')" v-bind:style="list_style" class="mini-player-list">
                 <div
                     v-for="track in tracks"
                     v-bind:key="track.key"
@@ -241,6 +254,8 @@ app.component('mini-player', {
             snap_preview: null,
             particles: [],
             heart_popping: false,
+            overlay_visible: false,
+            overlay_pinned: false,
         };
     },
     computed: {
@@ -313,21 +328,31 @@ app.component('mini-player', {
             else if (this.state.snap === 'right') {
                 out.push('snapped-right');
             }
-            if (this.state.compact) {
+            if (this.state.view === 'compact') {
                 out.push('compact');
+            }
+            else if (this.state.view === 'cover') {
+                out.push('cover-only');
+                if (this.overlay_visible) {
+                    out.push('controls-visible');
+                }
             }
             return out;
         },
         cover_style: function () {
-            // A snapped compact player has nothing below the controls, so the
-            // cover takes the remaining height instead of a fixed one.
-            if (this.state.compact && this.state.snap) {
+            // A snapped player without its playlist has nothing to fill the
+            // sidebar, so the cover takes the remaining height instead of a
+            // fixed one.
+            if (this.state.view !== 'full' && this.state.snap) {
                 return null;
             }
             return {height: `${this.state.cover_height}px`};
         },
-        compact_icon_class: function () {
-            return ['ti', this.state.compact ? 'ti-playlist' : 'ti-playlist-off'];
+        playlist_icon_class: function () {
+            return ['ti', this.state.view === 'full' ? 'ti-playlist-off' : 'ti-playlist'];
+        },
+        cover_icon_class: function () {
+            return ['ti', this.state.view === 'cover' ? 'ti-picture-in-picture-off' : 'ti-picture-in-picture-on'];
         },
         empty_cover_icon_class: function () {
             if (this.current_track?.kind === 'video') {
@@ -508,7 +533,7 @@ app.component('mini-player', {
                 list_height: v.list_height,
                 cover_height: v.cover_height,
                 snap: v.snap,
-                compact: v.compact,
+                view: v.view,
             }));
         },
         ensure_track: function () {
@@ -531,11 +556,59 @@ app.component('mini-player', {
         hide: function () {
             this.state.hidden = true;
         },
-        toggle_compact: function () {
-            this.state.compact = !this.state.compact;
-            if (!this.state.compact) {
+        toggle_playlist: function () {
+            this.set_view(this.state.view === 'full' ? 'compact' : 'full');
+        },
+        toggle_cover_only: function () {
+            this.set_view(this.state.view === 'cover' ? 'compact' : 'cover');
+        },
+        set_view: function (view) {
+            this.state.view = view;
+            if (view === 'full') {
                 this.$nextTick(this.scroll_active_into_view);
             }
+            // The pointer is on the cover when the button is clicked, so the
+            // controls stay until it rests or leaves.
+            if (view === 'cover') {
+                this.overlay_visible = true;
+                this.overlay_schedule_hide();
+            }
+            else {
+                this.overlay_hide();
+            }
+        },
+        // Cover-only view: the controls appear over the media while the
+        // pointer moves and go away once it rests or leaves the player. They
+        // stay while the pointer is on them.
+        overlay_touch: function () {
+            if (this.state.view !== 'cover') {
+                return;
+            }
+            this.overlay_visible = true;
+            this.overlay_schedule_hide();
+        },
+        overlay_leave: function () {
+            this.overlay_pinned = false;
+            this.overlay_hide();
+        },
+        overlay_pin: function () {
+            this.overlay_pinned = true;
+            clearTimeout(this._overlay_timer);
+        },
+        overlay_unpin: function () {
+            this.overlay_pinned = false;
+            this.overlay_schedule_hide();
+        },
+        overlay_schedule_hide: function () {
+            clearTimeout(this._overlay_timer);
+            if (this.overlay_pinned) {
+                return;
+            }
+            this._overlay_timer = setTimeout(() => { this.overlay_visible = false; }, MINI_PLAYER_OVERLAY_IDLE);
+        },
+        overlay_hide: function () {
+            clearTimeout(this._overlay_timer);
+            this.overlay_visible = false;
         },
         show: function () {
             this.state.hidden = false;
@@ -872,6 +945,7 @@ app.component('mini-player', {
         window.removeEventListener('resize', this.clamp_to_viewport);
         window.removeEventListener('beforeunload', this.save_progress_now);
         window.removeEventListener('pagehide', this.save_progress_now);
+        clearTimeout(this._overlay_timer);
         document.removeEventListener('pointermove', this.drag_move);
         document.removeEventListener('pointerup', this.drag_end);
         document.removeEventListener('pointermove', this.resize_move);
@@ -885,7 +959,7 @@ function load_mini_player_state()
     const defaults = {
         key: null, x: null, y: null, hidden: false, volume: 1, position: 0, was_playing: false,
         width: MINI_PLAYER_DEFAULT_WIDTH, list_height: MINI_PLAYER_DEFAULT_LIST_HEIGHT,
-        cover_height: MINI_PLAYER_DEFAULT_COVER_HEIGHT, snap: null, compact: false,
+        cover_height: MINI_PLAYER_DEFAULT_COVER_HEIGHT, snap: null, view: 'full',
     };
     try {
         const value = JSON.parse(localStorage.getItem(MINI_PLAYER_STORAGE_KEY) || 'null');
@@ -893,6 +967,8 @@ function load_mini_player_state()
             return defaults;
         }
         const snap = value.snap === 'left' || value.snap === 'right' ? value.snap : null;
+        // `compact` is the flag the view replaced; honour it once.
+        const view = MINI_PLAYER_VIEWS.includes(value.view) ? value.view : (value.compact ? 'compact' : 'full');
         return {
             key: typeof value.key === 'string' ? value.key : null,
             x: Number.isFinite(value.x) ? value.x : null,
@@ -911,7 +987,7 @@ function load_mini_player_state()
                 ? Math.min(MINI_PLAYER_MAX_COVER_HEIGHT, Math.max(MINI_PLAYER_MIN_COVER_HEIGHT, value.cover_height))
                 : MINI_PLAYER_DEFAULT_COVER_HEIGHT,
             snap,
-            compact: !!value.compact,
+            view,
         };
     }
     catch (error) {
@@ -1044,11 +1120,81 @@ css`
         right: 44px;
     }
 
+    .mini-player-cover-toggle {
+        right: 80px;
+    }
+
     .mini-player.compact.snapped-left .mini-player-cover,
-    .mini-player.compact.snapped-right .mini-player-cover {
+    .mini-player.compact.snapped-right .mini-player-cover,
+    .mini-player.cover-only.snapped-left .mini-player-cover,
+    .mini-player.cover-only.snapped-right .mini-player-cover {
         flex: 1 1 auto;
         height: auto;
         min-height: 56px;
+    }
+
+    /* Cover-only: the media alone. Title, buttons, seek bar and controls sit
+       over it and show while the pointer moves. */
+    .mini-player.cover-only .mini-player-cover-shade,
+    .mini-player.cover-only .mini-player-seek-row,
+    .mini-player.cover-only .mini-player-controls {
+        transition: opacity 0.2s;
+        opacity: 0;
+        pointer-events: none;
+    }
+
+    .mini-player.cover-only .mini-player-hide {
+        transition: opacity 0.2s, background 0.15s, transform 0.15s;
+        opacity: 0;
+        pointer-events: none;
+    }
+
+    .mini-player.cover-only.controls-visible .mini-player-cover-shade,
+    .mini-player.cover-only.controls-visible .mini-player-seek-row,
+    .mini-player.cover-only.controls-visible .mini-player-controls,
+    .mini-player.cover-only.controls-visible .mini-player-hide {
+        opacity: 1;
+        pointer-events: auto;
+    }
+
+    .mini-player.cover-only .mini-player-cover-shade {
+        top: 0;
+        bottom: auto;
+        padding: 12px 122px 36px 14px;
+        background: linear-gradient(to bottom, rgba(0,0,0,0.82), rgba(0,0,0,0));
+    }
+
+    .mini-player.cover-only .mini-player-seek-row,
+    .mini-player.cover-only .mini-player-controls {
+        position: absolute;
+        left: 0;
+        right: 0;
+        z-index: 2;
+    }
+
+    .mini-player.cover-only .mini-player-seek-row {
+        bottom: 62px;
+        padding: 24px 14px 0;
+        background: linear-gradient(to top, rgba(0,0,0,0.78), rgba(0,0,0,0));
+    }
+
+    .mini-player.cover-only .mini-player-controls {
+        bottom: 0;
+        background: rgba(0,0,0,0.78);
+    }
+
+    .mini-player.cover-only .mini-player-time,
+    .mini-player.cover-only .mini-player-count {
+        color: rgba(255,255,255,0.85);
+    }
+
+    .mini-player.cover-only .mini-player-btn {
+        color: #fff;
+    }
+
+    .mini-player.cover-only .mini-player-btn:hover {
+        background: rgba(255,255,255,0.18);
+        color: #fff;
     }
 
     .mini-player-cover-shade {
@@ -1569,7 +1715,9 @@ css`
     .mini-player.snapped-right .mini-player-edge-s,
     .mini-player.snapped-right .mini-player-edge-e,
     .mini-player.compact .mini-player-edge-n,
-    .mini-player.compact .mini-player-edge-s {
+    .mini-player.compact .mini-player-edge-s,
+    .mini-player.cover-only .mini-player-edge-n,
+    .mini-player.cover-only .mini-player-edge-s {
         display: none;
     }
 
