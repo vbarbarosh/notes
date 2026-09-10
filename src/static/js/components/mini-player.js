@@ -64,6 +64,14 @@ app.component('mini-player', {
                 </div>
                 <button
                     v-on:pointerdown.stop
+                    v-on:click="toggle_compact"
+                    v-bind:title="(state.compact ? 'Show playlist' : 'Hide playlist')"
+                    type="button"
+                    class="mini-player-hide mini-player-compact-toggle">
+                    <i v-bind:class="compact_icon_class" aria-hidden="true"></i>
+                </button>
+                <button
+                    v-on:pointerdown.stop
                     v-on:click="hide"
                     type="button"
                     class="mini-player-hide"
@@ -167,7 +175,7 @@ app.component('mini-player', {
                     </template>
                 </button>
             </div>
-            <div v-bind:style="list_style" class="mini-player-list">
+            <div v-show="!state.compact" v-bind:style="list_style" class="mini-player-list">
                 <div
                     v-for="track in tracks"
                     v-bind:key="track.key"
@@ -298,16 +306,28 @@ app.component('mini-player', {
             return {width: `${this.state.width}px`};
         },
         root_class: function () {
+            const out = ['mini-player'];
             if (this.state.snap === 'left') {
-                return ['mini-player', 'snapped-left'];
+                out.push('snapped-left');
             }
-            if (this.state.snap === 'right') {
-                return ['mini-player', 'snapped-right'];
+            else if (this.state.snap === 'right') {
+                out.push('snapped-right');
             }
-            return ['mini-player'];
+            if (this.state.compact) {
+                out.push('compact');
+            }
+            return out;
         },
         cover_style: function () {
+            // A snapped compact player has nothing below the controls, so the
+            // cover takes the remaining height instead of a fixed one.
+            if (this.state.compact && this.state.snap) {
+                return null;
+            }
             return {height: `${this.state.cover_height}px`};
+        },
+        compact_icon_class: function () {
+            return ['ti', this.state.compact ? 'ti-playlist' : 'ti-playlist-off'];
         },
         empty_cover_icon_class: function () {
             if (this.current_track?.kind === 'video') {
@@ -488,6 +508,7 @@ app.component('mini-player', {
                 list_height: v.list_height,
                 cover_height: v.cover_height,
                 snap: v.snap,
+                compact: v.compact,
             }));
         },
         ensure_track: function () {
@@ -509,6 +530,12 @@ app.component('mini-player', {
         },
         hide: function () {
             this.state.hidden = true;
+        },
+        toggle_compact: function () {
+            this.state.compact = !this.state.compact;
+            if (!this.state.compact) {
+                this.$nextTick(this.scroll_active_into_view);
+            }
         },
         show: function () {
             this.state.hidden = false;
@@ -858,7 +885,7 @@ function load_mini_player_state()
     const defaults = {
         key: null, x: null, y: null, hidden: false, volume: 1, position: 0, was_playing: false,
         width: MINI_PLAYER_DEFAULT_WIDTH, list_height: MINI_PLAYER_DEFAULT_LIST_HEIGHT,
-        cover_height: MINI_PLAYER_DEFAULT_COVER_HEIGHT, snap: null,
+        cover_height: MINI_PLAYER_DEFAULT_COVER_HEIGHT, snap: null, compact: false,
     };
     try {
         const value = JSON.parse(localStorage.getItem(MINI_PLAYER_STORAGE_KEY) || 'null');
@@ -884,6 +911,7 @@ function load_mini_player_state()
                 ? Math.min(MINI_PLAYER_MAX_COVER_HEIGHT, Math.max(MINI_PLAYER_MIN_COVER_HEIGHT, value.cover_height))
                 : MINI_PLAYER_DEFAULT_COVER_HEIGHT,
             snap,
+            compact: !!value.compact,
         };
     }
     catch (error) {
@@ -1010,6 +1038,17 @@ css`
 
     .mini-player-hide:hover {
         background: rgba(0,0,0,0.55);
+    }
+
+    .mini-player-compact-toggle {
+        right: 44px;
+    }
+
+    .mini-player.compact.snapped-left .mini-player-cover,
+    .mini-player.compact.snapped-right .mini-player-cover {
+        flex: 1 1 auto;
+        height: auto;
+        min-height: 56px;
     }
 
     .mini-player-cover-shade {
@@ -1528,7 +1567,9 @@ css`
     .mini-player.snapped-left .mini-player-edge-w,
     .mini-player.snapped-right .mini-player-edge-n,
     .mini-player.snapped-right .mini-player-edge-s,
-    .mini-player.snapped-right .mini-player-edge-e {
+    .mini-player.snapped-right .mini-player-edge-e,
+    .mini-player.compact .mini-player-edge-n,
+    .mini-player.compact .mini-player-edge-s {
         display: none;
     }
 
