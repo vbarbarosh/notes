@@ -39,6 +39,21 @@ Progress lines are parsed by `stream_ytdlp_progress` from
 callback. Because every status write is fsynced, the job rewrites `status.json`
 at most once per second no matter how fast yt-dlp reports.
 
+## Interrupted downloads
+
+YouTube binds a video's media URLs to the IP and session that extracted them.
+If either changes while a large video is downloading, every remaining fragment
+answers HTTP 403, and yt-dlp's own fragment retries can not help because they ask
+for the same URLs again. The job therefore runs yt-dlp again, up to three
+attempts per video: the new run extracts fresh URLs and continues from the
+fragments already in the job's `tmp/` directory instead of starting over. The
+job log marks each resume with a `[notes]` line. Only this failure is retried; a
+bot challenge, a sign-in requirement, or any other error fails at once.
+
+A failed download reports what yt-dlp wrote to stderr. Progress lines are left
+out of the message, since a long download writes thousands of them; they remain
+in `stdout.log`.
+
 ## Installation
 
 The Docker image installs upstream `yt-dlp[default]` in a Python virtual
@@ -87,6 +102,7 @@ network access, or YouTube session.
 | Missing runtime, challenge solving failure, or unknown `--js-runtimes` option | Rebuild with a current upstream yt-dlp plus matching EJS scripts. |
 | “Sign in to confirm you're not a bot” or HTTP 429 | YouTube is challenging or blocking the IP/session. Stop repeated retries; test an outbound connection that is known to work using `YT_DLP_PROXY`, or try `YT_DLP_TOR=true` and rerun for new circuits. Cookies can help with a session challenge but do not guarantee access from a blocked server IP. |
 | HTTP 403 or PO Token warning | Check current yt-dlp, the outbound IP/session, and [YouTube's PO Token requirements](https://github.com/yt-dlp/yt-dlp/wiki/PO-Token-Guide). A 403 alone does not identify the cause. |
+| HTTP 403 partway through (`fragment N not found`) | The media URLs stopped being served, usually because the outbound IP changed during a long download. The job already reran yt-dlp with fresh URLs, up to three attempts, continuing from the fragments on disk; see [Interrupted downloads](#interrupted-downloads). |
 | Sign-in required, age restriction, or expired cookies | Supply a fresh YouTube cookies file for an account with access. |
 | Connection timeout / network unreachable | Check VPS outbound connectivity, DNS, and proxy reachability. Try `YT_DLP_FORCE_IPV4=true` if IPv6 is broken. |
 
@@ -146,6 +162,12 @@ Costs and caveats:
   job does not rotate exits or retry on its own — run it again to get new
   circuits.
 * Downloads through Tor are slower and the exit is shared with other users.
+* The client keeps one circuit for the whole job (`MaxCircuitDirtiness`) and, if
+  that circuit breaks, rebuilds towards the same exit (`TrackHostExits`). Tor's
+  default of a new circuit every 10 minutes would change the exit IP in the
+  middle of a large video and turn the rest of it into HTTP 403. If the exit
+  itself goes away, the [resume](#interrupted-downloads) re-extracts through the
+  new one.
 * `YT_DLP_TOR` and `YT_DLP_PROXY` cannot both be set; the job fails immediately
   with a configuration error rather than silently picking one.
 * Cookies are still sent if `YT_DLP_COOKIES_FILE` is configured. Sending account

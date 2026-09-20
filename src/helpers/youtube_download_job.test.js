@@ -28,7 +28,7 @@ describe('YouTube download jobs', function () {
         await fs.writeFile(path.join(job, 'status.json'), JSON.stringify({uid: 'test-job', note_uid: 'test-note'}));
         env = {...process.env, PATH: `${bin}:${process.env.PATH}`, YT_DLP_PROXY: '', YT_DLP_COOKIES_FILE: '',
             YT_DLP_CONFIG_FILE: '', YT_DLP_FORCE_IPV4: '', YT_DLP_TOR: '', FAKE_FAIL_ID: '', FAKE_NO_OUTPUT: '',
-            FAKE_CHECK_COOKIE: '', FAKE_SLOW: ''};
+            FAKE_CHECK_COOKIE: '', FAKE_SLOW: '', FAKE_DROP_MEDIA: ''};
         await fs.writeFile(path.join(bin, 'ffmpeg'), `#!${process.execPath}\nprocess.exit(process.argv[2] === '-version' ? 0 : 1);\n`, {mode: 0o755});
         await fs.writeFile(path.join(bin, 'tor'), `#!${process.execPath}
 const fs = require('fs');
@@ -62,7 +62,19 @@ if (process.env.FAKE_CHECK_COOKIE) {
     }
     fs.writeFileSync(cookie, 'updated cookies');
 }
-if (process.env.FAKE_FAIL_ID && args.at(-1).includes(process.env.FAKE_FAIL_ID)) {
+const calls = fs.readFileSync('calls.jsonl', 'utf8').trim().split('\\n').length;
+if (calls <= Number(process.env.FAKE_DROP_MEDIA || 0)) {
+    // A media URL that stops being served partway, as yt-dlp reports it.
+    for (let i = 0; i < 2000; ++i) {
+        console.log('[download]  62.7% of ~ 739.83MiB at  590.28KiB/s ETA 10:41 (frag 343/545)');
+    }
+    console.log('[download] Got error: HTTP Error 403: Forbidden. Retrying fragment 344 (3/3)...');
+    console.error('ERROR: [download] Got error: HTTP Error 403: Forbidden. Giving up after 3 retries');
+    console.error('ERROR: fragment 344 not found, unable to continue');
+    console.error('ERROR: unable to download video data: HTTP Error 403: Forbidden');
+    process.exitCode = 1;
+}
+else if (process.env.FAKE_FAIL_ID && args.at(-1).includes(process.env.FAKE_FAIL_ID)) {
     const message = "ERROR: Sign in to confirm you’re not a bot " + process.env.YT_DLP_PROXY;
     process.stderr.write(message.slice(0, -5));
     setImmediate(function () {
@@ -182,6 +194,26 @@ function finish() {
         assert.ok(!(await fs.readdir(path.join(job, 'tmp'))).some(v => v.startsWith('cookies-')));
     });
 
+    it('resumes a download whose media URLs stopped being served', async function () {
+        env.FAKE_DROP_MEDIA = '1';
+        const result = await run();
+        assert.equal(result.code, 0, result.stderr);
+        assert.match(result.stdout, /resuming with fresh URLs \(attempt 2\/3\)/);
+        assert.deepEqual(await json('output.json'), {created: [`files/youtube/${first_id}.webm`], skipped: [], errors: []});
+        assert.equal((await fs.readFile(path.join(job, 'calls.jsonl'), 'utf8')).trim().split('\n').length, 2);
+    });
+
+    it('gives up after three attempts and reports the error without the progress lines', async function () {
+        env.FAKE_DROP_MEDIA = '9';
+        assert.equal((await run()).code, 1);
+        assert.equal((await fs.readFile(path.join(job, 'calls.jsonl'), 'utf8')).trim().split('\n').length, 3);
+        const message = (await json('output.json')).errors[0].message;
+        assert.match(message, /^YouTube denied the media request/);
+        assert.match(message, /ERROR: fragment 344 not found/);
+        assert.doesNotMatch(message, /% of/);
+        assert.ok(message.length < 500, message);
+    });
+
     it('rejects a missing configured cookie file before contacting YouTube', async function () {
         env.YT_DLP_COOKIES_FILE = path.join(root, 'missing.txt');
         assert.equal((await run()).code, 1);
@@ -263,6 +295,9 @@ function finish() {
         const tor_args = await json('tor-args.json');
         const data_dir = tor_args[tor_args.indexOf('--DataDirectory') + 1];
         assert.ok(data_dir.includes('notes-tor-'), data_dir);
+        // One exit for the whole job: media URLs are bound to it.
+        assert.equal(tor_args[tor_args.indexOf('--MaxCircuitDirtiness') + 1], '21600');
+        assert.equal(tor_args[tor_args.indexOf('--TrackHostExits') + 1], '.');
         await assert.rejects(fs.stat(data_dir), {code: 'ENOENT'});
     });
 

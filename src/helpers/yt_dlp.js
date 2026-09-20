@@ -8,6 +8,15 @@ const stream_each = require('@vbarbarosh/node-helpers/src/stream_each');
 const stream_ytdlp_progress = require('@vbarbarosh/node-helpers/src/stream_ytdlp_progress');
 const tor = require('./tor');
 
+// A media URL is bound to the IP and session that extracted it. When either
+// changes mid-download, every remaining fragment answers 403 and retrying the
+// same URL can not help. Running yt-dlp again extracts fresh URLs and continues
+// from the fragments already on disk.
+const MEDIA_ATTEMPTS = 3;
+const MEDIA_INTERRUPTED_PATTERN = /fragment \d+ not found|unable to download video data: HTTP Error 403/i;
+// [download]  59.8% of ~ 734.61MiB at  496.33KiB/s ETA 08:52 (frag 325/545)
+const PROGRESS_PATTERN = /^\[download\]\s+[\d.]+% of /;
+
 function check_dependencies()
 {
     const commands = [['yt-dlp', ['--ignore-config', '--version']], ['ffmpeg', ['-version']]];
@@ -76,7 +85,18 @@ async function download({url, output_template, format, proxy, user_friendly_stat
             throw new Error(`Unsupported YouTube output format: ${format}`);
         }
         args.push('--output', output_template, '--', url);
-        await run(args, user_friendly_status);
+        for (let attempt = 1; ; ++attempt) {
+            try {
+                await run(args, user_friendly_status);
+                break;
+            }
+            catch (error) {
+                if (attempt >= MEDIA_ATTEMPTS || !MEDIA_INTERRUPTED_PATTERN.test(error.message)) {
+                    throw error;
+                }
+                console.log(`[notes] YouTube dropped the media session; resuming with fresh URLs (attempt ${attempt + 1}/${MEDIA_ATTEMPTS})`);
+            }
+        }
     }
     finally {
         if (cookies_dir) {
@@ -136,7 +156,7 @@ function run(args, user_friendly_status)
     return new Promise(function (resolve, reject) {
         const proc = child_process.spawn('yt-dlp', args, {stdio: ['ignore', 'pipe', 'pipe']});
         const time0 = Date.now();
-        let tail = '';
+        const tails = {stdout: '', stderr: ''};
 
         // Reuse the shared yt-dlp progress parser, but feed it the redacted
         // lines rather than the raw stream so credentials can not slip through.
@@ -159,12 +179,16 @@ function run(args, user_friendly_status)
 
         // Forward output to the existing job logs; retain only a bounded tail in
         // memory. Line buffering also keeps split proxy credentials redacted.
-        for (const [source, target] of [[proc.stdout, process.stdout], [proc.stderr, process.stderr]]) {
-            const lines = readline.createInterface({input: source, crlfDelay: Infinity});
+        // Progress lines stay out of the tail: a long download writes thousands
+        // of them, and they would push the actual error out of the message.
+        for (const name of ['stdout', 'stderr']) {
+            const lines = readline.createInterface({input: proc[name], crlfDelay: Infinity});
             lines.on('line', function (line) {
                 const safe_line = redact(line);
-                target.write(safe_line + '\n');
-                tail = (tail + safe_line + '\n').slice(-16384);
+                process[name].write(safe_line + '\n');
+                if (!PROGRESS_PATTERN.test(safe_line)) {
+                    tails[name] = (tails[name] + safe_line + '\n').slice(-16384);
+                }
                 progress.write(safe_line + '\n');
             });
         }
@@ -179,7 +203,9 @@ function run(args, user_friendly_status)
                 resolve();
                 return;
             }
-            const detail = tail.trim() || `yt-dlp exited with code ${code}${signal ? ` and signal ${signal}` : ''}`;
+            // yt-dlp reports errors and warnings on stderr; stdout is the
+            // step-by-step narration, useful only when stderr says nothing.
+            const detail = tails.stderr.trim() || tails.stdout.trim() || `yt-dlp exited with code ${code}${signal ? ` and signal ${signal}` : ''}`;
             reject(new Error([failure_hint(detail), detail].filter(Boolean).join('\n')));
         });
     });

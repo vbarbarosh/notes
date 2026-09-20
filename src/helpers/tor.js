@@ -15,6 +15,8 @@ const BOOTSTRAPPED_PATTERN = /Bootstrapped 100%/;
 const BOOTSTRAP_PROGRESS_PATTERN = /Bootstrapped (\d+)%(?: \([^)]*\))?(?::\s*(.+))?$/;
 const BOOTSTRAP_TIMEOUT = 180000;
 const STOP_TIMEOUT = 10000;
+// Seconds. Longer than any single job is expected to run.
+const EXIT_LIFETIME = 21600;
 
 function enabled()
 {
@@ -54,6 +56,13 @@ function spawn_tor(data_dir, user_friendly_status)
             '--DataDirectory', data_dir,
             '--Log', 'notice stdout',
             '--AvoidDiskWrites', '1',
+            // YouTube binds media URLs to the exit that extracted them, and a
+            // large video outlasts Tor's default 10 minutes per circuit. Keep
+            // the circuit for the whole job, and if it breaks anyway, rebuild
+            // towards the same exit rather than a random new one.
+            '--MaxCircuitDirtiness', String(EXIT_LIFETIME),
+            '--TrackHostExits', '.',
+            '--TrackHostExitsExpire', String(EXIT_LIFETIME),
         ];
         const proc = child_process.spawn('tor', args, {stdio: ['ignore', 'pipe', 'pipe']});
         let port = null;
