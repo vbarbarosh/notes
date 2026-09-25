@@ -1,0 +1,1512 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Screenshot Stitcher</title>
+<script>
+    document.documentElement.dataset.theme = theme_read();
+
+    function theme_read()
+    {
+        try {
+            const out = localStorage.getItem('theme');
+            if (out === 'light' || out === 'dark') {
+                return out;
+            }
+        }
+        catch (error) {
+            console.warn(error);
+        }
+        return matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    }
+</script>
+<script src="https://cdn.jsdelivr.net/npm/vue@2.7.16/dist/vue.min.js"></script>
+<style>
+    :root {
+        --color-bg: #F4F5F7;
+        --color-panel: #FFFFFF;
+        --color-border: #DDE1E6;
+        --color-text: #1B1F23;
+        --color-muted: #65707C;
+        --color-accent: #2F6FEB;
+        --color-accent-text: #FFFFFF;
+        --color-hover: #EBEEF2;
+        --color-ok: #1F8A4C;
+        --color-warn: #B7791F;
+        --color-bad: #C5362B;
+        --color-seam: #E5367A;
+        --color-check-a: #FFFFFF;
+        --color-check-b: #E9ECEF;
+        color-scheme: light;
+    }
+    :root[data-theme="dark"] {
+        --color-bg: #15181C;
+        --color-panel: #1D2126;
+        --color-border: #2E343B;
+        --color-text: #E6E8EB;
+        --color-muted: #939CA6;
+        --color-accent: #5B8EF0;
+        --color-accent-text: #0E1116;
+        --color-hover: #262B31;
+        --color-ok: #4CC482;
+        --color-warn: #E0A43A;
+        --color-bad: #F06A5F;
+        --color-seam: #FF5C9A;
+        --color-check-a: #1D2126;
+        --color-check-b: #24292F;
+        color-scheme: dark;
+    }
+    * {
+        box-sizing: border-box;
+    }
+    html, body {
+        height: 100%;
+        margin: 0;
+    }
+    body {
+        background: var(--color-bg);
+        color: var(--color-text);
+        font: 14px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    }
+    button {
+        transition: background-color 0.15s, border-color 0.15s, color 0.15s;
+        padding: 5px 12px;
+        border: 1px solid var(--color-border);
+        border-radius: 6px;
+        background: var(--color-panel);
+        color: var(--color-text);
+        font: inherit;
+        cursor: pointer;
+        user-select: none;
+    }
+    button:hover:not(:disabled) {
+        background: var(--color-hover);
+    }
+    button:disabled {
+        opacity: 0.45;
+        cursor: default;
+    }
+    button.primary {
+        border-color: var(--color-accent);
+        background: var(--color-accent);
+        color: var(--color-accent-text);
+    }
+    button.primary:hover:not(:disabled) {
+        background: var(--color-accent);
+        filter: brightness(1.08);
+    }
+    input[type="number"] {
+        width: 76px;
+        padding: 3px 6px;
+        border: 1px solid var(--color-border);
+        border-radius: 5px;
+        background: var(--color-bg);
+        color: var(--color-text);
+        font: inherit;
+    }
+    .app {
+        display: flex;
+        flex-direction: column;
+        height: 100%;
+    }
+    .bar {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex: none;
+        padding: 8px 16px;
+        border-bottom: 1px solid var(--color-border);
+        background: var(--color-panel);
+    }
+    .bar h1 {
+        margin: 0 12px 0 0;
+        font-size: 16px;
+        font-weight: 600;
+        white-space: nowrap;
+    }
+    .bar-fill {
+        flex: 1;
+        min-width: 0;
+        overflow: hidden;
+        color: var(--color-muted);
+        white-space: nowrap;
+        text-overflow: ellipsis;
+    }
+    .theme {
+        display: flex;
+        flex: none;
+        padding: 2px;
+        border: 1px solid var(--color-border);
+        border-radius: 7px;
+    }
+    .theme button {
+        padding: 3px 10px;
+        border: 0;
+        border-radius: 5px;
+        background: transparent;
+        color: var(--color-muted);
+    }
+    .theme button.active {
+        background: var(--color-hover);
+        color: var(--color-text);
+    }
+    .body {
+        display: flex;
+        flex: 1;
+        min-height: 0;
+    }
+    .side {
+        display: flex;
+        flex-direction: column;
+        flex: none;
+        width: 330px;
+        border-right: 1px solid var(--color-border);
+        background: var(--color-panel);
+    }
+    .side-list {
+        flex: 1;
+        min-height: 0;
+        overflow: auto;
+    }
+    .side-section {
+        padding: 12px 16px;
+        border-top: 1px solid var(--color-border);
+    }
+    .side-title {
+        margin-bottom: 8px;
+        color: var(--color-muted);
+        font-size: 12px;
+        font-weight: 600;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+    }
+    .crop {
+        display: grid;
+        grid-template-columns: auto 1fr auto 1fr;
+        align-items: center;
+        gap: 6px 8px;
+    }
+    .item {
+        display: flex;
+        gap: 10px;
+        padding: 10px 16px;
+        border-bottom: 1px solid var(--color-border);
+        user-select: none;
+    }
+    .item img {
+        flex: none;
+        width: 64px;
+        height: 64px;
+        border: 1px solid var(--color-border);
+        border-radius: 4px;
+        object-fit: cover;
+        object-position: top;
+    }
+    .item-main {
+        flex: 1;
+        min-width: 0;
+    }
+    .item-name {
+        overflow: hidden;
+        font-weight: 500;
+        white-space: nowrap;
+        text-overflow: ellipsis;
+    }
+    .item-meta {
+        color: var(--color-muted);
+        font-size: 12px;
+    }
+    .item-offset {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        margin-top: 4px;
+        font-size: 12px;
+    }
+    .item-tools {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+        flex: none;
+    }
+    .item-tools button {
+        padding: 0 6px;
+        border-color: transparent;
+        background: transparent;
+        font-size: 12px;
+        line-height: 20px;
+    }
+    .item-tools button:hover:not(:disabled) {
+        border-color: var(--color-border);
+    }
+    .item-offset button {
+        padding: 1px 8px;
+        font-size: 12px;
+    }
+    .ok {
+        color: var(--color-ok);
+    }
+    .warn {
+        color: var(--color-warn);
+    }
+    .bad {
+        color: var(--color-bad);
+    }
+    .main {
+        position: relative;
+        flex: 1;
+        min-width: 0;
+        overflow: auto;
+        padding: 16px;
+    }
+    .preview {
+        position: relative;
+        margin: 0 auto;
+        background-color: var(--color-check-a);
+        background-image: linear-gradient(45deg, var(--color-check-b) 25%, transparent 25%, transparent 75%, var(--color-check-b) 75%), linear-gradient(45deg, var(--color-check-b) 25%, transparent 25%, transparent 75%, var(--color-check-b) 75%);
+        background-position: 0 0, 8px 8px;
+        background-size: 16px 16px;
+        box-shadow: 0 0 0 1px var(--color-border);
+    }
+    .preview canvas {
+        display: block;
+        width: 100%;
+    }
+    .seam {
+        position: absolute;
+        left: 0;
+        right: 0;
+        height: 0;
+        border-top: 1px dashed var(--color-seam);
+        pointer-events: none;
+    }
+    .seam-x {
+        top: 0;
+        bottom: 0;
+        right: auto;
+        width: 0;
+        height: auto;
+        border-top: 0;
+        border-left: 1px dashed var(--color-seam);
+    }
+    .select {
+        width: 100%;
+        padding: 4px 6px;
+        border: 1px solid var(--color-border);
+        border-radius: 5px;
+        background: var(--color-bg);
+        color: var(--color-text);
+        font: inherit;
+    }
+    .empty {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 12px;
+        height: 100%;
+        min-height: 300px;
+        border: 2px dashed var(--color-border);
+        border-radius: 12px;
+        color: var(--color-muted);
+        text-align: center;
+        user-select: none;
+    }
+    .empty b {
+        color: var(--color-text);
+        font-size: 18px;
+        font-weight: 600;
+    }
+    .drop {
+        position: fixed;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border: 3px dashed var(--color-accent);
+        background: color-mix(in srgb, var(--color-bg) 85%, transparent);
+        font-size: 20px;
+        font-weight: 600;
+        pointer-events: none;
+        z-index: 10;
+    }
+    .toast {
+        position: fixed;
+        right: 16px;
+        bottom: 16px;
+        padding: 8px 14px;
+        border: 1px solid var(--color-border);
+        border-radius: 8px;
+        background: var(--color-panel);
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+        z-index: 11;
+    }
+    .help {
+        color: var(--color-muted);
+        font-size: 12px;
+    }
+    .mt8 {
+        margin-top: 8px;
+    }
+    label.check {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        user-select: none;
+    }
+    @media (max-width: 720px) {
+        .body {
+            flex-direction: column;
+        }
+        .side {
+            width: auto;
+            max-height: 45%;
+            border-right: 0;
+            border-bottom: 1px solid var(--color-border);
+        }
+        .bar {
+            flex-wrap: wrap;
+        }
+    }
+</style>
+</head>
+<body>
+<div id="app"></div>
+
+<script type="text/x-template" id="app-template">
+    <div class="app">
+        <div class="bar">
+            <h1>Screenshot Stitcher</h1>
+            <button v-on:click="click_add_screenshots" type="button">Add screenshots</button>
+            <button v-on:click="click_clear" v-bind:disabled="!items.length" type="button">Clear</button>
+            <button v-on:click="click_download_zip" v-bind:disabled="!items.length" type="button" title="The screenshots themselves, pasted ones included, in list order">Download ZIP</button>
+            <div class="bar-fill">{{ status }}</div>
+            <button v-on:click="click_copy" v-bind:disabled="!is_ready" type="button" title="Ctrl+C">Copy</button>
+            <button v-on:click="click_save_png" v-bind:disabled="!is_ready" class="primary" type="button" title="Ctrl+S">Save PNG</button>
+            <div class="theme">
+                <button v-on:click="click_light" v-bind:class="{active: (theme === 'light')}" type="button">Light</button>
+                <button v-on:click="click_dark" v-bind:class="{active: (theme === 'dark')}" type="button">Dark</button>
+            </div>
+            <input ref="input" v-on:change="change_input" type="file" accept="image/*" multiple hidden>
+        </div>
+        <div class="body">
+            <div class="side">
+                <div class="side-list">
+                    <div v-for="(item, index) in items" v-bind:key="item.uid" class="item">
+                        <img v-bind:src="item.url" draggable="false" alt="">
+                        <div class="item-main">
+                            <div v-bind:title="item.name" class="item-name">{{ index + 1 }}. {{ item.name }}</div>
+                            <div class="item-meta">{{ item.width }} × {{ item.height }}</div>
+                            <div v-if="item.error" class="item-offset bad">{{ item.error }}</div>
+                            <div v-else class="item-offset">
+                                <span>{{ axis }}</span>
+                                <input v-on:change="change_pos(item, $event)" v-bind:value="render_pos(item)" type="number" v-bind:title="render_pos_title()">
+                                <span v-if="(item.pos_manual !== null)" class="warn">manual</span>
+                                <span v-else-if="(item.confidence === null)" class="help">…</span>
+                                <span v-else v-bind:class="render_confidence_class(item)" v-bind:title="render_confidence_title(item)">{{ render_confidence(item) }}</span>
+                                <button v-if="(item.pos_manual !== null)" v-on:click="click_auto(item)" type="button">auto</button>
+                            </div>
+                        </div>
+                        <div class="item-tools">
+                            <button v-on:click="click_remove(index)" type="button" title="Remove">✕</button>
+                        </div>
+                    </div>
+                </div>
+                <div class="side-section">
+                    <div class="side-title">Scrolling</div>
+                    <select v-model="scroll" class="select">
+                        <option value="auto">Auto: detect the direction</option>
+                        <option value="y">Vertical: page scrolls down</option>
+                        <option value="x">Horizontal: page scrolls sideways</option>
+                    </select>
+                </div>
+                <div class="side-section">
+                    <div class="side-title">Crop every screenshot, px</div>
+                    <div class="crop">
+                        <span>Top</span><input v-model.number="crop.top" type="number" min="0">
+                        <span>Bottom</span><input v-model.number="crop.bottom" type="number" min="0">
+                        <span>Left</span><input v-model.number="crop.left" type="number" min="0">
+                        <span>Right</span><input v-model.number="crop.right" type="number" min="0">
+                    </div>
+                    <label class="check mt8" title="Strips beside the scrolling direction that are the same in every screenshot, or plain like a scrollbar: a fixed sidebar, a toolbar, the scrollbar"><input v-model="is_sides" type="checkbox"> Also crop fixed side panels</label>
+                    <div v-if="(is_sides && sides_label)" class="help">{{ sides_label }}</div>
+                </div>
+                <div class="side-section">
+                    <div class="side-title">Preview</div>
+                    <label class="check"><input v-model="is_fit" type="checkbox"> Fit to width</label>
+                    <label class="check"><input v-model="is_seams" type="checkbox"> Show seams</label>
+                    <div class="help">Positions are found automatically and the list is kept in page order; the order you add them in does not matter. Sticky headers and footers are kept once. Paste with Ctrl+V or drop files anywhere.</div>
+                </div>
+            </div>
+            <div class="main">
+                <div v-if="!items.length" v-on:click="click_add_screenshots" class="empty">
+                    <b>Drop screenshots here</b>
+                    <span>or paste with Ctrl+V, or click to choose files</span>
+                    <span>Same page, same window size, different scroll positions.</span>
+                </div>
+                <div v-show="is_ready" v-bind:style="render_preview_style()" class="preview">
+                    <canvas ref="canvas"></canvas>
+                    <template v-if="is_seams">
+                        <div v-for="seam in result.seams" v-bind:key="seam" v-bind:style="render_seam_style(seam)" v-bind:class="{'seam-x': (result.axis === 'x')}" class="seam"></div>
+                    </template>
+                </div>
+            </div>
+        </div>
+        <div v-if="is_dropping" class="drop">Drop screenshots</div>
+        <div v-if="toast" class="toast">{{ toast }}</div>
+    </div>
+</script>
+
+<script>
+    const BANDS = 8;
+    const MIN_OVERLAP = 16;
+    const MIN_MATCHES = 32;
+    const SEGMENTS = 32;
+    const CANVAS_MAX_SIDE = 32767;
+    const CANVAS_MAX_AREA = 268435456;
+
+    const bitmap_by_uid = new Map();
+    const file_by_uid = new Map();
+    const source_by_key = new Map();
+    const sig_by_key = new Map();
+    const match_by_key = new Map();
+    const columns_by_key = new Map();
+    let uid_last = 0;
+    let refresh_gen = 0;
+    let is_reordered = false;
+    let drag_depth = 0;
+    let toast_timer = null;
+    let crc_table = null;
+
+    main();
+
+    function main()
+    {
+        // A drag started inside the page freezes Chrome on Wayland; file drops from outside are unaffected.
+        document.addEventListener('dragstart', v => v.preventDefault());
+
+        const app = new Vue({
+            template: '#app-template',
+            data: {
+                items: [],
+                crop: {top: 0, bottom: 0, left: 0, right: 0},
+                result: {width: 0, height: 0, seams: [], axis: 'y'},
+                status: '',
+                is_ready: false,
+                is_fit: true,
+                is_seams: false,
+                is_sides: true,
+                sides_label: '',
+                scroll: 'auto',
+                axis: 'y',
+                is_dropping: false,
+                theme: document.documentElement.dataset.theme,
+                toast: '',
+            },
+            computed: {
+                refresh_key: function () {
+                    const parts = this.items.map(v => `${v.uid}:${v.pos_manual}`);
+                    return `${parts.join(',')}|${crop_key(this.crop)}|${this.is_sides}|${this.scroll}`;
+                },
+            },
+            watch: {
+                refresh_key: function () {
+                    this.refresh();
+                },
+            },
+            methods: {
+                click_add_screenshots: function () {
+                    this.$refs.input.click();
+                },
+                change_input: function (event) {
+                    this.items_add(Array.from(event.target.files));
+                    event.target.value = '';
+                },
+                click_clear: function () {
+                    for (const item of this.items) {
+                        item_forget(item);
+                    }
+                    this.items = [];
+                },
+                click_remove: function (index) {
+                    item_forget(this.items.splice(index, 1)[0]);
+                },
+                click_auto: function (item) {
+                    item.pos_manual = null;
+                },
+                change_pos: function (item, event) {
+                    const pos = parseInt(event.target.value, 10);
+                    item.pos_manual = Number.isFinite(pos) ? pos : null;
+                },
+                click_download_zip: function () {
+                    this.export_zip();
+                },
+                click_save_png: function () {
+                    this.export_png();
+                },
+                click_copy: function () {
+                    this.export_clipboard();
+                },
+                click_light: function () {
+                    this.theme = 'light';
+                    theme_write('light');
+                },
+                click_dark: function () {
+                    this.theme = 'dark';
+                    theme_write('dark');
+                },
+                render_pos: function (item) {
+                    if (item.pos_manual !== null) {
+                        return item.pos_manual;
+                    }
+                    return item.pos_auto === null ? '' : item.pos_auto;
+                },
+                render_pos_title: function () {
+                    if (this.axis === 'x') {
+                        return 'Column of the result where this screenshot\'s left edge lands';
+                    }
+                    return 'Row of the result where this screenshot\'s top lands';
+                },
+                render_seam_style: function (seam) {
+                    if (this.result.axis === 'x') {
+                        return {left: `${100 * seam / this.result.width}%`};
+                    }
+                    return {top: `${100 * seam / this.result.height}%`};
+                },
+                render_confidence: function (item) {
+                    if (!item.partner) {
+                        return 'anchor';
+                    }
+                    return item.confidence > 0 ? `${Math.floor(item.confidence * 100)}% match` : 'no match';
+                },
+                render_confidence_title: function (item) {
+                    if (!item.partner) {
+                        return 'Other screenshots are placed relative to this one';
+                    }
+                    if (item.confidence > 0) {
+                        return `Overlaps ${item.partner}; share of compared rows that matched`;
+                    }
+                    return `No overlap found with any other screenshot; placed after the rest. Set ${this.axis} by hand.`;
+                },
+                render_confidence_class: function (item) {
+                    if (!item.partner || item.confidence >= 0.97) {
+                        return 'ok';
+                    }
+                    return item.confidence >= 0.8 ? 'warn' : 'bad';
+                },
+                render_preview_style: function () {
+                    if (this.is_fit) {
+                        return {maxWidth: `${this.result.width}px`};
+                    }
+                    return {width: `${this.result.width}px`};
+                },
+                items_add: async function (files) {
+                    const images = files.filter(v => v.type.startsWith('image/'));
+                    images.sort((a, b) => a.name.localeCompare(b.name, undefined, {numeric: true}));
+                    for (const file of images) {
+                        let bitmap = null;
+                        try {
+                            bitmap = await createImageBitmap(file);
+                        }
+                        catch {
+                            this.toast_show(`Cannot read ${file.name}`);
+                            continue;
+                        }
+                        const uid = ++uid_last;
+                        bitmap_by_uid.set(uid, bitmap);
+                        file_by_uid.set(uid, file);
+                        this.items.push({
+                            uid,
+                            name: file.name || `Pasted ${uid}`,
+                            url: URL.createObjectURL(file),
+                            width: bitmap.width,
+                            height: bitmap.height,
+                            pos_auto: null,
+                            pos_manual: null,
+                            confidence: null,
+                            partner: '',
+                            error: '',
+                        });
+                    }
+                },
+                refresh: async function () {
+                    const gen = ++refresh_gen;
+                    const items = this.items.slice();
+                    const crop_user = crop_normalize(this.crop);
+                    if (!items.length) {
+                        this.is_ready = false;
+                        this.status = '';
+                        return;
+                    }
+
+                    // Let the list render before the heavy work starts.
+                    await sleep(30);
+                    if (gen !== refresh_gen) {
+                        return;
+                    }
+
+                    // Auto tries vertical first and turns to horizontal only
+                    // when some screenshot did not match cleanly.
+                    const axes = this.scroll === 'auto' ? ['y', 'x'] : [this.scroll];
+                    let plan = null;
+                    for (const axis of axes) {
+                        const plan_next = await this.plan_build(items, axis, crop_user, gen);
+                        if (plan_next === null) {
+                            return;
+                        }
+                        if (plan === null || plan_compare(plan_next, plan) < 0) {
+                            plan = plan_next;
+                        }
+                        if (is_plan_clean(plan)) {
+                            break;
+                        }
+                    }
+
+                    this.axis = plan.axis;
+                    for (const item of items) {
+                        item.error = plan.error_by_uid.get(item.uid) || '';
+                    }
+                    if (plan.error) {
+                        this.fail(plan.error);
+                        return;
+                    }
+                    this.sides_label = format_sides(plan.sides, plan.axis);
+                    for (const item of items) {
+                        const info = plan.info_by_uid.get(item.uid);
+                        item.pos_auto = info.pos_auto;
+                        item.confidence = info.confidence;
+                        if (info.partner_uid === null || info.partner_uid === '-') {
+                            item.partner = info.partner_uid === null ? '' : '-';
+                        }
+                        else {
+                            item.partner = `#${items.findIndex(v => v.uid === info.partner_uid) + 1}`;
+                        }
+                    }
+
+                    // The list follows the page from start to end. Reorder once, so
+                    // a rounding tie cannot make two refreshes swap items forever.
+                    const pos_by_uid = plan.pos_by_uid;
+                    const items_sorted_by_pos = items.slice().sort((a, b) => pos_by_uid.get(a.uid) - pos_by_uid.get(b.uid));
+                    if (!is_reordered && items_sorted_by_pos.some((v, i) => v !== items[i])) {
+                        is_reordered = true;
+                        this.items = items_sorted_by_pos;
+                        return;
+                    }
+                    is_reordered = false;
+
+                    const entries = items.map((v, i) => ({image: source_cached(v.uid, plan.axis), pos: pos_by_uid.get(v.uid), h: plan.sigs[i].h}));
+                    const header_image = source_cached(items[plan.bars.header_index].uid, plan.axis);
+                    const layout = layout_from_entries(entries, plan.sigs[0].w, plan.static_bottom, {image: header_image, h: plan.bars.header_h});
+                    if (layout.width > CANVAS_MAX_SIDE || layout.height > CANVAS_MAX_SIDE || layout.width * layout.height > CANVAS_MAX_AREA) {
+                        this.fail(`Result is ${layout.width} × ${layout.height} px, larger than a browser canvas allows (${CANVAS_MAX_SIDE} px per side); crop or remove screenshots`);
+                        return;
+                    }
+                    layout_draw(this.$refs.canvas, layout, plan.crop, plan.axis);
+                    this.result = {width: this.$refs.canvas.width, height: this.$refs.canvas.height, seams: layout.seams, axis: plan.axis};
+                    this.is_ready = true;
+
+                    const weak = items.filter(v => v.pos_manual === null && v.confidence !== null && v.confidence < 0.8);
+                    const direction = plan.axis === 'x' ? ' · horizontal' : '';
+                    const summary = `${items.length} screenshot${items.length === 1 ? '' : 's'} → ${this.result.width} × ${this.result.height}${direction}`;
+                    this.status = weak.length ? `${summary} · ${weak.length} weak match${weak.length === 1 ? '' : 'es'}, check the offsets` : summary;
+                },
+                // Everything below works on the screenshot as seen along the
+                // axis: for 'x' each screenshot is transposed, so scrolling
+                // sideways becomes scrolling down.
+                plan_build: async function (items, axis, crop_user, gen) {
+                    const crop_axis = crop_along(crop_user, axis);
+                    const error_by_uid = new Map();
+                    const sigs_user = items.map(v => sig_cached(v.uid, crop_axis, axis));
+                    for (let i = 0, end = items.length; i < end; ++i) {
+                        if (sigs_user[i] === null) {
+                            error_by_uid.set(items[i].uid, 'Crop leaves nothing');
+                        }
+                    }
+                    if (error_by_uid.size) {
+                        return {axis, error: 'Crop is larger than a screenshot', error_by_uid};
+                    }
+                    const dimension = axis === 'x' ? 'height' : 'width';
+                    for (let i = 1, end = items.length; i < end; ++i) {
+                        if (sigs_user[i].w !== sigs_user[0].w) {
+                            error_by_uid.set(items[i].uid, `${dimension[0].toUpperCase()}${dimension.slice(1)} ${sigs_user[i].w} differs from ${sigs_user[0].w}`);
+                        }
+                    }
+                    if (error_by_uid.size) {
+                        return {axis, error: `All screenshots must have the same ${dimension}`, error_by_uid};
+                    }
+
+                    const bars = bars_find(sigs_user);
+                    let crop = crop_axis;
+                    let sides = {left: 0, right: 0};
+                    if (this.is_sides && items.length > 1) {
+                        sides = sides_find(items.map(v => v.uid), crop_axis, bars.header_h, bars.footer_h, axis);
+                        crop = {top: crop_axis.top, bottom: crop_axis.bottom, left: crop_axis.left + sides.left, right: crop_axis.right + sides.right};
+                    }
+                    const sigs = items.map(v => sig_cached(v.uid, crop, axis));
+                    const sig_by_uid = new Map(items.map((v, i) => [v.uid, sigs[i]]));
+                    const pos_by_uid = new Map();
+                    const info_by_uid = new Map();
+                    const placed = [];
+                    const pending = [];
+                    let static_bottom = Infinity;
+                    let score = 0;
+                    for (const item of items) {
+                        if (item.pos_manual !== null) {
+                            pos_by_uid.set(item.uid, item.pos_manual);
+                            info_by_uid.set(item.uid, {pos_auto: null, confidence: null, partner_uid: null});
+                        }
+                        else if (!placed.length) {
+                            pos_by_uid.set(item.uid, 0);
+                            info_by_uid.set(item.uid, {pos_auto: 0, confidence: 1, partner_uid: null});
+                            placed.push(item);
+                        }
+                        else {
+                            pending.push(item);
+                        }
+                    }
+                    while (pending.length) {
+                        let is_progress = false;
+                        for (const item of pending.slice()) {
+                            this.status = `Matching ${axis === 'x' ? 'sideways' : 'down'}… ${placed.length} of ${items.length} placed`;
+                            await sleep(0);
+                            if (gen !== refresh_gen) {
+                                return null;
+                            }
+                            const placement = placement_find(item, placed, items, sig_by_uid, crop, bars.header_h, axis);
+                            if (placement) {
+                                const pos = pos_by_uid.get(placement.partner.uid) + placement.match.dy;
+                                pos_by_uid.set(item.uid, pos);
+                                info_by_uid.set(item.uid, {pos_auto: pos, confidence: placement.match.confidence, partner_uid: placement.partner.uid});
+                                static_bottom = Math.min(static_bottom, placement.match.static_bottom);
+                                score += placement.match.score;
+                                placed.push(item);
+                                pending.splice(pending.indexOf(item), 1);
+                                is_progress = true;
+                            }
+                        }
+                        if (!is_progress) {
+                            const item = pending.shift();
+                            const pos = Math.max(...placed.map(v => pos_by_uid.get(v.uid) + sig_by_uid.get(v.uid).h));
+                            pos_by_uid.set(item.uid, pos);
+                            info_by_uid.set(item.uid, {pos_auto: pos, confidence: 0, partner_uid: '-'});
+                            placed.push(item);
+                        }
+                    }
+                    const infos = [...info_by_uid.values()].filter(v => v.partner_uid !== null);
+                    return {
+                        axis,
+                        error: '',
+                        error_by_uid,
+                        crop,
+                        sides,
+                        bars,
+                        sigs,
+                        pos_by_uid,
+                        info_by_uid,
+                        static_bottom: static_bottom === Infinity ? 0 : static_bottom,
+                        failures: infos.filter(v => v.confidence === 0).length,
+                        weak: infos.filter(v => v.confidence > 0 && v.confidence < 0.9).length,
+                        score,
+                    };
+                },
+                fail: function (message) {
+                    this.is_ready = false;
+                    this.status = message;
+                },
+                export_png: async function () {
+                    const blob = await canvas_to_blob(this.$refs.canvas);
+                    const a = document.createElement('a');
+                    a.href = URL.createObjectURL(blob);
+                    a.download = `stitched-${format_timestamp(new Date())}.png`;
+                    a.click();
+                    setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+                },
+                export_zip: async function () {
+                    const files = [];
+                    for (let i = 0, end = this.items.length; i < end; ++i) {
+                        const item = this.items[i];
+                        const file = file_by_uid.get(item.uid);
+                        const bytes = new Uint8Array(await file.arrayBuffer());
+                        files.push({name: `${String(i + 1).padStart(2, '0')}-${zip_name_of(item.name, file.type)}`, bytes});
+                    }
+                    const a = document.createElement('a');
+                    a.href = URL.createObjectURL(zip_from_files(files, new Date()));
+                    a.download = `screenshots-${format_timestamp(new Date())}.zip`;
+                    a.click();
+                    setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+                },
+                export_clipboard: async function () {
+                    try {
+                        const item = new ClipboardItem({'image/png': canvas_to_blob(this.$refs.canvas)});
+                        await navigator.clipboard.write([item]);
+                        this.toast_show(`Copied ${this.result.width} × ${this.result.height} PNG`);
+                    }
+                    catch (error) {
+                        console.warn(error);
+                        this.toast_show(`Copy failed: ${error.message}`);
+                    }
+                },
+                toast_show: function (message) {
+                    this.toast = message;
+                    clearTimeout(toast_timer);
+                    toast_timer = setTimeout(() => this.toast = '', 2500);
+                },
+            },
+        });
+        app.$mount('#app');
+
+        document.addEventListener('paste', function (event) {
+            const files = Array.from(event.clipboardData.files);
+            if (files.length) {
+                event.preventDefault();
+                app.items_add(files);
+            }
+        });
+        document.addEventListener('keydown', function (event) {
+            const is_typing = event.target.matches('input, textarea');
+            if (!app.is_ready || is_typing || !(event.ctrlKey || event.metaKey)) {
+                return;
+            }
+            if (event.key === 's') {
+                event.preventDefault();
+                app.export_png();
+            }
+            else if (event.key === 'c' && !String(getSelection())) {
+                event.preventDefault();
+                app.export_clipboard();
+            }
+        });
+        window.addEventListener('dragenter', function (event) {
+            if (event.dataTransfer.types.includes('Files')) {
+                ++drag_depth;
+                app.is_dropping = true;
+            }
+        });
+        window.addEventListener('dragleave', function () {
+            drag_depth = Math.max(0, drag_depth - 1);
+            app.is_dropping = drag_depth > 0;
+        });
+        window.addEventListener('dragover', v => v.preventDefault());
+        window.addEventListener('drop', function (event) {
+            event.preventDefault();
+            drag_depth = 0;
+            app.is_dropping = false;
+            app.items_add(Array.from(event.dataTransfer.files));
+        });
+    }
+
+    function theme_write(theme)
+    {
+        document.documentElement.dataset.theme = theme;
+        try {
+            localStorage.setItem('theme', theme);
+        }
+        catch (error) {
+            console.warn(error);
+        }
+    }
+
+    function item_forget(item)
+    {
+        URL.revokeObjectURL(item.url);
+        bitmap_by_uid.get(item.uid).close();
+        bitmap_by_uid.delete(item.uid);
+        file_by_uid.delete(item.uid);
+        source_by_key.delete(`${item.uid}|x`);
+    }
+
+    // The crop as seen along the axis: for 'x', top and bottom become the
+    // sides and left and right become the scrolling edges.
+    function crop_along(crop, axis)
+    {
+        if (axis === 'x') {
+            return {top: crop.left, bottom: crop.right, left: crop.top, right: crop.bottom};
+        }
+        return crop;
+    }
+
+    function source_cached(uid, axis)
+    {
+        if (axis === 'y') {
+            return bitmap_by_uid.get(uid);
+        }
+        const key = `${uid}|${axis}`;
+        if (!source_by_key.has(key)) {
+            source_by_key.set(key, transpose(bitmap_by_uid.get(uid)));
+        }
+        return source_by_key.get(key);
+    }
+
+    function transpose(source)
+    {
+        const out = document.createElement('canvas');
+        out.width = source.height;
+        out.height = source.width;
+        const ctx = out.getContext('2d');
+        ctx.setTransform(0, 1, 1, 0, 0, 0);
+        ctx.drawImage(source, 0, 0);
+        return out;
+    }
+
+    // Fewer screenshots without a match wins, then fewer weak ones, then the higher score.
+    function plan_compare(a, b)
+    {
+        if (a.error || b.error) {
+            return (a.error ? 1 : 0) - (b.error ? 1 : 0);
+        }
+        if (a.failures !== b.failures) {
+            return a.failures - b.failures;
+        }
+        if (a.weak !== b.weak) {
+            return a.weak - b.weak;
+        }
+        return b.score - a.score;
+    }
+
+    function is_plan_clean(plan)
+    {
+        return !plan.error && plan.failures === 0 && plan.weak === 0;
+    }
+
+    function format_sides(sides, axis)
+    {
+        if (!sides.left && !sides.right) {
+            return '';
+        }
+        if (axis === 'x') {
+            return `Found: top ${sides.left} px, bottom ${sides.right} px`;
+        }
+        return `Found: left ${sides.left} px, right ${sides.right} px`;
+    }
+
+    function crop_normalize(crop)
+    {
+        return {
+            top: Math.max(0, crop.top | 0),
+            bottom: Math.max(0, crop.bottom | 0),
+            left: Math.max(0, crop.left | 0),
+            right: Math.max(0, crop.right | 0),
+        };
+    }
+
+    function crop_key(crop)
+    {
+        const tmp = crop_normalize(crop);
+        return `${tmp.top},${tmp.bottom},${tmp.left},${tmp.right}`;
+    }
+
+    function sig_cached(uid, crop, axis)
+    {
+        const key = `${uid}|${crop_key(crop)}|${axis}`;
+        if (!sig_by_key.has(key)) {
+            sig_by_key.set(key, sig_from_image(source_cached(uid, axis), crop));
+        }
+        return sig_by_key.get(key);
+    }
+
+    // Stored once per pair; the reverse pair is the same match with dy negated.
+    function match_cached(uid_a, uid_b, crop, sig_a, sig_b, header_h, axis)
+    {
+        if (uid_a > uid_b) {
+            const match = match_cached(uid_b, uid_a, crop, sig_b, sig_a, header_h, axis);
+            return {dy: -match.dy, confidence: match.confidence, score: match.score, matches: match.matches, static_bottom: match.static_bottom};
+        }
+        const key = `${uid_a}|${uid_b}|${crop_key(crop)}|${header_h}|${axis}`;
+        if (!match_by_key.has(key)) {
+            match_by_key.set(key, match_from_sigs(sig_a, sig_b, header_h));
+        }
+        return match_by_key.get(key);
+    }
+
+    // Tries the placed screenshots nearest in the list first: in a list
+    // that already runs top to bottom, the neighbour is the one that overlaps.
+    function placement_find(item, placed, items, sig_by_uid, crop, header_h, axis)
+    {
+        const index = items.indexOf(item);
+        const candidates = placed.slice().sort((a, b) => Math.abs(items.indexOf(a) - index) - Math.abs(items.indexOf(b) - index));
+        let best = null;
+        for (const partner of candidates) {
+            const match = match_cached(partner.uid, item.uid, crop, sig_by_uid.get(partner.uid), sig_by_uid.get(item.uid), header_h, axis);
+            if (match.confidence >= 0.9 && match.matches >= MIN_MATCHES) {
+                return {partner, match};
+            }
+            if (best === null || match.score > best.match.score) {
+                best = {partner, match};
+            }
+        }
+        if (best === null || best.match.confidence < 0.6 || best.match.matches < MIN_MATCHES) {
+            return null;
+        }
+        return best;
+    }
+
+    // The sticky header is the tallest run of top rows that some pair of
+    // screenshots agrees on; a pair can miss it when a tooltip or a hover
+    // covers part of it in one shot. The header is later drawn from the
+    // screenshot that agrees with the most others, so the tooltip is left out.
+    // The sticky footer is found the same way from the bottom rows.
+    function bars_find(sigs)
+    {
+        const tops = sigs.map(() => []);
+        let header_h = 0;
+        let footer_h = 0;
+        for (let i = 0, ii = sigs.length; i < ii; ++i) {
+            for (let j = i + 1; j < ii; ++j) {
+                const h_min = Math.min(sigs[i].h, sigs[j].h);
+                const top = static_top_of(sigs[i], sigs[j]);
+                const bottom = static_bottom_of(sigs[i], sigs[j]);
+                tops[i].push(top);
+                tops[j].push(top);
+                if (top + bottom <= h_min - MIN_OVERLAP) {
+                    header_h = Math.max(header_h, top);
+                    footer_h = Math.max(footer_h, bottom);
+                }
+            }
+        }
+        const agreements = tops.map(v => v.filter(vv => vv >= header_h).length);
+        return {header_h, footer_h, header_index: agreements.indexOf(Math.max(...agreements))};
+    }
+
+    // A fixed sidebar or a scrollbar is repeated once per screenshot when
+    // stitched. Its columns, below the header, are either the same in every
+    // screenshot, the same but for a short moving part (a scrollbar thumb
+    // under a toolbar's shadow), or plain in every one: a few changes top to
+    // bottom, like a scrollbar track with its thumb. A wide flat gap ends the
+    // panel, so the page margin next to it is kept.
+    function sides_find(uids, crop, header_h, footer_h, axis)
+    {
+        const columns_list = uids.map(v => columns_cached(v, crop, header_h, footer_h, axis));
+        if (columns_list.includes(null)) {
+            return {left: 0, right: 0};
+        }
+        const w = columns_list[0].hashes.length;
+        const xs = [];
+        for (let x = 0; x < w; ++x) {
+            xs.push(x);
+        }
+        const w_max = Math.floor(w / 3);
+        const gap_max = Math.max(4, Math.round(w * 0.02));
+        return {left: side_width(columns_list, xs.slice(0, w_max), gap_max), right: side_width(columns_list, xs.reverse().slice(0, w_max), gap_max)};
+    }
+
+    function side_width(columns_list, xs, gap_max)
+    {
+        const first = columns_list[0];
+        let out = 0;
+        let gap = 0;
+        for (let i = 0, end = xs.length; i < end; ++i) {
+            const x = xs[i];
+            const is_same = columns_list.every(v => v.hashes[x] === first.hashes[x]);
+            const is_plain = columns_list.every(v => v.changes[x] > 0 && v.changes[x] <= 16);
+            if (is_same && first.changes[x] === 0) {
+                if (++gap > gap_max) {
+                    break;
+                }
+            }
+            else if (is_same || is_plain || is_column_mostly_same(columns_list, x)) {
+                out = i + 1;
+                gap = 0;
+            }
+            else {
+                break;
+            }
+        }
+
+        // The flat strip inside a panel belongs to it when its colour is not
+        // the page background next to it: the edge of a scrollbar track.
+        let inner = out;
+        while (inner < xs.length && inner - out < gap_max && first.changes[xs[inner]] === 0 && columns_list.every(v => v.hashes[xs[inner]] === first.hashes[xs[inner]])) {
+            ++inner;
+        }
+        if (out > 0 && inner > out && inner < xs.length && first.majors[xs[out]] !== first.majors[xs[inner]]) {
+            return inner;
+        }
+        return out;
+    }
+
+    function is_column_mostly_same(columns_list, x)
+    {
+        const first = columns_list[0];
+        for (const columns of columns_list) {
+            let differ = 0;
+            for (let i = x * SEGMENTS, end = i + SEGMENTS; i < end; ++i) {
+                if (columns.segments[i] !== first.segments[i]) {
+                    ++differ;
+                }
+            }
+            if (differ > 4) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    function columns_cached(uid, crop, top, bottom, axis)
+    {
+        const key = `${uid}|${crop_key(crop)}|${top}|${bottom}|${axis}`;
+        if (!columns_by_key.has(key)) {
+            columns_by_key.set(key, columns_from_image(source_cached(uid, axis), crop, top, bottom));
+        }
+        return columns_by_key.get(key);
+    }
+
+    function columns_from_image(image, crop, top, bottom)
+    {
+        const w = image.width - crop.left - crop.right;
+        const h = image.height - crop.top - crop.bottom - top - bottom;
+        if (w < 1 || h < MIN_OVERLAP) {
+            return null;
+        }
+
+        const canvas = document.createElement('canvas');
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext('2d', {willReadFrequently: true});
+        ctx.drawImage(image, crop.left, crop.top + top, w, h, 0, 0, w, h);
+        const pixels = new Uint32Array(ctx.getImageData(0, 0, w, h).data.buffer);
+
+        // majors is each column's most common colour, by majority vote;
+        // segments hash each column in SEGMENTS pieces top to bottom.
+        const hashes = new Uint32Array(w).fill(2166136261);
+        const segments = new Uint32Array(w * SEGMENTS).fill(2166136261);
+        const changes = new Uint32Array(w);
+        const majors = new Uint32Array(w);
+        const votes = new Uint32Array(w);
+        for (let y = 0; y < h; ++y) {
+            const segment = Math.floor(y * SEGMENTS / h);
+            for (let x = 0, i = y * w; x < w; ++x, ++i) {
+                const px = pixels[i];
+                hashes[x] = Math.imul(hashes[x] ^ px, 16777619);
+                segments[x * SEGMENTS + segment] = Math.imul(segments[x * SEGMENTS + segment] ^ px, 16777619);
+                if (y > 0 && px !== pixels[i - w]) {
+                    ++changes[x];
+                }
+                if (votes[x] === 0) {
+                    majors[x] = px;
+                    votes[x] = 1;
+                }
+                else if (majors[x] === px) {
+                    ++votes[x];
+                }
+                else {
+                    --votes[x];
+                }
+            }
+        }
+        return {hashes, segments, changes, majors};
+    }
+
+    // Every row is cut into BANDS vertical strips and each strip is hashed.
+    // Strips let a row still match when one part of it differs: the mouse
+    // cursor, a blinking caret. The rightmost 3% is not hashed at all: it
+    // holds the scrollbar, whose thumb moves from one screenshot to the next.
+    function sig_from_image(image, crop)
+    {
+        const w = image.width - crop.left - crop.right;
+        const h = image.height - crop.top - crop.bottom;
+        if (w < BANDS * 4 || h < MIN_OVERLAP) {
+            return null;
+        }
+
+        const canvas = document.createElement('canvas');
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext('2d', {willReadFrequently: true});
+        ctx.drawImage(image, crop.left, crop.top, w, h, 0, 0, w, h);
+        const pixels = new Uint32Array(ctx.getImageData(0, 0, w, h).data.buffer);
+
+        const w_hashed = w - Math.max(8, Math.round(w * 0.03));
+        const edges = [];
+        for (let k = 0; k <= BANDS; ++k) {
+            edges.push(Math.floor(k * w_hashed / BANDS));
+        }
+        const hashes = new Uint32Array(h * BANDS);
+        const flats = new Uint8Array(h * BANDS);
+        for (let y = 0; y < h; ++y) {
+            const row = y * w;
+            for (let k = 0; k < BANDS; ++k) {
+                const first = pixels[row + edges[k]];
+                let hash = 2166136261;
+                let flat = 1;
+                for (let x = row + edges[k], end = row + edges[k + 1]; x < end; ++x) {
+                    const px = pixels[x];
+                    hash = Math.imul(hash ^ px, 16777619);
+                    if (px !== first) {
+                        flat = 0;
+                    }
+                }
+                hashes[y * BANDS + k] = hash >>> 0;
+                flats[y * BANDS + k] = flat;
+            }
+        }
+        return {w, h, hashes, flats};
+    }
+
+    // dy is how many rows b is scrolled below a: row y of b shows row y + dy of a.
+    // header_h is the header found across all screenshots; it is tried when
+    // it is taller than the one this pair agrees on.
+    function match_from_sigs(a, b, header_h)
+    {
+        const h_min = Math.min(a.h, b.h);
+        const static_top = static_top_of(a, b);
+        const static_bottom = Math.min(static_bottom_of(a, b), h_min - static_top);
+        // A duplicate says nothing about where a sticky footer starts.
+        if (static_top + static_bottom > h_min - MIN_OVERLAP) {
+            return {dy: 0, confidence: 1, score: h_min * BANDS, matches: h_min * BANDS, static_bottom: Infinity};
+        }
+
+        let best = match_search(a, b, static_top, static_bottom);
+        if (header_h > static_top && header_h + static_bottom <= h_min - MIN_OVERLAP) {
+            const best_under_header = match_search(a, b, header_h, static_bottom);
+            if (best === null || (best_under_header !== null && best_under_header.score > best.score)) {
+                best = best_under_header;
+            }
+        }
+        if (best === null || best.score <= 0) {
+            return {dy: a.h - static_bottom - static_top, confidence: 0, score: 0, matches: 0, static_bottom};
+        }
+        return {dy: best.dy, confidence: best.matches / (best.matches + best.mismatches), score: best.score, matches: best.matches, static_bottom};
+    }
+
+    // Rows [top, h - bottom) of both screenshots are compared at every shift.
+    function match_search(a, b, top, bottom)
+    {
+        const a1 = a.h - bottom;
+        const b1 = b.h - bottom;
+        let best = null;
+        for (let dy = top - b1 + MIN_OVERLAP, dy_end = a1 - top - MIN_OVERLAP; dy <= dy_end; ++dy) {
+            const y_begin = Math.max(top, top - dy);
+            const y_end = Math.min(b1, a1 - dy);
+            let matches = 0;
+            let mismatches = 0;
+            for (let y = y_begin; y < y_end; ++y) {
+                // Stop once even a perfect remainder cannot beat the best score.
+                if (best !== null && matches - mismatches + (y_end - y) * BANDS <= best.score) {
+                    mismatches = Infinity;
+                    break;
+                }
+                for (let ia = (y + dy) * BANDS, ib = y * BANDS, end = ib + BANDS; ib < end; ++ia, ++ib) {
+                    if (a.hashes[ia] !== b.hashes[ib]) {
+                        ++mismatches;
+                    }
+                    else if (!a.flats[ia]) {
+                        ++matches;
+                    }
+                }
+            }
+            const score = matches - mismatches;
+            if (best === null || score > best.score) {
+                best = {dy, score, matches, mismatches};
+            }
+        }
+        return best;
+    }
+
+    function static_bottom_of(a, b)
+    {
+        const h_min = Math.min(a.h, b.h);
+        let out = 0;
+        while (out < h_min && is_row_static(a, a.h - 1 - out, b, b.h - 1 - out)) {
+            ++out;
+        }
+        return out;
+    }
+
+    function static_top_of(a, b)
+    {
+        const h_min = Math.min(a.h, b.h);
+        let out = 0;
+        while (out < h_min && is_row_static(a, out, b, out)) {
+            ++out;
+        }
+        return out;
+    }
+
+    // A row that stays in place between two screenshots: a sticky header or
+    // footer. One strip may differ, since the scrollbar thumb runs beside it.
+    function is_row_static(a, ya, b, yb)
+    {
+        let equal = 0;
+        let differ = 0;
+        for (let ia = ya * BANDS, ib = yb * BANDS, end = ib + BANDS; ib < end; ++ia, ++ib) {
+            if (a.hashes[ia] !== b.hashes[ib]) {
+                ++differ;
+            }
+            else if (!a.flats[ia]) {
+                ++equal;
+            }
+        }
+        return differ === 0 || (differ === 1 && equal >= 2);
+    }
+
+    // Screenshots are laid out top to bottom by position. Each one is drawn
+    // from the middle of its overlap with what is already drawn, away from
+    // both screenshots' edges, where scrollbars and shadows live. A sticky
+    // footer is taken from the bottommost one; the sticky header is drawn
+    // over the top from the screenshot bars_find picked.
+    function layout_from_entries(entries, width, static_bottom, header)
+    {
+        const entries_sorted_by_pos = entries.slice().sort((a, b) => a.pos - b.pos);
+        const pos_min = entries_sorted_by_pos[0].pos;
+        const pieces = [];
+        const seams = [];
+        let drawn_end = -Infinity;
+        for (let i = 0, end = entries_sorted_by_pos.length; i < end; ++i) {
+            const entry = entries_sorted_by_pos[i];
+            const is_last = i === end - 1;
+            const entry_end = entry.pos + entry.h - (is_last ? 0 : static_bottom);
+            const content_start = entry.pos + header.h;
+            let from = Math.max(entry.pos, drawn_end);
+            if (i > 0 && drawn_end > content_start) {
+                from = Math.floor((content_start + drawn_end) / 2);
+            }
+            if (entry_end > from) {
+                pieces.push({image: entry.image, sy: from - entry.pos, h: entry_end - from, y: from - pos_min});
+                if (i > 0) {
+                    seams.push(from - pos_min);
+                }
+            }
+            drawn_end = Math.max(drawn_end, entry_end);
+        }
+        return {width, height: drawn_end - pos_min, pieces, seams, header};
+    }
+
+    function layout_draw(canvas, layout, crop, axis)
+    {
+        if (axis === 'y') {
+            layout_paint(canvas, layout, crop);
+            return;
+        }
+        const tmp = document.createElement('canvas');
+        layout_paint(tmp, layout, crop);
+        canvas.width = layout.height;
+        canvas.height = layout.width;
+        const ctx = canvas.getContext('2d');
+        ctx.setTransform(0, 1, 1, 0, 0, 0);
+        ctx.drawImage(tmp, 0, 0);
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+    }
+
+    function layout_paint(canvas, layout, crop)
+    {
+        canvas.width = layout.width;
+        canvas.height = layout.height;
+        const ctx = canvas.getContext('2d');
+        ctx.clearRect(0, 0, layout.width, layout.height);
+        for (const piece of layout.pieces) {
+            ctx.drawImage(piece.image, crop.left, crop.top + piece.sy, layout.width, piece.h, 0, piece.y, layout.width, piece.h);
+        }
+        if (layout.header.h > 0) {
+            ctx.drawImage(layout.header.image, crop.left, crop.top, layout.width, layout.header.h, 0, 0, layout.width, layout.header.h);
+        }
+    }
+
+    // Pasted screenshots are named image.png by the browser; the list number keeps them apart.
+    function zip_name_of(name, type)
+    {
+        const clean = name.replace(/[\\/:*?"<>|]+/g, '_');
+        if (/\.[a-z0-9]+$/i.test(clean)) {
+            return clean;
+        }
+        return `${clean}.${(type.split('/')[1] || 'png').replace('jpeg', 'jpg')}`;
+    }
+
+    // A stored (uncompressed) ZIP: screenshots are PNG or JPEG, already compressed.
+    function zip_from_files(files, date)
+    {
+        const encoder = new TextEncoder();
+        const time_dos = (date.getHours() << 11) | (date.getMinutes() << 5) | (date.getSeconds() >> 1);
+        const date_dos = ((date.getFullYear() - 1980) << 9) | ((date.getMonth() + 1) << 5) | date.getDate();
+        const parts = [];
+        const central = [];
+        let offset = 0;
+        for (const file of files) {
+            const name = encoder.encode(file.name);
+            const crc = crc32(file.bytes);
+            const size = file.bytes.length;
+
+            const local = new DataView(new ArrayBuffer(30));
+            local.setUint32(0, 0x04034b50, true);
+            local.setUint16(4, 20, true);
+            local.setUint16(6, 0x0800, true);
+            local.setUint16(10, time_dos, true);
+            local.setUint16(12, date_dos, true);
+            local.setUint32(14, crc, true);
+            local.setUint32(18, size, true);
+            local.setUint32(22, size, true);
+            local.setUint16(26, name.length, true);
+            parts.push(local, name, file.bytes);
+
+            const entry = new DataView(new ArrayBuffer(46));
+            entry.setUint32(0, 0x02014b50, true);
+            entry.setUint16(4, 20, true);
+            entry.setUint16(6, 20, true);
+            entry.setUint16(8, 0x0800, true);
+            entry.setUint16(12, time_dos, true);
+            entry.setUint16(14, date_dos, true);
+            entry.setUint32(16, crc, true);
+            entry.setUint32(20, size, true);
+            entry.setUint32(24, size, true);
+            entry.setUint16(28, name.length, true);
+            entry.setUint32(42, offset, true);
+            central.push(entry, name);
+
+            offset += 30 + name.length + size;
+        }
+        const central_size = central.reduce((sum, v) => sum + v.byteLength, 0);
+        const end = new DataView(new ArrayBuffer(22));
+        end.setUint32(0, 0x06054b50, true);
+        end.setUint16(8, files.length, true);
+        end.setUint16(10, files.length, true);
+        end.setUint32(12, central_size, true);
+        end.setUint32(16, offset, true);
+        return new Blob([...parts, ...central, end], {type: 'application/zip'});
+    }
+
+    function crc32(bytes)
+    {
+        if (crc_table === null) {
+            crc_table = new Uint32Array(256);
+            for (let i = 0; i < 256; ++i) {
+                let c = i;
+                for (let k = 0; k < 8; ++k) {
+                    c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1;
+                }
+                crc_table[i] = c;
+            }
+        }
+        let crc = 0xFFFFFFFF;
+        for (let i = 0, end = bytes.length; i < end; ++i) {
+            crc = crc_table[(crc ^ bytes[i]) & 0xFF] ^ (crc >>> 8);
+        }
+        return (crc ^ 0xFFFFFFFF) >>> 0;
+    }
+
+    function canvas_to_blob(canvas)
+    {
+        return new Promise(function (resolve, reject) {
+            canvas.toBlob(function (blob) {
+                if (blob) {
+                    resolve(blob);
+                }
+                else {
+                    reject(new Error('Canvas is empty or too large'));
+                }
+            }, 'image/png');
+        });
+    }
+
+    function format_timestamp(date)
+    {
+        const parts = [date.getFullYear(), date.getMonth() + 1, date.getDate(), date.getHours(), date.getMinutes(), date.getSeconds()];
+        return parts.map(v => String(v).padStart(2, '0')).join('-');
+    }
+
+    function sleep(ms)
+    {
+        return new Promise(v => setTimeout(v, ms));
+    }
+</script>
+</body>
+</html>
