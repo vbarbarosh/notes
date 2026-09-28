@@ -56,6 +56,8 @@ const app = Vue.createApp({
 
         <uploads-panel />
 
+        <note-jump />
+
         <div v-if="youtube_player" class="youtube-player">
             <div class="youtube-player-head">
                 <div class="youtube-player-title">{{ youtube_player.title }}</div>
@@ -226,6 +228,7 @@ app.mixin({
 </script>
 
 <script src="/js/components/note-card.js"></script>
+<script src="/js/components/note-jump.js"></script>
 <script src="/js/components/note-calendar.js"></script>
 <script src="/js/components/terminal-panel.js"></script>
 <script src="/js/components/uploads-panel.js"></script>

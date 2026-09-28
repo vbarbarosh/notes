@@ -39,134 +39,136 @@ const app = Vue.createApp({
 
         <div class="ma max-w600">
 
-            <notes-new
-                v-on:refresh="refresh"
-                v-on:create-start="note_create_start"
-                v-on:create-done="note_create_done"
-                v-on:create-fail="note_create_fail" />
+            <sticky-head v-bind:hold="tag_picker_open">
+                <notes-new
+                    v-on:refresh="refresh"
+                    v-on:create-start="note_create_start"
+                    v-on:create-done="note_create_done"
+                    v-on:create-fail="note_create_fail" />
 
-            <div class="filters-bar">
-                <div v-if="all_tags.length" ref="tag_picker_wrap" class="tag-picker-wrap">
-                    <button
-                        type="button"
-                        v-on:click="toggle_tag_picker"
-                        v-bind:class="['filter-button', {active: has_tag_filter}]"
-                        title="Choose tag filters">
-                        Tags <span>{{ all_tags.length }}</span>
-                    </button>
-                    <div v-if="tag_picker_open" class="tag-popover">
-                        <div class="tag-popover-head">
-                            <input
-                                v-model="tag_query"
-                                ref="tag_search"
-                                type="search"
-                                class="tag-search"
-                                v-on:keydown.enter.prevent="select_first_visible_tag"
-                                placeholder="Filter tags">
-                            <button type="button" class="tag-sort" v-on:click="toggle_tag_sort">
-                                {{ tag_sort === 'count' ? 'Count' : 'Name' }}
-                            </button>
-                        </div>
-                        <div v-if="visible_tags.length" class="tag-list">
-                            <div v-for="tag in visible_tags" v-bind:key="tag.name" class="tag-row">
-                                <button
-                                    type="button"
-                                    v-on:click="toggle_include_tag(tag.name)"
-                                    v-bind:class="['tag-name', {active: selected_tags.includes(tag.name), excluded: excluded_tags.includes(tag.name)}]"
-                                    v-bind:title="'Require ' + tag.name">
-                                    {{ tag.name }} <span>{{ tag.count }}</span>
-                                </button>
-                                <button
-                                    type="button"
-                                    v-on:click="toggle_include_tag(tag.name)"
-                                    v-bind:class="['tag-state', 'include', {active: selected_tags.includes(tag.name)}]"
-                                    v-bind:title="'Require ' + tag.name">
-                                    +
-                                </button>
-                                <button
-                                    type="button"
-                                    v-on:click="toggle_exclude_tag(tag.name)"
-                                    v-bind:class="['tag-state', 'exclude', {active: excluded_tags.includes(tag.name)}]"
-                                    v-bind:title="'Hide ' + tag.name">
-                                    -
+                <div class="filters-bar">
+                    <div v-if="all_tags.length" ref="tag_picker_wrap" class="tag-picker-wrap">
+                        <button
+                            type="button"
+                            v-on:click="toggle_tag_picker"
+                            v-bind:class="['filter-button', {active: has_tag_filter}]"
+                            title="Choose tag filters">
+                            Tags <span>{{ all_tags.length }}</span>
+                        </button>
+                        <div v-if="tag_picker_open" class="tag-popover">
+                            <div class="tag-popover-head">
+                                <input
+                                    v-model="tag_query"
+                                    ref="tag_search"
+                                    type="search"
+                                    class="tag-search"
+                                    v-on:keydown.enter.prevent="select_first_visible_tag"
+                                    placeholder="Filter tags">
+                                <button type="button" class="tag-sort" v-on:click="toggle_tag_sort">
+                                    {{ tag_sort === 'count' ? 'Count' : 'Name' }}
                                 </button>
                             </div>
+                            <div v-if="visible_tags.length" class="tag-list">
+                                <div v-for="tag in visible_tags" v-bind:key="tag.name" class="tag-row">
+                                    <button
+                                        type="button"
+                                        v-on:click="toggle_include_tag(tag.name)"
+                                        v-bind:class="['tag-name', {active: selected_tags.includes(tag.name), excluded: excluded_tags.includes(tag.name)}]"
+                                        v-bind:title="'Require ' + tag.name">
+                                        {{ tag.name }} <span>{{ tag.count }}</span>
+                                    </button>
+                                    <button
+                                        type="button"
+                                        v-on:click="toggle_include_tag(tag.name)"
+                                        v-bind:class="['tag-state', 'include', {active: selected_tags.includes(tag.name)}]"
+                                        v-bind:title="'Require ' + tag.name">
+                                        +
+                                    </button>
+                                    <button
+                                        type="button"
+                                        v-on:click="toggle_exclude_tag(tag.name)"
+                                        v-bind:class="['tag-state', 'exclude', {active: excluded_tags.includes(tag.name)}]"
+                                        v-bind:title="'Hide ' + tag.name">
+                                        -
+                                    </button>
+                                </div>
+                            </div>
+                            <div v-else class="tag-empty">No tags match</div>
                         </div>
-                        <div v-else class="tag-empty">No tags match</div>
                     </div>
+
+                    <button
+                        v-if="linked_notes_count"
+                        type="button"
+                        v-on:click="click_linked"
+                        v-bind:class="['filter-button', {active: links_only}]"
+                        title="Show only notes connected to another note">
+                        Linked <span>{{ linked_notes_count }}</span>
+                    </button>
+
+                    <input
+                        v-model="note_query"
+                        type="search"
+                        class="note-search"
+                        placeholder="Search notes and files">
+
+                    <button
+                        v-if="has_any_filter"
+                        type="button"
+                        class="filter-clear"
+                        v-on:click="clear_filters">
+                        Clear
+                    </button>
+
+                    <div class="filter-count">{{ filtered_notes.length }} / {{ notes.length }}</div>
                 </div>
 
-                <button
-                    v-if="linked_notes_count"
-                    type="button"
-                    v-on:click="click_linked"
-                    v-bind:class="['filter-button', {active: links_only}]"
-                    title="Show only notes connected to another note">
-                    Linked <span>{{ linked_notes_count }}</span>
-                </button>
-
-                <input
-                    v-model="note_query"
-                    type="search"
-                    class="note-search"
-                    placeholder="Search notes and files">
-
-                <button
-                    v-if="has_any_filter"
-                    type="button"
-                    class="filter-clear"
-                    v-on:click="clear_filters">
-                    Clear
-                </button>
-
-                <div class="filter-count">{{ filtered_notes.length }} / {{ notes.length }}</div>
-            </div>
-
-            <div v-if="has_any_filter" class="active-filters">
-                <button
-                    v-for="tag in selected_tags"
-                    v-bind:key="'include:' + tag"
-                    type="button"
-                    class="active-filter include"
-                    v-on:click="toggle_include_tag(tag)"
-                    v-bind:title="'Remove required tag ' + tag">
-                    + {{ tag }}
-                </button>
-                <button
-                    v-for="tag in excluded_tags"
-                    v-bind:key="'exclude:' + tag"
-                    type="button"
-                    class="active-filter exclude"
-                    v-on:click="toggle_exclude_tag(tag)"
-                    v-bind:title="'Remove hidden tag ' + tag">
-                    - {{ tag }}
-                </button>
-                <button
-                    v-if="links_only"
-                    type="button"
-                    class="active-filter include"
-                    v-on:click="click_linked"
-                    title="Show notes without links too">
-                    Linked
-                </button>
-                <button
-                    v-if="link_focus_note"
-                    type="button"
-                    class="active-filter include"
-                    v-on:click="filter_links(link_focus_note)"
-                    title="Show notes not connected to this one too">
-                    <i class="ti ti-link" aria-hidden="true"></i>
-                    {{ link_focus_note.name || link_focus_note.uid }}
-                </button>
-                <button
-                    v-if="note_query.trim()"
-                    type="button"
-                    class="active-filter search"
-                    v-on:click="note_query = ''"
-                    title="Clear note search">
-                    "{{ note_query.trim() }}"
-                </button>
-            </div>
+                <div v-if="has_any_filter" class="active-filters">
+                    <button
+                        v-for="tag in selected_tags"
+                        v-bind:key="'include:' + tag"
+                        type="button"
+                        class="active-filter include"
+                        v-on:click="toggle_include_tag(tag)"
+                        v-bind:title="'Remove required tag ' + tag">
+                        + {{ tag }}
+                    </button>
+                    <button
+                        v-for="tag in excluded_tags"
+                        v-bind:key="'exclude:' + tag"
+                        type="button"
+                        class="active-filter exclude"
+                        v-on:click="toggle_exclude_tag(tag)"
+                        v-bind:title="'Remove hidden tag ' + tag">
+                        - {{ tag }}
+                    </button>
+                    <button
+                        v-if="links_only"
+                        type="button"
+                        class="active-filter include"
+                        v-on:click="click_linked"
+                        title="Show notes without links too">
+                        Linked
+                    </button>
+                    <button
+                        v-if="link_focus_note"
+                        type="button"
+                        class="active-filter include"
+                        v-on:click="filter_links(link_focus_note)"
+                        title="Show notes not connected to this one too">
+                        <i class="ti ti-link" aria-hidden="true"></i>
+                        {{ link_focus_note.name || link_focus_note.uid }}
+                    </button>
+                    <button
+                        v-if="note_query.trim()"
+                        type="button"
+                        class="active-filter search"
+                        v-on:click="note_query = ''"
+                        title="Clear note search">
+                        "{{ note_query.trim() }}"
+                    </button>
+                </div>
+            </sticky-head>
 
             <div v-if="has_any_filter && !filtered_notes.length" class="notes-empty">
                 No notes match {{ filter_label }}
@@ -221,6 +223,8 @@ const app = Vue.createApp({
             v-bind:tracks="media_tracks"
             v-bind:hovered-note-uid="mouseover_note_uid"
             v-bind:hovered-file-path="mouseover_file_path" />
+
+        <note-jump />
 
         <div v-if="youtube_player" class="youtube-player">
             <div class="youtube-player-head">
@@ -956,6 +960,8 @@ app.mixin({
 </script>
 
 <script src="js/components/notes-new.js"></script>
+<script src="js/components/sticky-head.js"></script>
+<script src="js/components/note-jump.js"></script>
 <script src="js/components/notes-overview.js"></script>
 <script src="js/components/note-card.js"></script>
 <script src="js/components/notes-list.js"></script>
