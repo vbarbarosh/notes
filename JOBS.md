@@ -284,7 +284,10 @@ Job name: `youtube-video`. Handler: `src/jobs/youtube-video/bin/run`.
 
 Uses the shared YouTube downloader with the same note-link extraction, temporary
 storage, and output-file idempotency as `youtube-mp3`. Downloads video and audio,
-merges them into one file with ffmpeg. No codec preference is applied, so this
+merges them into one file with ffmpeg. It also saves the video's thumbnail as
+`files/youtube/<video_id>.jpg`, unless one is there already, and adds the
+video's title as a new paragraph at the end of the note's `README.md`, unless
+the note has it already. No codec preference is applied, so this
 is the best quality YouTube offers — normally AV1 plus Opus, saved as
 `files/youtube/<video_id>.webm`. The container is yt-dlp's choice: the job asks
 for WebM and stores the file under the extension yt-dlp actually produced, and
@@ -300,6 +303,21 @@ callback — percentage, part, size, speed, ETA and elapsed duration during a
 download, `Merging...` while merging — rate-limited to one write per second.
 See [YouTube configuration and troubleshooting](docs/youtube.md) for dependencies,
 proxy/cookie settings, and VPS-specific failures.
+
+## Facebook Reel
+
+Job name: `facebook-reel`. Handler: `src/jobs/facebook-reel/bin/run`.
+
+Reads `facebook.com/reel/<id>`, `facebook.com/share/r/<code>` and
+`fb.watch/<code>` links from the note and downloads each reel with the shared
+yt-dlp helper, merged into MP4, as `files/facebook/<reel_id>.mp4`, with its
+thumbnail as `files/facebook/<reel_id>.jpg`. The reel's caption is added as a
+new paragraph at the end of the note's `README.md`; without a caption, its
+title, minus the leading view and reaction counters. Text the note already has
+is not added again. A `reel/<id>` link that is already downloaded is skipped
+without contacting Facebook; a share link names its reel only once yt-dlp has
+followed it, so it is downloaded and then skipped. `output.json` lists
+`created`, `skipped`, the added `texts` and `errors`.
 
 ## Terminal Job
 

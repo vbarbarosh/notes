@@ -704,6 +704,27 @@ function extract_youtube_items(body)
     return out;
 }
 
+// The links the facebook-reel job downloads: facebook.com/reel/<id>,
+// facebook.com/share/r/<code> and fb.watch/<code>
+function has_facebook_reel(body)
+{
+    const urls = String(body || '').match(URL_PATTERN) || [];
+    return urls.some(function (url) {
+        try {
+            const parsed = new URL(url);
+            const host = parsed.hostname.replace(/^www\./, '');
+            if (host === 'fb.watch') {
+                return true;
+            }
+            const is_facebook = host === 'facebook.com' || host.endsWith('.facebook.com');
+            return is_facebook && /^\/(?:reel\/\d+|share\/r\/[^/]+)/.test(parsed.pathname);
+        }
+        catch (error) {
+            return false;
+        }
+    });
+}
+
 function parse_youtube_id(url)
 {
     try {

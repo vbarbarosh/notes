@@ -54,8 +54,10 @@ async function main(format)
         user_friendly_status: 'Reading note',
     });
 
-    const body = await fs.promises.readFile(path.resolve(note_root, 'README.md'), 'utf8');
-    const ids = extract_youtube_ids(body);
+    const readme_file = path.resolve(note_root, 'README.md');
+    const ids = extract_youtube_ids(await fs.promises.readFile(readme_file, 'utf8'));
+    // A downloaded video also brings its thumbnail and adds its title to the note.
+    const extras = (format === 'video');
     const created = [];
     const skipped = [];
     const errors = [];
@@ -95,7 +97,7 @@ async function main(format)
 
             try {
                 await yt_dlp.download({url, output_template: path.resolve(tmp_root, `${id}.%(ext)s`), format,
-                    proxy: tor_session && tor_session.proxy,
+                    proxy: tor_session && tor_session.proxy, write_info_json: extras, write_thumbnail: extras,
                     user_friendly_status: v => user_friendly_status(`${prefix}: ${v}`)});
                 const name = await find_download(tmp_root, id, format);
                 if (!name) {
@@ -105,6 +107,16 @@ async function main(format)
                 await assert_nonempty_file(tmp_file);
                 await fs.promises.copyFile(tmp_file, path.resolve(files_root, name), fs.constants.COPYFILE_EXCL);
                 created.push(`files/youtube/${name}`);
+                if (extras) {
+                    if (await copy_if_missing(path.resolve(tmp_root, `${id}.jpg`), path.resolve(files_root, `${id}.jpg`))) {
+                        created.push(`files/youtube/${id}.jpg`);
+                    }
+                    const info = await fs.promises.readFile(path.resolve(tmp_root, `${id}.info.json`), 'utf8').then(JSON.parse, () => ({}));
+                    const title = String(info.title || '').replace(/\s+/g, ' ').trim();
+                    if (title) {
+                        await append_to_note(readme_file, title);
+                    }
+                }
             }
             catch (error) {
                 errors.push({
@@ -136,6 +148,31 @@ async function main(format)
         user_friendly_status: `Created ${created.length}, skipped ${skipped.length}, errors ${errors.length}`,
         finished_at: new Date().toJSON(),
     });
+}
+
+// yt-dlp may find no thumbnail, and the thumbnails job may have saved one.
+async function copy_if_missing(src, dst)
+{
+    try {
+        await fs.promises.copyFile(src, dst, fs.constants.COPYFILE_EXCL);
+        return true;
+    }
+    catch (error) {
+        if (error.code === 'ENOENT' || error.code === 'EEXIST') {
+            return false;
+        }
+        throw error;
+    }
+}
+
+// Adds `line` as its own paragraph at the end of the note, unless the note
+// already has it.
+async function append_to_note(file, line)
+{
+    const body = await fs.promises.readFile(file, 'utf8');
+    if (!body.includes(line)) {
+        await write_file_atomic(file, `${body.trimEnd()}\n\n${line}\n`);
+    }
 }
 
 async function assert_nonempty_file(file)

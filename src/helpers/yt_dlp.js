@@ -33,7 +33,10 @@ function check_dependencies()
     console.log(`YouTube JavaScript runtime: Node ${process.version}`);
 }
 
-async function download({url, output_template, format, proxy, user_friendly_status})
+// merge_output_format: containers yt-dlp may merge video and audio into, in
+// order of preference. write_info_json and write_thumbnail: also save
+// <id>.info.json and <id>.jpg next to the media.
+async function download({url, output_template, format, proxy, user_friendly_status, merge_output_format = 'webm', write_info_json = false, write_thumbnail = false})
 {
     const env = process.env;
     // Jobs have a different working directory from the app and should not pick
@@ -79,10 +82,16 @@ async function download({url, output_template, format, proxy, user_friendly_stat
             // Best video and audio whatever their codec, muxed into one file.
             // YouTube serves AV1/Opus, so this lands in WebM; yt-dlp falls back
             // to another container if a video cannot be carried in WebM.
-            args.push('--format', 'bv*+ba/b', '--merge-output-format', 'webm');
+            args.push('--format', 'bv*+ba/b', '--merge-output-format', merge_output_format);
         }
         else {
-            throw new Error(`Unsupported YouTube output format: ${format}`);
+            throw new Error(`Unsupported yt-dlp output format: ${format}`);
+        }
+        if (write_info_json) {
+            args.push('--write-info-json');
+        }
+        if (write_thumbnail) {
+            args.push('--write-thumbnail', '--convert-thumbnails', 'jpg');
         }
         args.push('--output', output_template, '--', url);
         for (let attempt = 1; ; ++attempt) {
@@ -92,7 +101,9 @@ async function download({url, output_template, format, proxy, user_friendly_stat
             }
             catch (error) {
                 if (attempt >= MEDIA_ATTEMPTS || !MEDIA_INTERRUPTED_PATTERN.test(error.message)) {
-                    throw error;
+                    // The hints name YouTube's own failures and remedies.
+                    const hint = is_youtube_url(url) ? failure_hint(error.message) : '';
+                    throw hint ? new Error(`${hint}\n${error.message}`) : error;
                 }
                 console.log(`[notes] YouTube dropped the media session; resuming with fresh URLs (attempt ${attempt + 1}/${MEDIA_ATTEMPTS})`);
             }
@@ -128,6 +139,17 @@ function redact(value)
         text = text.split(process.env.YT_DLP_PROXY).join('[configured proxy]');
     }
     return text.replace(/\b((?:https?|socks5h?):\/\/)[^\s/@]+@/gi, '$1[redacted]@');
+}
+
+function is_youtube_url(url)
+{
+    try {
+        const host = new URL(url).hostname;
+        return ['youtube.com', 'youtu.be', 'youtube-nocookie.com'].some(v => host === v || host.endsWith(`.${v}`));
+    }
+    catch {
+        return false;
+    }
 }
 
 function failure_hint(text)
@@ -205,8 +227,7 @@ function run(args, user_friendly_status)
             }
             // yt-dlp reports errors and warnings on stderr; stdout is the
             // step-by-step narration, useful only when stderr says nothing.
-            const detail = tails.stderr.trim() || tails.stdout.trim() || `yt-dlp exited with code ${code}${signal ? ` and signal ${signal}` : ''}`;
-            reject(new Error([failure_hint(detail), detail].filter(Boolean).join('\n')));
+            reject(new Error(tails.stderr.trim() || tails.stdout.trim() || `yt-dlp exited with code ${code}${signal ? ` and signal ${signal}` : ''}`));
         });
     });
 }

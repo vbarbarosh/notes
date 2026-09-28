@@ -105,6 +105,12 @@ function finish() {
     const template = args[args.indexOf('--output') + 1];
     const ext = args.includes('--extract-audio') ? 'mp3' : args[args.indexOf('--merge-output-format') + 1];
     fs.writeFileSync(template.replace('%(ext)s', ext), 'media fixture');
+    if (args.includes('--write-info-json')) {
+        fs.writeFileSync(template.replace('%(ext)s', 'info.json'), JSON.stringify({title: 'Title of ' + args.at(-1)}));
+    }
+    if (args.includes('--write-thumbnail')) {
+        fs.writeFileSync(template.replace('%(ext)s', 'jpg'), 'thumbnail fixture');
+    }
     console.log('[download] 100%');
 }
 `, {mode: 0o755});
@@ -135,16 +141,20 @@ function finish() {
         assert.match(result.stdout, /test-yt-dlp/);
         assert.match(result.stdout, /\[download\] 100%/);
         assert.equal(await fs.readFile(path.join(note, 'files/youtube', `${first_id}.webm`), 'utf8'), 'media fixture');
-        assert.deepEqual(await json('output.json'), {created: [`files/youtube/${first_id}.webm`], skipped: [], errors: []});
+        assert.deepEqual(await json('output.json'), {created: [`files/youtube/${first_id}.webm`, `files/youtube/${first_id}.jpg`], skipped: [], errors: []});
         assert.equal((await json('status.json')).uid, 'test-job');
         const args = JSON.parse((await fs.readFile(path.join(job, 'calls.jsonl'), 'utf8')).trim());
         assert.ok(args.includes('--no-playlist'));
         assert.equal(args[args.indexOf('--js-runtimes') + 1], `node:${process.execPath}`);
         assert.equal(args[args.indexOf('--format') + 1], 'bv*+ba/b');
         assert.equal(args[args.indexOf('--merge-output-format') + 1], 'webm');
+        assert.equal(await fs.readFile(path.join(note, 'files/youtube', `${first_id}.jpg`), 'utf8'), 'thumbnail fixture');
+        const body = `https://youtu.be/${first_id}\nhttps://www.youtube.com/watch?v=${first_id}\n\nTitle of https://www.youtube.com/watch?v=${first_id}\n`;
+        assert.equal(await fs.readFile(path.join(note, 'README.md'), 'utf8'), body);
         assert.equal((await run()).code, 0);
         assert.deepEqual((await json('output.json')).skipped, [`files/youtube/${first_id}.webm`]);
         assert.equal((await fs.readFile(path.join(job, 'calls.jsonl'), 'utf8')).trim().split('\n').length, 1);
+        assert.equal(await fs.readFile(path.join(note, 'README.md'), 'utf8'), body);
     });
 
     it('preserves the MP3 job and its output path', async function () {
@@ -152,6 +162,8 @@ function finish() {
         assert.equal(result.code, 0, result.stderr);
         assert.deepEqual((await json('output.json')).created, [`files/youtube/${first_id}.mp3`]);
         const args = JSON.parse((await fs.readFile(path.join(job, 'calls.jsonl'), 'utf8')).trim());
+        assert.ok(!args.includes('--write-thumbnail'));
+        assert.equal(await fs.readFile(path.join(note, 'README.md'), 'utf8'), `https://youtu.be/${first_id}\nhttps://www.youtube.com/watch?v=${first_id}`);
         assert.ok(args.includes('--extract-audio'));
         assert.ok(!args.includes('--merge-output-format'));
     });
@@ -184,7 +196,7 @@ function finish() {
         const result = await run();
         assert.equal(result.code, 1);
         const output = await json('output.json');
-        assert.deepEqual(output.created, [`files/youtube/${first_id}.webm`]);
+        assert.deepEqual(output.created, [`files/youtube/${first_id}.webm`, `files/youtube/${first_id}.jpg`]);
         assert.equal(output.errors[0].id, second_id);
         assert.match(output.errors[0].message, /YT_DLP_PROXY/);
         assert.equal((await json('status.json')).status, 'failed');
@@ -199,7 +211,7 @@ function finish() {
         const result = await run();
         assert.equal(result.code, 0, result.stderr);
         assert.match(result.stdout, /resuming with fresh URLs \(attempt 2\/3\)/);
-        assert.deepEqual(await json('output.json'), {created: [`files/youtube/${first_id}.webm`], skipped: [], errors: []});
+        assert.deepEqual(await json('output.json'), {created: [`files/youtube/${first_id}.webm`, `files/youtube/${first_id}.jpg`], skipped: [], errors: []});
         assert.equal((await fs.readFile(path.join(job, 'calls.jsonl'), 'utf8')).trim().split('\n').length, 2);
     });
 
@@ -285,7 +297,7 @@ function finish() {
         const result = await run();
         assert.equal(result.code, 0, result.stderr);
         assert.match(result.stdout, /\[tor\] .*Bootstrapped 100%/);
-        assert.deepEqual((await json('output.json')).created, [`files/youtube/${first_id}.webm`]);
+        assert.deepEqual((await json('output.json')).created, [`files/youtube/${first_id}.webm`, `files/youtube/${first_id}.jpg`]);
 
         const args = JSON.parse((await fs.readFile(path.join(job, 'calls.jsonl'), 'utf8')).trim());
         assert.equal(args[args.indexOf('--proxy') + 1], 'socks5h://127.0.0.1:19050');

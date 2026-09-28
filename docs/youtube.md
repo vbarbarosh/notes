@@ -9,7 +9,10 @@ after partial failure downloads only the missing files.
 | Job | Output | Picks |
 | --- | --- | --- |
 | `youtube-mp3` | `<id>.mp3` | Best audio, converted to MP3. |
-| `youtube-video` | usually `<id>.webm` | Best available video plus best audio, muxed into one file. |
+| `youtube-video` | usually `<id>.webm`, plus `<id>.jpg` | Best available video plus best audio, muxed into one file, and the thumbnail. |
+
+`youtube-video` also adds the video's title as a new paragraph at the end of the
+note, unless the note already has it.
 
 `youtube-video` applies no codec preference, so it takes whatever YouTube rates
 highest — in practice AV1 video with Opus audio, which lands in WebM. The job

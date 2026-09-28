@@ -318,6 +318,9 @@ app.component('note-card', {
                 out.push({key: 'youtube-mp3', label: '🎵', title: 'Extract YouTube MP3', disabled: !!this.note_active_job('youtube-mp3'), run: this.click_youtube_mp3});
                 out.push({key: 'youtube-video', label: '🎬', title: 'Download YouTube video', disabled: !!this.note_active_job('youtube-video'), run: this.click_youtube_video});
             }
+            if (has_facebook_reel(note.body)) {
+                out.push({key: 'facebook-reel', label: '📘', title: 'Download Facebook reel', disabled: !!this.note_active_job('facebook-reel'), run: this.click_facebook_reel});
+            }
             out.push({key: 'terminal', label: '🖥️', title: 'Open a terminal in this note', run: this.click_terminal});
             if (this.note_has_pdf) {
                 out.push({key: 'pdf', label: 'PDF', title: 'Open PDF app', href: '/pdf.html?note=' + note.uid, css: 'note-pdf-link'});
@@ -538,6 +541,10 @@ app.component('note-card', {
         },
         click_youtube_video: async function () {
             await api_jobs_create({job_name: 'youtube-video', note_uid: this.note.uid});
+            this.$emit('refresh-jobs');
+        },
+        click_facebook_reel: async function () {
+            await api_jobs_create({job_name: 'facebook-reel', note_uid: this.note.uid});
             this.$emit('refresh-jobs');
         },
         click_job_confirm: async function (job) {
