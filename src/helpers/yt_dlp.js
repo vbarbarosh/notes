@@ -185,12 +185,11 @@ function run(args, user_friendly_status)
         const progress = new stream.PassThrough();
         stream.promises.pipeline(progress, stream_ytdlp_progress(), stream_each(report)).catch(() => {});
 
-        function report(v)
-        {
+        function report(v) {
             if (!user_friendly_status) {
                 return;
             }
-            const duration = format_seconds((Date.now() - time0) / 1000);
+            const duration = format_seconds((Date.now() - time0)/1000);
             if (v.merging) {
                 user_friendly_status(`Merging... duration=${duration}`);
             }
@@ -207,11 +206,11 @@ function run(args, user_friendly_status)
             const lines = readline.createInterface({input: proc[name], crlfDelay: Infinity});
             lines.on('line', function (line) {
                 const safe_line = redact(line);
-                process[name].write(safe_line + '\n');
+                process[name].write(`${safe_line}\n`);
                 if (!PROGRESS_PATTERN.test(safe_line)) {
-                    tails[name] = (tails[name] + safe_line + '\n').slice(-16384);
+                    tails[name] = `${tails[name]}${safe_line}\n`.slice(-16384);
                 }
-                progress.write(safe_line + '\n');
+                progress.write(`${safe_line}\n`);
             });
         }
 

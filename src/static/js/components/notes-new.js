@@ -9,14 +9,14 @@ app.component('notes-new', {
                 v-autosize
                 rows="1"
                 placeholder="Write your note here..."
-                @keydown.enter.exact.prevent="submit"
-                @paste="paste"
+                v-on:keydown.enter.exact.prevent="submit"
+                v-on:paste="paste"
                 ref="textarea"
                 class="notes-new-bar-input" />
             <button
                 class="notes-new-bar-attach"
-                @click="openFileDialog"
-                :title="'Attach files'"
+                v-on:click="openFileDialog"
+                v-bind:title="'Attach files'"
                 type="button"
             >📎</button>
             <input
@@ -24,24 +24,24 @@ app.component('notes-new', {
                 multiple
                 hidden
                 ref="fileInput"
-                @change="onFileSelect"
+                v-on:change="onFileSelect"
             >
             <button
                 class="notes-new-bar-submit"
-                :disabled="!canSubmit"
-                @click="submit"
+                v-bind:disabled="!canSubmit"
+                v-on:click="submit"
                 title="Save note"
                 type="button"
             >➤</button>
         </div>
         <div v-if="attachedFiles.length" class="notes-new-bar-files">
-            <div v-for="file in attachedFiles" :key="file.path" class="notes-new-bar-file">
+            <div v-for="file in attachedFiles" v-bind:key="file.path" class="notes-new-bar-file">
                 <span class="file-icon">📎</span> {{ file.path }}
-                <button @click.stop="removeFile(file)" title="Remove" class="notes-new-bar-file-remove">✖️</button>
+                <button v-on:click.stop="removeFile(file)" title="Remove" class="notes-new-bar-file-remove">✖️</button>
             </div>
         </div>
     `,
-    data() {
+    data: function () {
         return {
             new_body: "",
             note_uid: null,
@@ -49,41 +49,45 @@ app.component('notes-new', {
         }
     },
     computed: {
-        canSubmit() {
+        canSubmit: function () {
             return !!this.new_body.trim() || this.attachedFiles.length;
         }
     },
     methods: {
-        async ensureNote() {
-            if (this.note_uid) return this.note_uid;
-            const note = await api_notes_create({ body: "" });
+        ensureNote: async function () {
+            if (this.note_uid) {
+                return this.note_uid;
+            }
+            const note = await api_notes_create({body: ""});
             this.note_uid = note.uid;
             return this.note_uid;
         },
-        openFileDialog() {
+        openFileDialog: function () {
             this.$refs.fileInput.click();
         },
-        async onFileSelect(e) {
-            const files = Array.from(e.target.files);
+        onFileSelect: async function (event) {
+            const files = Array.from(event.target.files);
             await this.attachFiles(files);
         },
-        async attachFiles(files) {
+        attachFiles: async function (files) {
             const note_uid = await this.ensureNote();
-            await Promise.all(files.map(file => do_upload_file(note_uid, file)));
+            await Promise.all(files.map(v => do_upload_file(note_uid, v)));
             const freshNote = await api_notes_fetch(note_uid);
             this.attachedFiles = freshNote.files || [];
             this.$refs.textarea.focus();
         },
-        async removeFile(file) {
-            if (!this.note_uid) return;
-            const index = this.attachedFiles.findIndex(item => item.path === file.path);
+        removeFile: async function (file) {
+            if (!this.note_uid) {
+                return;
+            }
+            const index = this.attachedFiles.findIndex(v => v.path === file.path);
             const removed = this.attachedFiles[index];
-            this.attachedFiles = this.attachedFiles.filter(item => item.path !== file.path);
+            this.attachedFiles = this.attachedFiles.filter(v => v.path !== file.path);
             try {
-                await api_notes_remove_file({ note_uid: this.note_uid, filename: file.path });
+                await api_notes_remove_file({note_uid: this.note_uid, filename: file.path});
             }
             catch (error) {
-                if (removed && !this.attachedFiles.some(item => item.path === removed.path)) {
+                if (removed && !this.attachedFiles.some(v => v.path === removed.path)) {
                     this.attachedFiles = [
                         ...this.attachedFiles.slice(0, index),
                         removed,
@@ -93,35 +97,38 @@ app.component('notes-new', {
                 throw error;
             }
         },
-        async submit() {
-            if (!this.canSubmit) return;
+        submit: async function () {
+            if (!this.canSubmit) {
+                return;
+            }
             const body = this.new_body;
             const files = this.attachedFiles;
             if (this.note_uid) {
                 const note_uid = this.note_uid;
-                this.$emit("create-start", { uid: note_uid, body, files });
+                this.$emit("create-start", {uid: note_uid, body, files});
                 this.resetAll();
                 try {
-                    await api_notes_update({ note_uid, body });
-                    this.$emit("create-done", { uid: note_uid, note_uid, body, files });
+                    await api_notes_update({note_uid, body});
+                    this.$emit("create-done", {uid: note_uid, note_uid, body, files});
                 }
                 catch (error) {
-                    this.$emit("create-fail", { uid: note_uid });
+                    this.$emit("create-fail", {uid: note_uid});
                     this.new_body = body;
                     this.attachedFiles = files;
                     this.note_uid = note_uid;
                     throw error;
                 }
-            } else {
+            }
+            else {
                 const uid = `tmp_${Date.now()}_${Math.random().toString(36).slice(2)}`;
-                this.$emit("create-start", { uid, body, files });
+                this.$emit("create-start", {uid, body, files});
                 this.resetAll();
                 try {
-                    const note = await api_notes_create({ body });
-                    this.$emit("create-done", { uid, note_uid: note.uid, body, files });
+                    const note = await api_notes_create({body});
+                    this.$emit("create-done", {uid, note_uid: note.uid, body, files});
                 }
                 catch (error) {
-                    this.$emit("create-fail", { uid });
+                    this.$emit("create-fail", {uid});
                     this.new_body = body;
                     this.attachedFiles = files;
                     throw error;
@@ -129,22 +136,26 @@ app.component('notes-new', {
             }
             this.$emit("refresh");
         },
-        async paste(e) {
-            const items = e.clipboardData && e.clipboardData.items;
-            if (!items) return;
+        paste: async function (event) {
+            const items = event.clipboardData && event.clipboardData.items;
+            if (!items) {
+                return;
+            }
             const files = [];
-            for (let i = 0; i < items.length; ++i) {
+            for (let i = 0, end = items.length; i < end; ++i) {
                 const item = items[i];
                 if (item.kind === 'file') {
                     const file = item.getAsFile();
-                    if (file) files.push(file);
+                    if (file) {
+                        files.push(file);
+                    }
                 }
             }
             if (files.length) {
                 await this.attachFiles(files);
             }
         },
-        resetAll() {
+        resetAll: function () {
             this.note_uid = null;
             this.new_body = "";
             this.attachedFiles = [];

@@ -24,8 +24,7 @@ function facebook_reel_job()
             status: 'failed',
             user_friendly_status: error.message || 'Failed',
             finished_at: new Date().toJSON(),
-        }).catch(function () {
-        });
+        }).catch(function () {});
         await fs.promises.writeFile(path.resolve(process.cwd(), 'error.txt'), error.stack || String(error));
         process.exitCode = 1;
     });
@@ -174,7 +173,7 @@ function parse_facebook_reel(url)
             return {id: null, url: `https://www.facebook.com/share/r/${parts[2]}/`};
         }
     }
-    catch (error) {
+    catch {
     }
 
     return null;
@@ -273,7 +272,7 @@ async function write_status_now(patch)
             current = JSON.parse(buf);
             break;
         }
-        catch (error) {
+        catch {
             await new Promise(v => setTimeout(v, 20));
         }
     }
@@ -313,12 +312,10 @@ async function write_file_atomic(filename, data, options = {})
     }
     catch (error) {
         if (handler) {
-            await handler.close().catch(function () {
-            });
+            await handler.close().catch(function () {});
         }
 
-        await fs.promises.unlink(tmp).catch(function () {
-        });
+        await fs.promises.unlink(tmp).catch(function () {});
         throw error;
     }
 }

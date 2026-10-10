@@ -1,8 +1,8 @@
-const tor = require('./tor');
-const yt_dlp = require('./yt_dlp');
+const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
-const crypto = require('crypto');
+const tor = require('./tor');
+const yt_dlp = require('./yt_dlp');
 
 const URL_PATTERN = /https?:\/\/[^\s<>"'`]+/g;
 // How often the job may rewrite status.json while a download runs. Progress
@@ -140,7 +140,7 @@ async function main(format)
 
     if (errors.length) {
         throw new Error(`Created ${created.length}, skipped ${skipped.length}, errors ${errors.length}\n`
-            + errors.map(error => `${error.id}: ${error.message}`).join('\n'));
+            + errors.map(v => `${v.id}: ${v.message}`).join('\n'));
     }
 
     await write_status({
@@ -189,15 +189,15 @@ function extract_youtube_ids(body)
     const seen = new Set();
     const out = [];
 
-    urls.forEach(function (raw_url) {
+    for (const raw_url of urls) {
         const url = raw_url.replace(/[)\].,!?;:]+$/g, '');
         const id = parse_youtube_id(url);
         if (!id || seen.has(id)) {
-            return;
+            continue;
         }
         seen.add(id);
         out.push(id);
-    });
+    }
 
     return out;
 }
@@ -227,7 +227,7 @@ function parse_youtube_id(url)
             return clean_youtube_id(parts[1]);
         }
     }
-    catch (error) {
+    catch {
     }
 
     return null;
@@ -270,8 +270,8 @@ async function write_status_now(patch)
             current = JSON.parse(buf);
             break;
         }
-        catch (error) {
-            await new Promise(resolve => setTimeout(resolve, 20));
+        catch {
+            await new Promise(v => setTimeout(v, 20));
         }
     }
     await write_file_atomic(file, JSON.stringify({...current, ...patch}, null, 4));

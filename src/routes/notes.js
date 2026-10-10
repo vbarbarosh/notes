@@ -7,9 +7,9 @@ const fs_exists = require('@vbarbarosh/node-helpers/src/fs_exists');
 const fs_lstat = require('@vbarbarosh/node-helpers/src/fs_lstat');
 const fs_mkdirp = require('@vbarbarosh/node-helpers/src/fs_mkdirp');
 const fs_path_dirname = require('@vbarbarosh/node-helpers/src/fs_path_dirname');
-const fs_path_strict_resolve = require('../helpers/fs_path_strict_resolve');
 const fs_path_resolve = require('@vbarbarosh/node-helpers/src/fs_path_resolve');
 const fs_path_safe_relative = require('../helpers/fs_path_safe_relative');
+const fs_path_strict_resolve = require('../helpers/fs_path_strict_resolve');
 const fs_prune_empty_dirs = require('../helpers/fs_prune_empty_dirs');
 const fs_read_utf8 = require('@vbarbarosh/node-helpers/src/fs_read_utf8');
 const fs_readdir = require('@vbarbarosh/node-helpers/src/fs_readdir');
@@ -32,7 +32,7 @@ const upload = multer({
     }),
     defParamCharset: 'utf8',
     limits: {
-        fileSize: 50 * 1024 * 1024, // 50MB
+        fileSize: 50*1024*1024, // 50MB
     },
     preservePath: true,
 });
@@ -55,8 +55,8 @@ const routes = [
 // GET /api/v1/notes?q=xxx&uid=xxx&created_after=xxx&created_before=xxx&limit=xxx&offset=xxx
 async function notes_list(req, res)
 {
-    const out = await cache_api_notes(req, null, () => read_notes_list(req));
-    res.send(list_response(filter_notes(out.items, req.query), req.query));
+    const notes = await cache_api_notes(req, null, () => read_notes_list(req));
+    res.send(list_response(filter_notes(notes.items, req.query), req.query));
 }
 
 function filter_notes(items, query)
@@ -66,25 +66,25 @@ function filter_notes(items, query)
     const q = make(query.q, {type: 'str'}).toLowerCase();
     if (q) {
         filters.q = q;
-        items = items.filter(item => [item.uid, item.name, item.body].some(v => v.toLowerCase().includes(q)));
+        items = items.filter(v => [v.uid, v.name, v.body].some(vv => vv.toLowerCase().includes(q)));
     }
 
     const uid = make(query.uid, {type: 'str'});
     if (uid) {
         filters.uid = uid;
-        items = items.filter(item => item.uid === uid);
+        items = items.filter(v => v.uid === uid);
     }
 
     const created_after = date_ms(query.created_after);
     if (created_after !== null) {
         filters.created_after = new Date(created_after).toJSON();
-        items = items.filter(item => date_ms(item.created_at) >= created_after);
+        items = items.filter(v => date_ms(v.created_at) >= created_after);
     }
 
     const created_before = date_ms(query.created_before);
     if (created_before !== null) {
         filters.created_before = new Date(created_before).toJSON();
-        items = items.filter(item => date_ms(item.created_at) <= created_before);
+        items = items.filter(v => date_ms(v.created_at) <= created_before);
     }
 
     return {items, filters};
@@ -125,13 +125,13 @@ function filter_note_files(items, query)
     const q = make(query.q, {type: 'str'}).toLowerCase();
     if (q) {
         filters.q = q;
-        items = items.filter(item => item.path.toLowerCase().includes(q));
+        items = items.filter(v => v.path.toLowerCase().includes(q));
     }
 
     const mime = make(query.mime, {type: 'str'});
     if (mime) {
         filters.mime = mime;
-        items = items.filter(item => item.mime.startsWith(mime));
+        items = items.filter(v => v.mime.startsWith(mime));
     }
 
     return {items, filters};
@@ -154,7 +154,7 @@ async function notes_file_fetch(req, res)
 async function notes_create(req, res)
 {
     const name = req.body.name;
-    const body = req.body.body.toString().trim() + '\n';
+    const body = `${req.body.body.toString().trim()}\n`;
 
     const uid = now_fs();
     const dir_name = uid;
@@ -282,7 +282,7 @@ async function notes_file_move(req, res)
 async function notes_update(req, res)
 {
     const note_uid = req.params.note_uid;
-    const body = req.body.body.toString().trim() + '\n';
+    const body = `${req.body.body.toString().trim()}\n`;
 
     const d = `${req.user_dir}/notes/${note_uid}`;
 
@@ -374,9 +374,9 @@ async function resolve_note_root_name(req, note_uid)
     const names = await fs_readdir(d);
     // Match the exact note dir name, or the `<uid>-<name>` form of the same uid.
     // A bare prefix must not resolve to a different, longer uid (finding S11).
-    const out = names.find(name => name === note_uid || name.startsWith(`${note_uid}-`));
-    if (out) {
-        return out;
+    const name = names.find(v => (v === note_uid) || v.startsWith(`${note_uid}-`));
+    if (name) {
+        return name;
     }
     throw new UserFriendlyError(`Not found ${note_uid}`);
 }
@@ -426,7 +426,9 @@ async function fs_walk(root, callback)
         const lstat = await fs_lstat(`${root}/${name1}`);
         if (lstat.isDirectory()) {
             const names = await fs_readdir(`${root}/${name1}`);
-            names.forEach(name2 => lifo.push(`${name1}/${name2}`));
+            for (const name2 of names) {
+                lifo.push(`${name1}/${name2}`);
+            }
         }
         else {
             await callback(lstat, name1.slice(1));
@@ -450,7 +452,7 @@ function now_fs()
         now.getHours(),
         now.getMinutes(),
         now.getSeconds()
-    ].map(n => n.toString().padStart(2, '0')).join('').replace('xx', '_');
+    ].map(v => v.toString().padStart(2, '0')).join('').replace('xx', '_');
 }
 
 function list_response({items, filters}, query)
@@ -467,8 +469,8 @@ function list_response({items, filters}, query)
 
 function date_ms(value)
 {
-    const out = Date.parse(value);
-    return Number.isNaN(out) ? null : out;
+    const ms = Date.parse(value);
+    return Number.isNaN(ms) ? null : ms;
 }
 
 function fcmp_strings_ascii(a, b)

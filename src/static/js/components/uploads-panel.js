@@ -4,8 +4,8 @@
 const uploads_list = Vue.reactive([]);
 let uploads_uid_seq = 0;
 
-const CHUNKED_UPLOAD_THRESHOLD = 50 * 1024 * 1024; // 50 MB
-const CHUNK_SIZE = 10 * 1024 * 1024; // 10 MB per chunk
+const CHUNKED_UPLOAD_THRESHOLD = 50*1024*1024; // 50 MB
+const CHUNK_SIZE = 10*1024*1024; // 10 MB per chunk
 
 async function do_upload_file(note_uid, file)
 {
@@ -21,16 +21,16 @@ async function do_upload_file(note_uid, file)
                 note_uid,
                 file,
                 onProgress: function (event) {
-                    const item = uploads_list.find(u => u.uid === uid);
+                    const item = uploads_list.find(v => v.uid === uid);
                     if (item && event.total) {
-                        item.progress = Math.round(event.loaded / event.total * 100);
+                        item.progress = Math.round(event.loaded/event.total*100);
                     }
                 },
             });
         }
     }
     finally {
-        const i = uploads_list.findIndex(u => u.uid === uid);
+        const i = uploads_list.findIndex(v => v.uid === uid);
         if (i !== -1) {
             uploads_list.splice(i, 1);
         }
@@ -39,28 +39,28 @@ async function do_upload_file(note_uid, file)
 
 async function do_upload_file_chunked(note_uid, file, uid)
 {
-    const total_chunks = Math.ceil(file.size / CHUNK_SIZE);
+    const total_chunks = Math.ceil(file.size/CHUNK_SIZE);
     const filename = file.name || String(file.fullPath || '').split('/').filter(Boolean).pop() || 'file';
 
-    const { upload_id } = await api_files_upload_start({ filename, total_chunks, total_size: file.size });
+    const {upload_id} = await api_files_upload_start({filename, total_chunks, total_size: file.size});
 
     for (let i = 0; i < total_chunks; i++) {
-        const start = i * CHUNK_SIZE;
+        const start = i*CHUNK_SIZE;
         const chunk = file.slice(start, start + CHUNK_SIZE);
         await api_files_upload_chunk({
             upload_id,
             chunk_index: i,
             chunk,
             onProgress: function (event) {
-                const item = uploads_list.find(u => u.uid === uid);
+                const item = uploads_list.find(v => v.uid === uid);
                 if (item && event.total) {
-                    item.progress = Math.round((i + event.loaded / event.total) / total_chunks * 100);
+                    item.progress = Math.round((i + event.loaded/event.total)/total_chunks*100);
                 }
             },
         });
     }
 
-    return api_files_upload_assemble({ upload_id, note_uid });
+    return api_files_upload_assemble({upload_id, note_uid});
 }
 
 app.component('uploads-panel', {

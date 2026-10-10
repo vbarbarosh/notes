@@ -8,7 +8,7 @@ const STICKY_HEAD_SHOW_AFTER = 4;
 app.component('sticky-head', {
     props: {
         // Keep the panel shown, e.g. while one of its popovers is open.
-        hold: { type: Boolean, default: false },
+        hold: {type: Boolean, default: false},
     },
     template: `
         <div ref="sentinel" class="sticky-head-sentinel"></div>

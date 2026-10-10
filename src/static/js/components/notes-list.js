@@ -4,7 +4,7 @@
 app.component('notes-list', {
     inheritAttrs: false,
     props: {
-        notes: { type: Array, required: true },
+        notes: {type: Array, required: true},
     },
     template: `
         <note-card v-for="note in visible_notes"
@@ -42,18 +42,25 @@ app.component('notes-list', {
             await this.$nextTick();
             await new Promise(requestAnimationFrame);
             await new Promise(requestAnimationFrame);
-            const idle = window.requestIdleCallback
-                ? (fn => window.requestIdleCallback(fn))
-                : (fn => setTimeout(fn, 50));
-            const step = () => {
-                if (this.render_limit >= this.notes.length) {
-                    this.render_limit = Infinity;
+            const _this = this;
+            const has_idle_callback = !!window.requestIdleCallback;
+            idle(step);
+            function idle(fn) {
+                if (has_idle_callback) {
+                    window.requestIdleCallback(fn);
+                }
+                else {
+                    setTimeout(fn, 50);
+                }
+            }
+            function step() {
+                if (_this.render_limit >= _this.notes.length) {
+                    _this.render_limit = Infinity;
                     return;
                 }
-                this.render_limit += 50;
+                _this.render_limit += 50;
                 idle(step);
-            };
-            idle(step);
+            }
         },
     },
 });

@@ -28,16 +28,16 @@ describe('html_asset_versions', function () {
 
     it('tags local stylesheets and scripts with their modification time', async function () {
         const html = '<link href="css/theme.css" rel="stylesheet">\n<script src="/js/utils.js"></script>';
-        const out = await html_asset_versions(html, root, root);
-        assert.equal(out, `<link href="css/theme.css?v=${css_version}" rel="stylesheet">\n<script src="/js/utils.js?v=${js_version}"></script>`);
+        const tagged = await html_asset_versions(html, root, root);
+        assert.equal(tagged, `<link href="css/theme.css?v=${css_version}" rel="stylesheet">\n<script src="/js/utils.js?v=${js_version}"></script>`);
         assert.equal(css_version, String(new Date('2026-09-10T18:00:11Z').getTime()));
     });
 
     it('resolves relative references against the page directory', async function () {
         const html = '<script src="calc.js"></script><link rel="stylesheet" href="/css/theme.css">';
-        const out = await html_asset_versions(html, root, path.join(root, 'apps', 'calc'));
+        const tagged = await html_asset_versions(html, root, path.join(root, 'apps', 'calc'));
         const calc_version = String(Math.floor((await fs.stat(path.join(root, 'apps', 'calc', 'calc.js'))).mtimeMs));
-        assert.equal(out, `<script src="calc.js?v=${calc_version}"></script><link rel="stylesheet" href="/css/theme.css?v=${css_version}">`);
+        assert.equal(tagged, `<script src="calc.js?v=${calc_version}"></script><link rel="stylesheet" href="/css/theme.css?v=${css_version}">`);
     });
 
     it('leaves external, missing, bound and escaping references alone', async function () {

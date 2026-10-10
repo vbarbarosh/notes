@@ -120,8 +120,7 @@ function finish() {
         await fs.rm(root, {recursive: true, force: true});
     });
 
-    async function run(name = 'youtube-video')
-    {
+    async function run(name = 'youtube-video') {
         try {
             return {code: 0, ...await exec_file(process.execPath, [path.join(app_root, 'src/jobs', name, 'bin/run'), note], {cwd: job, env})};
         }
@@ -130,8 +129,7 @@ function finish() {
         }
     }
 
-    async function json(name)
-    {
+    async function json(name) {
         return JSON.parse(await fs.readFile(path.join(job, name), 'utf8'));
     }
 
@@ -246,7 +244,7 @@ function finish() {
         const pending = run();
         let seen = null;
         for (let i = 0; i < 60 && !seen; ++i) {
-            await new Promise(resolve => setTimeout(resolve, 50));
+            await new Promise(v => setTimeout(v, 50));
             const status = await json('status.json').catch(() => ({}));
             if (/\d%/.test(status.user_friendly_status || '')) {
                 seen = status.user_friendly_status;
@@ -261,7 +259,7 @@ function finish() {
         const pending = run();
         const seen = [];
         for (let i = 0; i < 60 && !seen.some(v => /Merging/.test(v)); ++i) {
-            await new Promise(resolve => setTimeout(resolve, 50));
+            await new Promise(v => setTimeout(v, 50));
             const status = await json('status.json').catch(() => ({}));
             const text = status.user_friendly_status || '';
             if (text && seen.at(-1) !== text) {

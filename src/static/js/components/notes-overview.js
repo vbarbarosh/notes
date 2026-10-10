@@ -1,19 +1,19 @@
 app.component('notes-overview', {
     props: {
-        notes: { type: Array, required: true },
-        activeUid: { type: String, default: null }, // uid of active note (optional, for parent sync)
+        notes: {type: Array, required: true},
+        activeUid: {type: String, default: null}, // uid of active note (optional, for parent sync)
     },
     emits: ['select'],
     template: `
         <aside class="notes-overview">
             <div v-for="note in notes"
-                :key="note.uid"
-                :class="['overview-item', {active: note.uid === activeUid}]"
-                @click="$emit('select', note.uid)">
+                v-bind:key="note.uid"
+                v-bind:class="['overview-item', {active: note.uid === activeUid}]"
+                v-on:click="$emit('select', note.uid)">
                 <div class="overview-date">{{ formatDate(note.created_at || note.date) }}</div>
                 <div class="overview-title">{{ note.name || truncate(note.display_body ?? note.body) || 'Untitled' }}</div>
                 <div v-if="note.display_tags?.length" class="overview-tags">
-                    <span v-for="tag in note.display_tags" :key="tag" class="overview-tag">{{ tag }}</span>
+                    <span v-for="tag in note.display_tags" v-bind:key="tag" class="overview-tag">{{ tag }}</span>
                 </div>
             </div>
         </aside>
@@ -23,20 +23,24 @@ app.component('notes-overview', {
             await this.$nextTick();
             const elem = this.$el.querySelector('.active');
             if (elem) {
-                elem.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                elem.scrollIntoView({behavior: 'smooth', block: 'center'});
             }
         },
     },
     methods: {
-        truncate(body) {
+        truncate: function (body) {
             // Use first 32 chars of body as fallback name
-            if (!body) return '';
+            if (!body) {
+                return '';
+            }
             let txt = body.replace(/\s+/g, ' ').trim();
-            return txt.length > 32 ? txt.slice(0, 32) + '…' : txt;
+            return txt.length > 32 ? `${txt.slice(0, 32)}…` : txt;
         },
-        formatDate(ts) {
+        formatDate: function (ts) {
             // Expects ISO or Date. Fallback to today.
-            if (!ts) return '';
+            if (!ts) {
+                return '';
+            }
             const d = new Date(ts);
             return d.toISOString().slice(0, 10);
         }

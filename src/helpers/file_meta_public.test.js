@@ -52,7 +52,7 @@ describe('file_meta_public', function () {
                 bit_rate: 1500000,
                 width: 1920,
                 height: 1080,
-                frame_rate: 30000 / 1001,
+                frame_rate: 30000/1001,
                 codec_name: 'h264',
                 audio_codec_name: 'aac',
             },

@@ -25,8 +25,8 @@ async function cache_api_notes_invalidate(req, note_uid = null)
         }
         throw error;
     }
-    const matched = names.filter(name => name.startsWith(note_uid));
-    await Promise.all(matched.map(name => fs_rmf(path.resolve(notes_cache_dir, name))));
+    const matched = names.filter(v => v.startsWith(note_uid));
+    await Promise.all(matched.map(v => fs_rmf(path.resolve(notes_cache_dir, v))));
 }
 
 module.exports = cache_api_notes_invalidate;

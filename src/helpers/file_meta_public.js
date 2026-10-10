@@ -61,8 +61,8 @@ function video_details(video = {})
 
 function number_or_null(value)
 {
-    const out = Number(value);
-    return Number.isFinite(out) ? out : null;
+    const number = Number(value);
+    return Number.isFinite(number) ? number : null;
 }
 
 function frame_rate_number(value)
@@ -72,7 +72,7 @@ function frame_rate_number(value)
         return number_or_null(value);
     }
     const denom = Number(match[2]);
-    return denom ? Number(match[1]) / denom : null;
+    return denom ? Number(match[1])/denom : null;
 }
 
 module.exports = file_meta_public;

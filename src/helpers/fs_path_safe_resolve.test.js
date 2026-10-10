@@ -35,10 +35,10 @@ const tests = [
 ];
 
 describe('fs_sanitize_relative_resolve', function () {
-    tests.forEach(function (test) {
+    for (const test of tests) {
         it(`${test.root} + ${test.path} → ${test.expected}`, function () {
             const actual = fs_path_safe_resolve(test.root, test.path);
             assert.equal(actual, test.expected);
         });
-    });
+    }
 });

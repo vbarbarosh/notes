@@ -20,7 +20,7 @@ const chunk_upload = multer({
         },
     }),
     defParamCharset: 'utf8',
-    limits: { fileSize: 25 * 1024 * 1024 },
+    limits: {fileSize: 25*1024*1024},
 });
 
 const routes = [
@@ -29,13 +29,13 @@ const routes = [
     {req: 'POST /api/v1/files/upload/:upload_id/chunk/:chunk_index', fn: [chunk_upload.single('chunk'), files_upload_chunk]},
 ];
 
-// POST /api/v1/files/upload/start
+// POST /api/v1/files/upload/start (body)
 // Body: { filename, total_chunks, total_size }
 async function files_upload_start(req, res)
 {
-    const { filename, total_chunks, total_size } = req.body;
+    const {filename, total_chunks, total_size} = req.body;
     if (!filename || !total_chunks) {
-        res.status(400).json({ error: 'filename and total_chunks are required' });
+        res.status(400).json({error: 'filename and total_chunks are required'});
         return;
     }
     const upload_id = crypto.randomUUID();
@@ -48,10 +48,10 @@ async function files_upload_start(req, res)
         user_uid: req.user_uid,
     };
     fs.writeFileSync(path.join(chunks_dir, 'meta.json'), JSON.stringify(meta));
-    res.json({ upload_id });
+    res.json({upload_id});
 }
 
-// POST /api/v1/files/upload/:upload_id/chunk/:chunk_index
+// POST /api/v1/files/upload/:upload_id/chunk/:chunk_index (body)
 // Body: multipart with 'chunk' field
 async function files_upload_chunk(req, res)
 {
@@ -60,57 +60,57 @@ async function files_upload_chunk(req, res)
     const chunk = req.file;
 
     if (!chunk) {
-        res.status(400).json({ error: 'No chunk provided' });
+        res.status(400).json({error: 'No chunk provided'});
         return;
     }
 
     const chunks_dir = path.join(req.user_dir, 'chunks', upload_id);
     if (!await fs_exists(chunks_dir)) {
         fs.unlinkSync(chunk.path);
-        res.status(404).json({ error: 'Upload not found' });
+        res.status(404).json({error: 'Upload not found'});
         return;
     }
 
     const meta = JSON.parse(fs.readFileSync(path.join(chunks_dir, 'meta.json'), 'utf8'));
     if (meta.user_uid !== req.user_uid) {
         fs.unlinkSync(chunk.path);
-        res.status(403).json({ error: 'Forbidden' });
+        res.status(403).json({error: 'Forbidden'});
         return;
     }
 
     if (chunk_index < 0 || chunk_index >= meta.total_chunks) {
         fs.unlinkSync(chunk.path);
-        res.status(400).json({ error: 'Invalid chunk index' });
+        res.status(400).json({error: 'Invalid chunk index'});
         return;
     }
 
     fs.renameSync(chunk.path, path.join(chunks_dir, `chunk_${chunk_index}`));
 
-    const received = fs.readdirSync(chunks_dir).filter(f => f.startsWith('chunk_')).length;
-    res.json({ received, total: meta.total_chunks });
+    const received = fs.readdirSync(chunks_dir).filter(v => v.startsWith('chunk_')).length;
+    res.json({received, total: meta.total_chunks});
 }
 
-// POST /api/v1/files/upload/:upload_id/assemble
+// POST /api/v1/files/upload/:upload_id/assemble (body)
 // Body: { note_uid, overwrite }
 async function files_upload_assemble(req, res)
 {
     const upload_id = req.params.upload_id;
-    const { note_uid, overwrite } = req.body;
+    const {note_uid, overwrite} = req.body;
 
     if (!note_uid) {
-        res.status(400).json({ error: 'note_uid is required' });
+        res.status(400).json({error: 'note_uid is required'});
         return;
     }
 
     const chunks_dir = path.join(req.user_dir, 'chunks', upload_id);
     if (!await fs_exists(chunks_dir)) {
-        res.status(404).json({ error: 'Upload not found' });
+        res.status(404).json({error: 'Upload not found'});
         return;
     }
 
     const meta = JSON.parse(fs.readFileSync(path.join(chunks_dir, 'meta.json'), 'utf8'));
     if (meta.user_uid !== req.user_uid) {
-        res.status(403).json({ error: 'Forbidden' });
+        res.status(403).json({error: 'Forbidden'});
         return;
     }
 
@@ -127,31 +127,38 @@ async function files_upload_assemble(req, res)
     for (let i = 0; i < meta.total_chunks; i++) {
         await new Promise(function (resolve, reject) {
             const src = fs.createReadStream(path.join(chunks_dir, `chunk_${i}`));
-            src.pipe(out_stream, { end: false });
+            src.pipe(out_stream, {end: false});
             src.on('end', resolve);
             src.on('error', reject);
         });
     }
     await new Promise(function (resolve, reject) {
-        out_stream.end(err => err ? reject(err) : resolve());
+        out_stream.end(function (error) {
+            if (error) {
+                reject(error);
+            }
+            else {
+                resolve();
+            }
+        });
     });
 
     const note_dir = path.resolve(req.user_dir, 'notes', note_uid);
     if (!await fs_exists(note_dir)) {
         fs.unlinkSync(temp_path);
-        res.status(404).json({ error: 'Note Not Found' });
+        res.status(404).json({error: 'Note Not Found'});
         return;
     }
 
     const files_root = path.resolve(note_dir, 'files');
-    const fake_file = { originalname: meta.filename, path: temp_path };
+    const fake_file = {originalname: meta.filename, path: temp_path};
     const should_overwrite = overwrite === '1' || overwrite === 1 || overwrite === true;
 
     const file_path = should_overwrite
         ? await fs_write_over_file(files_root, fake_file)
         : await fs_write_unique_file(files_root, fake_file);
 
-    fs.rmSync(chunks_dir, { recursive: true });
+    fs.rmSync(chunks_dir, {recursive: true});
 
     const lstat = await fs_lstat(file_path);
     const rel = fs_path_safe_relative(files_root, file_path);

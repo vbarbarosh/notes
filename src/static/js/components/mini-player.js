@@ -16,9 +16,9 @@ const MINI_PLAYER_VIEWS = ['full', 'compact', 'cover'];
 
 app.component('mini-player', {
     props: {
-        tracks: { type: Array, required: true },
-        hoveredNoteUid: { type: String, default: null },
-        hoveredFilePath: { type: String, default: null },
+        tracks: {type: Array, required: true},
+        hoveredNoteUid: {type: String, default: null},
+        hoveredFilePath: {type: String, default: null},
     },
     emits: ['select-note', 'heart', 'hover-track'],
     template: `
@@ -260,7 +260,7 @@ app.component('mini-player', {
     },
     computed: {
         track_index: function () {
-            const i = this.tracks.findIndex(track => track.key === this.state.key);
+            const i = this.tracks.findIndex(v => v.key === this.state.key);
             return i === -1 ? 0 : i;
         },
         current_track: function () {
@@ -270,16 +270,16 @@ app.component('mini-player', {
             if (this.state.snap === 'left' || this.state.snap === 'right') {
                 return {width: `${this.state.width}px`};
             }
-            const style = {width: `${this.state.width}px`};
+            const out = {width: `${this.state.width}px`};
             if (this.state.x !== null) {
-                style.left = `${this.state.x}px`;
-                style.right = 'auto';
+                out.left = `${this.state.x}px`;
+                out.right = 'auto';
             }
             if (this.state.y !== null) {
-                style.top = `${this.state.y}px`;
-                style.bottom = 'auto';
+                out.top = `${this.state.y}px`;
+                out.bottom = 'auto';
             }
-            return style;
+            return out;
         },
         list_style: function () {
             if (this.state.snap) {
@@ -294,7 +294,7 @@ app.component('mini-player', {
             if (!this.duration) {
                 return 0;
             }
-            return Math.min(100, Math.max(0, (this.current_time / this.duration) * 100));
+            return Math.min(100, Math.max(0, (this.current_time/this.duration)*100));
         },
         volume_icon: function () {
             if (this.effective_volume === 0) {
@@ -367,20 +367,20 @@ app.component('mini-player', {
             return this.current_track?.heart_count || 0;
         },
         heart_icon_class: function () {
-            const classes = ['mini-player-heart-icon'];
+            const out = ['mini-player-heart-icon'];
             if (this.heart_count >= 1) {
-                classes.push('liked');
+                out.push('liked');
             }
             if (this.heart_count >= 5) {
-                classes.push('tier-2');
+                out.push('tier-2');
             }
             if (this.heart_count >= 10) {
-                classes.push('tier-3');
+                out.push('tier-3');
             }
             if (this.heart_popping) {
-                classes.push('popping');
+                out.push('popping');
             }
-            return classes;
+            return out;
         },
         heart_button_title: function () {
             if (!this.current_track) {
@@ -399,7 +399,7 @@ app.component('mini-player', {
             return {'--progress': `${this.seek_progress_pct}%`};
         },
         volume_slider_style: function () {
-            return {'--progress': `${this.effective_volume * 100}%`};
+            return {'--progress': `${this.effective_volume*100}%`};
         },
     },
     watch: {
@@ -455,9 +455,10 @@ app.component('mini-player', {
                 return;
             }
             this.spawn_celebration();
+            const _this = this;
             this.heart_popping = false;
-            this.$nextTick(() => {
-                this.heart_popping = true;
+            this.$nextTick(function () {
+                _this.heart_popping = true;
             });
             this.$emit(
                 'heart',
@@ -472,6 +473,7 @@ app.component('mini-player', {
             return this._part_seq;
         },
         spawn_celebration: function () {
+            const _this = this;
             const spawned_ids = [];
             const palette = ['#f472b6', '#fb7185', '#facc15', '#f9a8d4', '#fde68a', '#ec4899'];
             const base_offsets = [
@@ -487,9 +489,10 @@ app.component('mini-player', {
             spawned_ids.push(ring_id);
             this.particles.push({id: ring_id, kind: 'ring'});
 
-            base_offsets.forEach((offset, i) => {
-                const jitter_x = Math.round((Math.random() - 0.5) * 10);
-                const jitter_y = Math.round((Math.random() - 0.5) * 10);
+            for (let i = 0, end = base_offsets.length; i < end; ++i) {
+                const offset = base_offsets[i];
+                const jitter_x = Math.round((Math.random() - 0.5)*10);
+                const jitter_y = Math.round((Math.random() - 0.5)*10);
                 const id = this.next_particle_id();
                 spawned_ids.push(id);
                 this.particles.push({
@@ -502,9 +505,9 @@ app.component('mini-player', {
                         animationDelay: `${offset.delay}ms`,
                     },
                 });
-            });
+            }
 
-            const plus_x = Math.round((Math.random() - 0.5) * 26);
+            const plus_x = Math.round((Math.random() - 0.5)*26);
             const plus_id = this.next_particle_id();
             const next_count = (this.current_track?.heart_count || 0) + 1;
             spawned_ids.push(plus_id);
@@ -515,8 +518,8 @@ app.component('mini-player', {
                 style: {'--x': `${plus_x}px`},
             });
 
-            setTimeout(() => {
-                this.particles = this.particles.filter(p => !spawned_ids.includes(p.id));
+            setTimeout(function () {
+                _this.particles = _this.particles.filter(v => !spawned_ids.includes(v.id));
             }, 1400);
         },
         persist_state: function () {
@@ -540,7 +543,7 @@ app.component('mini-player', {
             if (!this.tracks.length) {
                 return;
             }
-            if (!this.tracks.some(track => track.key === this.state.key)) {
+            if (!this.tracks.some(v => v.key === this.state.key)) {
                 this.state.key = this.tracks[0].key;
                 this.state.position = 0;
             }
@@ -604,7 +607,10 @@ app.component('mini-player', {
             if (this.overlay_pinned) {
                 return;
             }
-            this._overlay_timer = setTimeout(() => { this.overlay_visible = false; }, MINI_PLAYER_OVERLAY_IDLE);
+            const _this = this;
+            this._overlay_timer = setTimeout(function () {
+                _this.overlay_visible = false;
+            }, MINI_PLAYER_OVERLAY_IDLE);
         },
         overlay_hide: function () {
             clearTimeout(this._overlay_timer);
@@ -676,8 +682,11 @@ app.component('mini-player', {
             const target = this.state.position;
             if (target > 0 && Number.isFinite(target)) {
                 const pos = audio.duration ? Math.min(target, audio.duration) : target;
-                try { audio.currentTime = pos; }
-                catch (error) {}
+                try {
+                    audio.currentTime = pos;
+                }
+                catch {
+                }
                 this.current_time = pos;
             }
             if (this._autoresume_pending) {
@@ -695,21 +704,24 @@ app.component('mini-player', {
                 this.teardown_gesture_listener();
                 return;
             }
-            promise.then(
-                () => {
-                    this._autoresume_pending = false;
-                    this.teardown_gesture_listener();
-                },
-                () => {
-                    this.install_gesture_listener();
-                }
-            );
+            const _this = this;
+            promise.then(resolved, rejected);
+            function resolved() {
+                _this._autoresume_pending = false;
+                _this.teardown_gesture_listener();
+            }
+            function rejected() {
+                _this.install_gesture_listener();
+            }
         },
         install_gesture_listener: function () {
             if (this._gesture_handler) {
                 return;
             }
-            this._gesture_handler = () => this.try_autoresume();
+            const _this = this;
+            this._gesture_handler = function () {
+                _this.try_autoresume();
+            };
             window.addEventListener('click', this._gesture_handler);
             window.addEventListener('keydown', this._gesture_handler);
         },
@@ -855,9 +867,11 @@ app.component('mini-player', {
             }
             const dx = event.clientX - r.start_x;
             const dy = event.clientY - r.start_y;
-            const max_width_avail = Math.max(MINI_PLAYER_MIN_WIDTH, window.innerWidth - 2 * MINI_PLAYER_EDGE_MARGIN);
+            const max_width_avail = Math.max(MINI_PLAYER_MIN_WIDTH, window.innerWidth - 2*MINI_PLAYER_EDGE_MARGIN);
             const max_width = Math.min(MINI_PLAYER_MAX_WIDTH, max_width_avail);
-            const clamp = (v, min, max) => Math.min(max, Math.max(min, v));
+            function clamp(value, min, max) {
+                return Math.min(max, Math.max(min, value));
+            }
             switch (r.direction) {
             case 'e': {
                 this.state.width = clamp(r.origin_width + dx, MINI_PLAYER_MIN_WIDTH, max_width);
@@ -909,7 +923,7 @@ app.component('mini-player', {
             if (!elem) {
                 return;
             }
-            const max_width_available = Math.max(MINI_PLAYER_MIN_WIDTH, window.innerWidth - 2 * MINI_PLAYER_EDGE_MARGIN);
+            const max_width_available = Math.max(MINI_PLAYER_MIN_WIDTH, window.innerWidth - 2*MINI_PLAYER_EDGE_MARGIN);
             if (this.state.width > max_width_available) {
                 this.state.width = Math.min(MINI_PLAYER_MAX_WIDTH, max_width_available);
             }
@@ -927,12 +941,13 @@ app.component('mini-player', {
     created: function () {
         this._autoresume_pending = this.state.was_playing && !!this.state.key;
         this._last_position_save = 0;
-        this.save_progress_now = () => {
-            const audio = this.$refs.media;
+        const _this = this;
+        this.save_progress_now = function () {
+            const audio = _this.$refs.media;
             if (audio && Number.isFinite(audio.currentTime)) {
-                this.state.position = audio.currentTime;
+                _this.state.position = audio.currentTime;
             }
-            this.persist_state();
+            _this.persist_state();
         };
     },
     mounted: function () {
@@ -956,7 +971,7 @@ app.component('mini-player', {
 
 function load_mini_player_state()
 {
-    const defaults = {
+    const out = {
         key: null, x: null, y: null, hidden: false, volume: 1, position: 0, was_playing: false,
         width: MINI_PLAYER_DEFAULT_WIDTH, list_height: MINI_PLAYER_DEFAULT_LIST_HEIGHT,
         cover_height: MINI_PLAYER_DEFAULT_COVER_HEIGHT, snap: null, view: 'full',
@@ -964,7 +979,7 @@ function load_mini_player_state()
     try {
         const value = JSON.parse(localStorage.getItem(MINI_PLAYER_STORAGE_KEY) || 'null');
         if (!value || typeof value !== 'object') {
-            return defaults;
+            return out;
         }
         const snap = value.snap === 'left' || value.snap === 'right' ? value.snap : null;
         // `compact` is the flag the view replaced; honour it once.
@@ -990,8 +1005,8 @@ function load_mini_player_state()
             view,
         };
     }
-    catch (error) {
-        return defaults;
+    catch {
+        return out;
     }
 }
 
@@ -1001,8 +1016,8 @@ function format_mp3_time(seconds)
     if (!Number.isFinite(seconds) || seconds < 0) {
         return '0:00';
     }
-    const h = Math.floor(seconds / 3600);
-    const m = Math.floor(seconds % 3600 / 60);
+    const h = Math.floor(seconds/3600);
+    const m = Math.floor(seconds % 3600/60);
     const s = seconds % 60;
     if (h) {
         return `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;

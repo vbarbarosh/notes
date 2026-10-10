@@ -27,14 +27,13 @@ async function html_asset_versions(html, static_root, page_dir)
         tags.set(url, await file_version(static_root, page_dir, url));
     }
 
-    const out = String(html || '').replace(REFERENCE_PATTERN, function (tag, url) {
+    return String(html || '').replace(REFERENCE_PATTERN, function (tag, url) {
         const version = tags.get(url);
         if (!version) {
             return tag;
         }
         return tag.replace(`"${url}"`, `"${url}?v=${version}"`);
     });
-    return out;
 }
 
 function is_local(url)
@@ -53,7 +52,7 @@ async function file_version(static_root, page_dir, url)
         const stat = await fs.promises.stat(file);
         return stat.isFile() ? String(Math.floor(stat.mtimeMs)) : null;
     }
-    catch (error) {
+    catch {
         return null;
     }
 }

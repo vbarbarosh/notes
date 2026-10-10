@@ -7,7 +7,7 @@ function fs_path_strict_resolve(root, relative)
     }
 
     const parts = relative.split('/');
-    if (parts.some(part => !part || part === '.' || part === '..')) {
+    if (parts.some(v => !v || (v === '.') || (v === '..'))) {
         throw new Error('Invalid relative path');
     }
 

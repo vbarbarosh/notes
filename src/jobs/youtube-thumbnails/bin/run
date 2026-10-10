@@ -80,7 +80,7 @@ async function main()
     });
 
     if (errors.length && !created.length && !skipped.length) {
-        throw new Error(errors.map(error => `${error.id}: ${error.message}`).join('\n'));
+        throw new Error(errors.map(v => `${v.id}: ${v.message}`).join('\n'));
     }
 }
 
@@ -90,15 +90,15 @@ function extract_youtube_ids(body)
     const seen = new Set();
     const out = [];
 
-    urls.forEach(function (raw_url) {
+    for (const raw_url of urls) {
         const url = raw_url.replace(/[)\].,!?;:]+$/g, '');
         const id = parse_youtube_id(url);
         if (!id || seen.has(id)) {
-            return;
+            continue;
         }
         seen.add(id);
         out.push(id);
-    });
+    }
 
     return out;
 }
@@ -128,7 +128,7 @@ function parse_youtube_id(url)
             return clean_youtube_id(parts[1]);
         }
     }
-    catch (error) {
+    catch {
     }
 
     return null;
@@ -151,7 +151,7 @@ function is_allowed_thumbnail_url(url)
         const parsed = new URL(url);
         return parsed.protocol === 'https:' && ALLOWED_THUMBNAIL_HOSTS.test(parsed.hostname);
     }
-    catch (error) {
+    catch {
         return false;
     }
 }
@@ -174,7 +174,7 @@ function download(url, file, redirects_left = 5)
                 try {
                     next = new URL(res.headers.location, url).toString();
                 }
-                catch (error) {
+                catch {
                     reject(new Error(`Invalid redirect location: ${res.headers.location}`));
                     return;
                 }
@@ -210,8 +210,8 @@ async function write_status(patch)
             current = JSON.parse(await fs.promises.readFile(file, 'utf8'));
             break;
         }
-        catch (error) {
-            await new Promise(resolve => setTimeout(resolve, 20));
+        catch {
+            await new Promise(v => setTimeout(v, 20));
         }
     }
     await fs.promises.writeFile(file, JSON.stringify({...current, ...patch}, null, 4));
@@ -223,7 +223,7 @@ async function exists(file)
         await fs.promises.access(file);
         return true;
     }
-    catch (error) {
+    catch {
         return false;
     }
 }

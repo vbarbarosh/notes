@@ -60,7 +60,7 @@ function vue_modal({template, value})
         promise_resolve = resolve;
         promise_reject = reject;
     });
-    const promise_destroyed = new Promise(resolve => promise_destroyed_resolve = resolve);
+    const promise_destroyed = new Promise(v => promise_destroyed_resolve = v);
 
     const app2 = Vue.createApp({
         template,
@@ -76,14 +76,14 @@ function vue_modal({template, value})
                     return this;
                 }
                 promise_shown = null;
-                promise_hidden = new Promise(resolve => jQuery(this.$el).stop().fadeOut('fast', resolve));
+                promise_hidden = new Promise(v => jQuery(this.$el).stop().fadeOut('fast', v));
                 return this;
             },
             show: function () {
                 if (promise_shown) {
                     return this;
                 }
-                promise_shown = new Promise(resolve => jQuery(this.$el).stop().fadeIn('fast', resolve));
+                promise_shown = new Promise(v => jQuery(this.$el).stop().fadeIn('fast', v));
                 promise_hidden = null;
                 autofocus(this.$el);
                 return this;
@@ -141,7 +141,8 @@ function vue_modal({template, value})
             }
             try {
                 document.activeElement.blur();
-            } catch (error) {
+            }
+            catch {
             }
             jQuery(this.$el).hide().fadeIn('fast', () => autofocus(this.$el));
         },
@@ -156,12 +157,12 @@ function vue_modal({template, value})
             promise_destroyed_resolve = null;
         },
     });
-    app._context.mixins.forEach(function (mixin) {
+    for (const mixin of app._context.mixins) {
         app2.mixin(mixin);
-    });
-    Object.entries(app._context.components).forEach(function ([key, value]) {
+    }
+    for (const [key, value] of Object.entries(app._context.components)) {
         app2.component(key, value);
-    });
+    }
     app2.config.errorHandler = app.config.errorHandler;
     app2.config.warnHandler = app.config.warnHandler;
     app2.config.productionTip = app.config.productionTip;
@@ -219,31 +220,28 @@ function blocking(fn_or_promise)
     }
     return Promise.resolve(fn_or_promise).finally(blocking_end);
 
-    function status(message)
-    {
+    function status(message) {
         if (status_uid) {
             status_update(message);
-        } else {
+        }
+        else {
             status_begin(message);
         }
     }
 
-    function status_begin(message)
-    {
+    function status_begin(message) {
         status_uid = ++blocking_status_counter;
         blocking_modal.value.push({uid: status_uid, message});
     }
 
-    function status_end()
-    {
+    function status_end() {
         const i = blocking_modal.value.findIndex(v => v.uid === status_uid);
         if (i !== -1) {
             blocking_modal.value.splice(i, 1);
         }
     }
 
-    function status_update(message)
-    {
+    function status_update(message) {
         const item = blocking_modal.value.find(v => v.uid === status_uid);
         item.message = message;
     }
@@ -272,7 +270,7 @@ function urlmod(url, params)
 {
     const tmp_url = new URL(url || '', 'xxx://___base___/');
     const tmp_search = tmp_url.searchParams;
-    Object.entries(params || {}).forEach(function ([key, value]) {
+    for (const [key, value] of Object.entries(params || {})) {
         switch (value) {
         case null:
         case undefined:
@@ -288,7 +286,7 @@ function urlmod(url, params)
             tmp_search.set(key, value);
             break;
         }
-    });
+    }
     if (url && url[0] === '/') {
         return tmp_url.toString().replace(/^xxx:\/\/___base___/, '');
     }
@@ -370,7 +368,7 @@ function px(v)
 
 function pc(v)
 {
-    return v ? `${v * 100}%` : '0';
+    return v ? `${v*100}%` : '0';
 }
 
 
@@ -459,13 +457,13 @@ function format_bytes(bytes)
     if (bytes < 1024) {
         return '1KB';
     }
-    const i = parseInt(Math.floor(Math.log(bytes) / Math.log(1024)), 10);
-    return `${(bytes / (1024 ** i)).toFixed(bytes > 1024*1024 ? 2 : 0)}${sizes[i]}`.replace(/\.00/, '.0');
+    const i = parseInt(Math.floor(Math.log(bytes)/Math.log(1024)), 10);
+    return `${(bytes/(1024**i)).toFixed(bytes > 1024*1024 ? 2 : 0)}${sizes[i]}`.replace(/\.00/, '.0');
 }
 
 function format_date(d)
 {
-    return d.getFullYear() + `/0${d.getMonth()+1}/0${d.getDate()} 0${d.getHours()}:0${d.getMinutes()}:0${d.getSeconds()}`.replace(/0(\d\d)/g, '$1');
+    return d.getFullYear() + `/0${d.getMonth() + 1}/0${d.getDate()} 0${d.getHours()}:0${d.getMinutes()}:0${d.getSeconds()}`.replace(/0(\d\d)/g, '$1');
 }
 
 // https://stackoverflow.com/a/2901298
@@ -502,7 +500,7 @@ function audio_file_summary(file)
         format_audio_duration(audio.duration_seconds),
         format_audio_bitrate(audio.bit_rate),
         audio.channel_layout || format_audio_channels(audio.channels),
-        audio.sample_rate ? `${Math.round(audio.sample_rate / 1000)} kHz` : '',
+        audio.sample_rate ? `${Math.round(audio.sample_rate/1000)} kHz` : '',
         audio.codec_name ? audio.codec_name.toUpperCase() : '',
     ].filter(Boolean).join(' · ');
 }
@@ -526,8 +524,8 @@ function format_audio_duration(seconds)
     if (!Number.isFinite(seconds) || seconds < 0) {
         return '';
     }
-    const h = Math.floor(seconds / 3600);
-    const m = Math.floor(seconds % 3600 / 60);
+    const h = Math.floor(seconds/3600);
+    const m = Math.floor(seconds % 3600/60);
     const s = seconds % 60;
     if (h) {
         return `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
@@ -541,7 +539,7 @@ function format_audio_bitrate(bit_rate)
     if (!Number.isFinite(bit_rate) || bit_rate <= 0) {
         return '';
     }
-    return `${Math.round(bit_rate / 1000)} kbps`;
+    return `${Math.round(bit_rate/1000)} kbps`;
 }
 
 function format_audio_channels(channels)
@@ -599,7 +597,7 @@ function parse_note_tags(body)
         return {tags: [], display_body: value};
     }
 
-    const tags = Array.from(new Set(matches.map(tag => tag.toLowerCase())));
+    const tags = Array.from(new Set(matches.map(v => v.toLowerCase())));
     return {tags, display_body: lines.slice(1).join('\n').trimStart()};
 }
 
@@ -617,9 +615,9 @@ function load_tag_list(key)
 {
     try {
         const tags = JSON.parse(localStorage.getItem(key) || '[]');
-        return Array.isArray(tags) ? tags.filter(tag => typeof tag === 'string') : [];
+        return Array.isArray(tags) ? tags.filter(v => typeof v === 'string') : [];
     }
-    catch (error) {
+    catch {
         return [];
     }
 }
@@ -644,23 +642,23 @@ function extract_note_link_uids(body)
  */
 function decorate_note_links(notes)
 {
-    const notes_by_uid = new Map(notes.map(note => [note.uid, note]));
+    const notes_by_uid = new Map(notes.map(v => [v.uid, v]));
     const links_by_uid = new Map();
     const backlinks_by_uid = new Map();
 
-    notes.forEach(function (note) {
-        const uids = extract_note_link_uids(note.body).filter(uid => uid !== note.uid && notes_by_uid.has(uid));
+    for (const note of notes) {
+        const uids = extract_note_link_uids(note.body).filter(v => v !== note.uid && notes_by_uid.has(v));
         links_by_uid.set(note.uid, uids);
-        uids.forEach(function (uid) {
+        for (const uid of uids) {
             backlinks_by_uid.set(uid, [...(backlinks_by_uid.get(uid) || []), note.uid]);
-        });
-    });
+        }
+    }
 
     return notes.map(function (note) {
         return {
             ...note,
-            links: (links_by_uid.get(note.uid) || []).map(uid => note_link_item(notes_by_uid.get(uid))),
-            backlinks: (backlinks_by_uid.get(note.uid) || []).map(uid => note_link_item(notes_by_uid.get(uid))),
+            links: (links_by_uid.get(note.uid) || []).map(v => note_link_item(notes_by_uid.get(v))),
+            backlinks: (backlinks_by_uid.get(note.uid) || []).map(v => note_link_item(notes_by_uid.get(v))),
         };
     });
 }
@@ -686,11 +684,11 @@ function extract_youtube_items(body)
     const seen = new Set();
     const out = [];
 
-    urls.forEach(function (raw_url) {
+    for (const raw_url of urls) {
         const url = raw_url.replace(/[)\].,!?;:]+$/g, '');
         const id = parse_youtube_id(url);
         if (!id || seen.has(id)) {
-            return;
+            continue;
         }
         seen.add(id);
         out.push({
@@ -699,7 +697,7 @@ function extract_youtube_items(body)
             label: `YouTube ${out.length + 1}`,
             embed_url: `https://www.youtube.com/embed/${id}?autoplay=1&rel=0`,
         });
-    });
+    }
 
     return out;
 }
@@ -719,7 +717,7 @@ function has_facebook_reel(body)
             const is_facebook = host === 'facebook.com' || host.endsWith('.facebook.com');
             return is_facebook && /^\/(?:reel\/\d+|share\/r\/[^/]+)/.test(parsed.pathname);
         }
-        catch (error) {
+        catch {
             return false;
         }
     });
@@ -750,7 +748,7 @@ function parse_youtube_id(url)
             return clean_youtube_id(parts[1]);
         }
     }
-    catch (error) {
+    catch {
     }
 
     return null;
@@ -767,7 +765,7 @@ async function get_event_files(event, options = {})
     const limit = options.limit ?? Number.MAX_SAFE_INTEGER;
     if (!event.dataTransfer) {
         return Array.from(event.target.files).slice(0, limit).map(function (file) {
-            file.fullPath ??= '/' + (file.webkitRelativePath || file.name);
+            file.fullPath ??= `/${file.webkitRelativePath || file.name}`;
             return file;
         });
     }

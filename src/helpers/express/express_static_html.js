@@ -24,7 +24,7 @@ function express_static_html(static_root)
         try {
             rel = decodeURIComponent(req.path);
         }
-        catch (error) {
+        catch {
             next();
             return;
         }
@@ -57,7 +57,7 @@ async function is_file(file)
         const stat = await fs.promises.stat(file);
         return stat.isFile();
     }
-    catch (error) {
+    catch {
         return false;
     }
 }

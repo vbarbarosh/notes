@@ -70,17 +70,16 @@ function spawn_tor(data_dir, user_friendly_status)
         let tail = '';
 
         // A job that dies without unwinding must not leave Tor behind.
-        const kill_on_exit = function () {
+        function kill_on_exit() {
             proc.kill('SIGKILL');
-        };
+        }
         process.once('exit', kill_on_exit);
 
         const timer = setTimeout(function () {
-            fail(new Error(`Tor did not bootstrap within ${BOOTSTRAP_TIMEOUT / 1000}s. Check the container's outbound connectivity; see docs/youtube.md.`));
+            fail(new Error(`Tor did not bootstrap within ${BOOTSTRAP_TIMEOUT/1000}s. Check the container's outbound connectivity; see docs/youtube.md.`));
         }, BOOTSTRAP_TIMEOUT);
 
-        function fail(error)
-        {
+        function fail(error) {
             if (settled) {
                 return;
             }
@@ -96,7 +95,7 @@ function spawn_tor(data_dir, user_friendly_status)
             lines.on('line', function (line) {
                 // Forward to the job log so a slow bootstrap is visible.
                 process.stdout.write(`[tor] ${line}\n`);
-                tail = (tail + line + '\n').slice(-4096);
+                tail = `${tail}${line}\n`.slice(-4096);
                 const ready = READY_PATTERN.exec(line);
                 if (ready) {
                     port = ready[1];

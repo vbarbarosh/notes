@@ -1,7 +1,7 @@
 const ffprobe = require('@vbarbarosh/ffmpeg-helpers/src/ffprobe');
+const fs_lstat = require('@vbarbarosh/node-helpers/src/fs_lstat');
 const fs_mime = require('./fs_mime');
 const fs_mkdirp = require('@vbarbarosh/node-helpers/src/fs_mkdirp');
-const fs_lstat = require('@vbarbarosh/node-helpers/src/fs_lstat');
 const fs_path_dirname = require('@vbarbarosh/node-helpers/src/fs_path_dirname');
 const fs_path_safe_relative = require('./fs_path_safe_relative');
 const fs_path_strict_resolve = require('./fs_path_strict_resolve');
@@ -150,8 +150,7 @@ async function find_thumbnail_size_roots(notes_thumbnails_root)
     await visit(notes_thumbnails_root);
     return out;
 
-    async function visit(current)
-    {
+    async function visit(current) {
         let names;
         try {
             names = await fs_readdir(current);

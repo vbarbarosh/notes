@@ -11,7 +11,7 @@
 
 app.component('terminal-panel', {
     props: {
-        job: { type: Object, required: true },
+        job: {type: Object, required: true},
     },
     emits: ['close'],
     data: function () {
@@ -69,20 +69,21 @@ app.component('terminal-panel', {
                 fontFamily: 'Menlo, Consolas, "DejaVu Sans Mono", monospace',
                 fontSize: 13,
                 cursorBlink: true,
-                theme: { background: '#1b1f2a', foreground: '#d8dced' },
+                theme: {background: '#1b1f2a', foreground: '#d8dced'},
             });
             const fit_addon = new FitAddon.FitAddon();
             term.loadAddon(fit_addon);
             term.open(this.$refs.screen);
             term.attachCustomKeyEventHandler(this.handle_key_event);
-            term.onData(data => this.send({ type: 'input', data }));
+            term.onData(v => this.send({type: 'input', data: v}));
 
             // Full-screen TUI apps (htop, vim, less, ...) run on the alternate
             // screen buffer, which has no scrollback — the scrollbar there is
             // inert, so hide it while that buffer is active.
-            term.buffer.onBufferChange(() => {
+            const _this = this;
+            term.buffer.onBufferChange(function () {
                 const is_alt = term.buffer.active.type === 'alternate';
-                this.$refs.screen.classList.toggle('alt-buffer', is_alt);
+                _this.$refs.screen.classList.toggle('alt-buffer', is_alt);
             });
 
             this.term = term;
@@ -91,16 +92,16 @@ app.component('terminal-panel', {
             this.resize_observer = new ResizeObserver(() => this.fit());
             this.resize_observer.observe(this.$refs.screen);
 
-            this.$nextTick(() => {
-                this.fit();
+            this.$nextTick(function () {
+                _this.fit();
                 term.focus();
             });
         },
         center_window: function () {
             const rect = this.$refs.window.getBoundingClientRect();
             this.pos = {
-                left: Math.max(8, Math.round((window.innerWidth - rect.width) / 2)),
-                top: Math.max(8, Math.round((window.innerHeight - rect.height) / 2)),
+                left: Math.max(8, Math.round((window.innerWidth - rect.width)/2)),
+                top: Math.max(8, Math.round((window.innerHeight - rect.height)/2)),
             };
         },
         connect: function () {
@@ -115,28 +116,29 @@ app.component('terminal-panel', {
             const query = params.toString();
             const url = `${proto}://${location.host}/api/v1/jobs/${encodeURIComponent(this.job.uid)}/tty${query ? `?${query}` : ''}`;
             const ws = new WebSocket(url);
+            const _this = this;
             this.ws = ws;
 
-            ws.onopen = () => {
-                this.connection_state = 'open';
-                this.fit();
+            ws.onopen = function () {
+                _this.connection_state = 'open';
+                _this.fit();
             };
-            ws.onmessage = event => {
+            ws.onmessage = function (event) {
                 let msg;
                 try {
                     msg = JSON.parse(event.data);
                 }
-                catch (error) {
+                catch {
                     return;
                 }
-                if (msg.type === 'output' && this.term) {
-                    this.term.write(msg.data);
+                if (msg.type === 'output' && _this.term) {
+                    _this.term.write(msg.data);
                 }
             };
-            ws.onclose = () => {
-                this.connection_state = 'closed';
-                if (this.term) {
-                    this.term.write('\r\n\x1b[33m[ terminal session ended ]\x1b[0m\r\n');
+            ws.onclose = function () {
+                _this.connection_state = 'closed';
+                if (_this.term) {
+                    _this.term.write('\r\n\x1b[33m[ terminal session ended ]\x1b[0m\r\n');
                 }
             };
         },
@@ -152,10 +154,10 @@ app.component('terminal-panel', {
             try {
                 this.fit_addon.fit();
             }
-            catch (error) {
+            catch {
                 return;
             }
-            this.send({ type: 'resize', cols: this.term.cols, rows: this.term.rows });
+            this.send({type: 'resize', cols: this.term.cols, rows: this.term.rows});
         },
         focus_terminal: function () {
             if (this.term) {
@@ -181,7 +183,7 @@ app.component('terminal-panel', {
             }
             const rect = this.$refs.window.getBoundingClientRect();
             if (!this.pos) {
-                this.pos = { left: rect.left, top: rect.top };
+                this.pos = {left: rect.left, top: rect.top};
             }
             this.drag = {
                 pointer_x: event.clientX,
@@ -223,7 +225,7 @@ app.component('terminal-panel', {
             try {
                 bar.releasePointerCapture(event.pointerId);
             }
-            catch (error) {
+            catch {
             }
         },
         request_close: function () {
@@ -248,7 +250,7 @@ app.component('terminal-panel', {
                 try {
                     this.ws.close();
                 }
-                catch (error) {
+                catch {
                 }
                 this.ws = null;
             }

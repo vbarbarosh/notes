@@ -1,19 +1,19 @@
-const fs = require('fs/promises');
 const file_type = require('file-type');
+const fs = require('fs/promises');
 const path_mod = require('path');
 
 async function fs_mime(path)
 {
     const info = await file_type.fileTypeFromFile(path);
-    const out = info?.mime ?? 'application/octet-stream';
+    const mime = info?.mime ?? 'application/octet-stream';
     const ext = path_mod.extname(path).toLowerCase();
-    if ((out === 'application/octet-stream' || out === 'application/xml') && ext === '.svg' && await is_svg(path)) {
+    if (((mime === 'application/octet-stream') || (mime === 'application/xml')) && (ext === '.svg') && await is_svg(path)) {
         return 'image/svg+xml';
     }
-    if (out === 'application/octet-stream') {
-        return mime_by_extension(ext) || out;
+    if (mime === 'application/octet-stream') {
+        return mime_by_extension(ext) || mime;
     }
-    return out;
+    return mime;
 }
 
 async function is_svg(path)

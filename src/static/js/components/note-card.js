@@ -1,14 +1,14 @@
 app.component('note-card', {
     props: {
-        note: { type: Object, required: true },
-        jobs: { type: Array, default: () => [] },
-        activeUid: { type: String, default: null },
-        editing: { type: Object, default: null }, // note being edited (owned by parent)
-        selectedTags: { type: Array, default: () => [] },
-        excludedTags: { type: Array, default: () => [] },
-        hoveredNoteUid: { type: String, default: null },
-        hoveredFilePath: { type: String, default: null },
-        playingYoutubeId: { type: String, default: null },
+        note: {type: Object, required: true},
+        jobs: {type: Array, default: () => []},
+        activeUid: {type: String, default: null},
+        editing: {type: Object, default: null}, // note being edited (owned by parent)
+        selectedTags: {type: Array, default: () => []},
+        excludedTags: {type: Array, default: () => []},
+        hoveredNoteUid: {type: String, default: null},
+        hoveredFilePath: {type: String, default: null},
+        playingYoutubeId: {type: String, default: null},
     },
     emits: [
         'activate',
@@ -100,7 +100,7 @@ app.component('note-card', {
                         Open
                     </button>
                     <button
-                        v-if="job.bucket === 'finished' || job.bucket === 'failed'"
+                        v-if="(job.bucket === 'finished' || job.bucket === 'failed')"
                         type="button"
                         v-on:click="click_job_confirm(job)"
                         title="Confirm job">
@@ -141,7 +141,7 @@ app.component('note-card', {
                 </a>
             </div>
 
-            <div v-if="editing?.uid === note.uid" class="mb20">
+            <div v-if="(editing?.uid === note.uid)" class="mb20">
                 <textarea v-autosize v-autofocus v-model="editing.body" class="note-input-card-textarea"></textarea>
                 <div class="flex-row gap10 mt5">
                     <button v-on:click="$emit('edit-save')">💾 Save</button>
@@ -150,7 +150,7 @@ app.component('note-card', {
             </div>
             <markdown v-else-if="note.display_body" v-bind:value="note.display_body" v-bind:prefix="note.prefix" />
 
-            <div v-if="note.youtube_items.length > 1" class="youtube-links">
+            <div v-if="(note.youtube_items.length > 1)" class="youtube-links">
                 <button
                     v-for="item in note.youtube_items"
                     v-bind:key="item.id"
@@ -165,7 +165,7 @@ app.component('note-card', {
                 <div class="note-images">
                     <a
                         v-for="file in note.files.filter(v => v.thumbnail_url)"
-                        v-bind:key="note.uid + ':' + file.path"
+                        v-bind:key="(note.uid + ':' + file.path)"
                         v-bind:href="(file.url)"
                         v-bind:class="{highlight: is_file_hovered(file)}"
                         target="_blank">
@@ -218,7 +218,7 @@ app.component('note-card', {
                 </div>
                 <template v-if="note.files.length">
                     <div v-for="file in filtered_note_files"
-                        v-bind:key="note.uid + ':' + file.path"
+                        v-bind:key="(note.uid + ':' + file.path)"
                         v-bind:data-file-path="file.path"
                         v-on:mouseover="mouseover_file(file)"
                         v-on:mouseleave="mouseleave_file(file)"
@@ -229,9 +229,9 @@ app.component('note-card', {
                             </div>
                             <div class="note-file-main">
                                 <span class="note-file-name">{{ file.path }}</span>
-                                <div v-if="file.details && file.mime.startsWith('image/')" class="note-file-media-meta">{{ image_file_summary(file) }}</div>
-                                <div v-if="file.details && file.mime.startsWith('audio/')" class="note-file-audio-meta">{{ audio_file_summary(file) }}</div>
-                                <div v-if="file.details && file.mime.startsWith('video/')" class="note-file-media-meta">{{ video_file_summary(file) }}</div>
+                                <div v-if="(file.details && file.mime.startsWith('image/'))" class="note-file-media-meta">{{ image_file_summary(file) }}</div>
+                                <div v-if="(file.details && file.mime.startsWith('audio/'))" class="note-file-audio-meta">{{ audio_file_summary(file) }}</div>
+                                <div v-if="(file.details && file.mime.startsWith('video/'))" class="note-file-media-meta">{{ video_file_summary(file) }}</div>
                             </div>
                         </div>
                         <div class="note-file-size">{{ format_bytes(file.size) }}</div>
@@ -241,7 +241,7 @@ app.component('note-card', {
                                 type="button"
                                 class="note-file-button play"
                                 v-on:click="$emit('play-file', note, file)"
-                                v-bind:aria-label="'Play ' + file.path + ' in media player'"
+                                v-bind:aria-label="('Play ' + file.path + ' in media player')"
                                 title="Play in media player">
                                 <i class="ti ti-player-play" aria-hidden="true"></i>
                             </button>
@@ -249,7 +249,7 @@ app.component('note-card', {
                                 type="button"
                                 class="note-file-button open"
                                 v-on:click="click_file_save(file)"
-                                v-bind:aria-label="'Open ' + file.path + ' in new tab'"
+                                v-bind:aria-label="('Open ' + file.path + ' in new tab')"
                                 title="Open in new tab">
                                 <i class="ti ti-external-link" aria-hidden="true"></i>
                             </button>
@@ -257,14 +257,14 @@ app.component('note-card', {
                                 type="button"
                                 class="note-file-button delete"
                                 v-on:click="$emit('remove-file', note, file)"
-                                v-bind:aria-label="'Delete ' + file.path"
+                                v-bind:aria-label="('Delete ' + file.path)"
                                 title="Delete">
                                 <i class="ti ti-trash" aria-hidden="true"></i>
                             </button>
                         </div>
                     </div>
                 </template>
-                <div v-if="note.files.length && !filtered_note_files.length" class="note-files-empty">
+                <div v-if="(note.files.length && !filtered_note_files.length)" class="note-files-empty">
                     No matching files
                 </div>
             </div>
@@ -281,7 +281,7 @@ app.component('note-card', {
     },
     computed: {
         note_jobs: function () {
-            return this.jobs.filter(job => job.note_uid === this.note.uid || String(job.note_uid || '').startsWith(this.note.uid + '-'));
+            return this.jobs.filter(v => v.note_uid === this.note.uid || String(v.note_uid || '').startsWith(`${this.note.uid}-`));
         },
         // Notes connected to this one, in both directions: `out` is a link written
         // in this note, `in` is another note pointing here, `both` is a pair that
@@ -289,22 +289,22 @@ app.component('note-card', {
         note_links: function () {
             const out = [];
             const index_by_uid = new Map();
-            (this.note.links || []).forEach(function (link) {
+            for (const link of (this.note.links || [])) {
                 index_by_uid.set(link.uid, out.length);
                 out.push({...link, direction: 'out'});
-            });
-            (this.note.backlinks || []).forEach(function (link) {
+            }
+            for (const link of (this.note.backlinks || [])) {
                 const index = index_by_uid.get(link.uid);
                 if (index === undefined) {
                     out.push({...link, direction: 'in'});
-                    return;
+                    continue;
                 }
                 out[index] = {...out[index], direction: 'both'};
-            });
+            }
             return out;
         },
         note_has_pdf: function () {
-            return this.note.files.some(f => f.path.toLowerCase().endsWith('.pdf'));
+            return this.note.files.some(v => v.path.toLowerCase().endsWith('.pdf'));
         },
         // Contextual actions shown in the ⋯ header menu. To add an action,
         // push a descriptor: {key, label, title} plus either {run} for a
@@ -323,10 +323,10 @@ app.component('note-card', {
             }
             out.push({key: 'terminal', label: '🖥️', title: 'Open a terminal in this note', run: this.click_terminal});
             if (this.note_has_pdf) {
-                out.push({key: 'pdf', label: 'PDF', title: 'Open PDF app', href: '/pdf.html?note=' + note.uid, css: 'note-pdf-link'});
+                out.push({key: 'pdf', label: 'PDF', title: 'Open PDF app', href: `/pdf.html?note=${note.uid}`, css: 'note-pdf-link'});
             }
-            out.push({key: 'fs', label: 'FS', title: 'Open Coding Sandbox', href: '/fs.html?note=' + note.uid, css: 'note-app-link'});
-            out.push({key: 'api', label: 'API', title: 'Open raw note API response', href: '/api/v1/notes/' + note.uid, css: 'note-app-link note-api-link'});
+            out.push({key: 'fs', label: 'FS', title: 'Open Coding Sandbox', href: `/fs.html?note=${note.uid}`, css: 'note-app-link'});
+            out.push({key: 'api', label: 'API', title: 'Open raw note API response', href: `/api/v1/notes/${note.uid}`, css: 'note-app-link note-api-link'});
             return out;
         },
         // Note-management tools pinned to the right edge of the header.
@@ -344,14 +344,14 @@ app.component('note-card', {
             if (!query) {
                 return this.note_actions;
             }
-            return this.note_actions.filter(action => `${action.label} ${action.title}`.toLowerCase().includes(query));
+            return this.note_actions.filter(v => `${v.label} ${v.title}`.toLowerCase().includes(query));
         },
         filtered_note_files: function () {
             const query = this.file_query.trim().toLowerCase();
             if (!query) {
                 return this.note.files;
             }
-            return this.note.files.filter(file => String(file.path || '').toLowerCase().includes(query));
+            return this.note.files.filter(v => String(v.path || '').toLowerCase().includes(query));
         },
         note_file_summary: function () {
             const files = this.filtered_note_files;
@@ -378,7 +378,7 @@ app.component('note-card', {
             this.action_query = '';
         },
         note_active_job: function (job_name) {
-            return this.note_jobs.find(job => job.job_name === job_name && job.bucket === 'active');
+            return this.note_jobs.find(v => v.job_name === job_name && v.bucket === 'active');
         },
         job_label: function (job) {
             return [
@@ -403,7 +403,9 @@ app.component('note-card', {
             if (Number.isNaN(date.getTime())) {
                 return uid;
             }
-            const pad = value => String(value).padStart(2, '0');
+            function pad(value) {
+                return String(value).padStart(2, '0');
+            }
             return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
         },
         link_label: function (link) {
@@ -560,7 +562,7 @@ app.component('note-card', {
             if (!files.length) {
                 return;
             }
-            await Promise.all(files.map(file => do_upload_file(this.note.uid, file)));
+            await Promise.all(files.map(v => do_upload_file(this.note.uid, v)));
             this.$emit('uploaded', this.note);
         },
         paste_note: async function (event) {
@@ -603,7 +605,7 @@ app.component('note-card', {
             this.dropping = false;
             const files = await get_event_files(event);
             if (files.length) {
-                await Promise.all(files.map(file => do_upload_file(this.note.uid, file)));
+                await Promise.all(files.map(v => do_upload_file(this.note.uid, v)));
                 this.$emit('uploaded', this.note);
             }
         },

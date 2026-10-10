@@ -1,9 +1,9 @@
 const assert = require('assert');
 const crypto = require('crypto');
+const file_meta_cache = require('./file_meta_cache');
 const fs = require('fs/promises');
 const os = require('os');
 const path = require('path');
-const file_meta_cache = require('./file_meta_cache');
 
 describe('file_meta_cache', function () {
     let root;

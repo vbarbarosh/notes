@@ -28,14 +28,14 @@ describe('note file routes', function () {
             res.status(500).send({error: error.message});
         });
 
-        await new Promise(resolve => {
+        await new Promise(function (resolve) {
             server = app.listen(0, '127.0.0.1', resolve);
         });
         base_url = `http://127.0.0.1:${server.address().port}`;
     });
 
     afterEach(async function () {
-        await new Promise(resolve => server.close(resolve));
+        await new Promise(v => server.close(v));
         await fs.rm(root, {recursive: true, force: true});
     });
 
@@ -199,8 +199,7 @@ describe('note file routes', function () {
         assert.equal(response.status, 404);
     });
 
-    async function put_file(relative, contents)
-    {
+    async function put_file(relative, contents) {
         const form = new FormData();
         form.append('file', new Blob([contents]), path.basename(relative));
         return fetch(`${base_url}/api/v1/notes/20260718_120000/files/${relative}`, {

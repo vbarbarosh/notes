@@ -2,9 +2,8 @@
 
 const UserFriendlyError = require('@vbarbarosh/node-helpers/src/errors/UserFriendlyError');
 const body_parser = require('body-parser');
-const crypto = require('crypto');
-const fs = require('fs');
 const cli = require('@vbarbarosh/node-helpers/src/cli');
+const crypto = require('crypto');
 const express = require('express');
 const express_log = require('@vbarbarosh/express-helpers/src/express_log');
 const express_params = require('@vbarbarosh/express-helpers/src/express_params');
@@ -12,6 +11,7 @@ const express_routes = require('./helpers/express/express_routes');
 const express_run = require('./helpers/express/express_run');
 const express_static_html = require('./helpers/express/express_static_html');
 const file_meta_cache = require('./helpers/file_meta_cache');
+const fs = require('fs');
 const fs_exists = require('@vbarbarosh/node-helpers/src/fs_exists');
 const fs_mkdirp = require('@vbarbarosh/node-helpers/src/fs_mkdirp');
 const fs_path_dirname = require('@vbarbarosh/node-helpers/src/fs_path_dirname');
@@ -36,11 +36,10 @@ async function main()
 
     app.use(security_headers);
     app.use(x_perf);
-    const log_file = () => `${__dirname}/../data/logs/http-${new Date().toJSON().substring(0, 10)}.log`;
     app.use(express_log({
         file: log_file,
         // Redact credentials from the request-header dump before it is written.
-        append: message => fs.promises.appendFile(log_file(), `[${new Date().toJSON()}]${redact_log(message)}\n`),
+        append: v => fs.promises.appendFile(log_file(), `[${new Date().toJSON()}]${redact_log(v)}\n`),
     }));
     const static_root = fs_path_resolve(__dirname, 'static');
     app.use(express_static_html(static_root));
@@ -101,8 +100,13 @@ async function main()
     app.use(error_handler);
 
     await express_run(app, PORT, LISTEN, jobs_routes.attach_ws);
+
+    function log_file() {
+        return `${__dirname}/../data/logs/http-${new Date().toJSON().substring(0, 10)}.log`;
+    }
 }
 
+// GET /
 async function echo(req, res)
 {
     res.status(200).send(express_params(req));
@@ -169,7 +173,7 @@ function x_perf(req, res, next)
     const writeHead = res.writeHead;
 
     res.writeHead = function (...args) {
-        const seconds = Number(process.hrtime.bigint() - started) / 1e9;
+        const seconds = Number(process.hrtime.bigint() - started)/1e9;
         res.setHeader('x-perf', `${seconds.toFixed(2)}s`);
         return writeHead.apply(this, args);
     };
@@ -177,6 +181,7 @@ function x_perf(req, res, next)
     next();
 }
 
+// ALL *
 async function page404(req, res)
 {
     res.status(404).send(`Page not found: ${req.path}`);
@@ -212,6 +217,7 @@ function static_cache_headers(res)
     }
 }
 
+// GET /r/*
 async function data_fetch(req, res)
 {
     const rel = req.params['0'] ?? '';
@@ -230,7 +236,14 @@ async function data_fetch(req, res)
     try {
         harden_download_headers(res, full);
         await new Promise(function (resolve, reject) {
-            res.sendFile(full, error => error ? reject(error) : resolve());
+            res.sendFile(full, function (error) {
+                if (error) {
+                    reject(error);
+                }
+                else {
+                    resolve();
+                }
+            });
         });
     }
     catch (error) {
@@ -247,6 +260,7 @@ async function data_fetch(req, res)
     }
 }
 
+// GET /r/*.meta
 async function data_meta(req, res)
 {
     const rel = req.params['0'] ?? '';
@@ -273,6 +287,7 @@ async function data_meta(req, res)
     }
 }
 
+// GET /t/:size/*
 async function thumbnail(req, res)
 {
     const size = make(req.params.size, {type: 'int', min: 32, max: 2048, default: 1024});
@@ -340,7 +355,7 @@ async function error_handler(error, req, res, next)
         };
         req.log(`[error_handler] ⚠️ ${JSON.stringify(details)}`);
     }
-    catch (error2) {
+    catch {
         req.log(`[error_handler] ⚠️ ${JSON.stringify(error.stack).slice(1, -1)} url=${req.url} originalUrl=${req.originalUrl}`);
     }
 

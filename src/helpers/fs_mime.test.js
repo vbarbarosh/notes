@@ -1,8 +1,8 @@
 const assert = require('assert');
 const fs = require('fs/promises');
+const fs_mime = require('./fs_mime');
 const os = require('os');
 const path = require('path');
-const fs_mime = require('./fs_mime');
 
 describe('fs_mime', function () {
     let root;

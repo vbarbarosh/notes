@@ -22,14 +22,14 @@ describe('express_static_html', function () {
         const app = express();
         app.use(express_static_html(root));
         app.use(express.static(root));
-        await new Promise(resolve => {
+        await new Promise(function (resolve) {
             server = app.listen(0, '127.0.0.1', resolve);
         });
         base_url = `http://127.0.0.1:${server.address().port}`;
     });
 
     afterEach(async function () {
-        await new Promise(resolve => server.close(resolve));
+        await new Promise(v => server.close(v));
         await fs.rm(root, {recursive: true, force: true});
     });
 

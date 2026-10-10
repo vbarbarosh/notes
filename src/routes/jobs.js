@@ -16,7 +16,7 @@ const node_pty = require('node-pty');
 const path = require('path');
 const {WebSocketServer, WebSocket} = require('ws');
 
-const TERMINAL_SCROLLBACK_MAX = 256 * 1024;
+const TERMINAL_SCROLLBACK_MAX = 256*1024;
 
 // The terminal job hands the caller an interactive shell inside the container.
 // It is disabled unless the request is authenticated (carries X-Auth-User), so
@@ -67,7 +67,7 @@ async function jobs_list(req, res)
                 }
                 items.push({...job, bucket});
             }
-            catch (error) {
+            catch {
                 items.push({
                     uid: name,
                     bucket,
@@ -89,25 +89,25 @@ function filter_jobs(items, query)
     const status = make(query.status, {type: 'str'});
     if (status) {
         filters.status = status;
-        items = items.filter(item => item.status === status);
+        items = items.filter(v => v.status === status);
     }
 
     const bucket = make(query.bucket, {type: 'str'});
     if (bucket) {
         filters.bucket = bucket;
-        items = items.filter(item => item.bucket === bucket);
+        items = items.filter(v => v.bucket === bucket);
     }
 
     const job_name = make(query.job_name, {type: 'str'});
     if (job_name) {
         filters.job_name = job_name;
-        items = items.filter(item => item.job_name === job_name);
+        items = items.filter(v => v.job_name === job_name);
     }
 
     const note_uid = make(query.note_uid, {type: 'str'});
     if (note_uid) {
         filters.note_uid = note_uid;
-        items = items.filter(item => (item.note_uid || '').startsWith(note_uid));
+        items = items.filter(v => (v.note_uid || '').startsWith(note_uid));
     }
 
     return {items, filters};
@@ -321,8 +321,7 @@ function spawn_job_process({job_root, run_file, note_root, status})
         stdio: ['ignore', stdout_file, stderr_file],
     });
 
-    function close_files()
-    {
+    function close_files() {
         if (files_closed) {
             return;
         }
@@ -487,7 +486,7 @@ async function finish_terminal_session(session, exit_code, signal)
         try {
             ws.close(1000, 'terminal exited');
         }
-        catch (error) {
+        catch {
         }
     }
     session.sockets.clear();
@@ -497,7 +496,7 @@ async function finish_terminal_session(session, exit_code, signal)
     try {
         current = await read_job_status(session.job_root);
     }
-    catch (error) {
+    catch {
         current = {
             uid: session.uid,
             user_uid: session.user_uid,
@@ -529,7 +528,7 @@ function attach_ws(server)
         try {
             url = new URL(req.url, 'http://localhost');
         }
-        catch (error) {
+        catch {
             socket.destroy();
             return;
         }
@@ -585,7 +584,7 @@ function attach_terminal_socket(session, ws)
         try {
             msg = JSON.parse(raw.toString());
         }
-        catch (error) {
+        catch {
             return;
         }
 
@@ -601,7 +600,7 @@ function attach_terminal_socket(session, ws)
                 try {
                     session.pty.resize(cols, rows);
                 }
-                catch (error) {
+                catch {
                 }
             }
         }
@@ -633,7 +632,7 @@ function resolve_ws_user(req)
         try {
             user = new URL(req.url, 'http://localhost').searchParams.get('user');
         }
-        catch (error) {
+        catch {
             user = null;
         }
     }
@@ -739,9 +738,9 @@ async function resolve_note_root_name(req, note_uid)
     const names = await fs_readdir(d);
     // Match the exact note dir name, or the `<uid>-<name>` form of the same uid.
     // A bare prefix must not resolve to a different, longer uid (finding S11).
-    const out = names.find(name => name === note_uid || name.startsWith(`${note_uid}-`));
-    if (out) {
-        return out;
+    const name = names.find(v => (v === note_uid) || v.startsWith(`${note_uid}-`));
+    if (name) {
+        return name;
     }
     throw new Error(`Not found ${note_uid}`);
 }
@@ -758,7 +757,7 @@ async function write_job_status(job_root, status)
 
 async function ensure_jobs_dirs(req)
 {
-    await Promise.all(['active', 'finished', 'failed', 'confirmed'].map(bucket => fs_mkdirp(jobs_bucket_root(req, bucket))));
+    await Promise.all(['active', 'finished', 'failed', 'confirmed'].map(v => fs_mkdirp(jobs_bucket_root(req, v))));
 }
 
 async function next_job_uid(req, job_name)
@@ -766,9 +765,9 @@ async function next_job_uid(req, job_name)
     const base = `${now_fs()}-${job_name}`;
     for (let i = 0; ; ++i) {
         const uid = i ? `${base}-${i + 1}` : base;
-        const exists = (await Promise.all(['active', 'finished', 'failed', 'confirmed'].map(bucket => {
-            return fs_exists(fs_path_resolve(jobs_bucket_root(req, bucket), uid));
-        }))).some(Boolean);
+        const buckets = ['active', 'finished', 'failed', 'confirmed'];
+        const found = await Promise.all(buckets.map(v => fs_exists(fs_path_resolve(jobs_bucket_root(req, v), uid))));
+        const exists = found.some(Boolean);
         if (!exists) {
             return uid;
         }
@@ -835,7 +834,7 @@ function close_jobs_event_streams()
         try {
             session.pty.kill();
         }
-        catch (error) {
+        catch {
         }
     }
 }
@@ -882,7 +881,7 @@ function now_fs()
         now.getHours(),
         now.getMinutes(),
         now.getSeconds()
-    ].map(n => n.toString().padStart(2, '0')).join('').replace('xx', '_');
+    ].map(v => v.toString().padStart(2, '0')).join('').replace('xx', '_');
 }
 
 function fcmp_strings_ascii(a, b)

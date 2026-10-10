@@ -1,8 +1,8 @@
 const assert = require('assert');
 const fs = require('fs/promises');
+const fs_write_unique_file = require('./fs_write_unique_file');
 const os = require('os');
 const path = require('path');
-const fs_write_unique_file = require('./fs_write_unique_file');
 
 describe('fs_write_unique_file', function () {
     let root;
