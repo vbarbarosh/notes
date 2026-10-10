@@ -1,12 +1,13 @@
 {
   "name": "@vbarbarosh/notes",
   "version": "1.0.0",
-  "description": "A simple note-taking app with file system storage and file attachments",
+  "description": "A minimal note-taking app backed by the file system.",
   "main": "src/index.js",
   "scripts": {
     "start": "node .",
     "watch": "nodemon --ignore data .",
-    "test": "mocha src/**/*.test.js"
+    "test": "mocha src/**/*.test.js",
+    "lint": "npx vbarbarosh/rules src"
   },
   "dependencies": {
     "@vbarbarosh/express-helpers": "^2.2.1",

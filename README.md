@@ -1,4 +1,9 @@
-![Notes — a minimal note-taking app backed by the file system](img/cover-light.png)
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="img/cover-dark.png">
+  <img alt="Notes — a minimal note-taking app backed by the file system" src="img/cover-light.png">
+</picture>
+
+# notes
 
 A minimal note-taking app backed by the file system.
 
