@@ -90,8 +90,8 @@ css`
         position: absolute;
         inset: 0;
         z-index: -1;
-        background: #e3e6ee;
-        box-shadow: 0 0 0 100vmax #e3e6ee;
+        background: var(--color-bg);
+        box-shadow: 0 0 0 100vmax var(--color-bg);
         clip-path: inset(0 -100vmax);
     }
 
@@ -102,7 +102,7 @@ css`
         left: 0;
         right: 0;
         height: 12px;
-        background: linear-gradient(#e3e6ee, #e3e6ee00);
+        background: linear-gradient(var(--color-bg), transparent);
         opacity: 0;
         pointer-events: none;
         transition: opacity 0.22s ease;

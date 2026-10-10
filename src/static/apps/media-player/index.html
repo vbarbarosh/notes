@@ -6,6 +6,25 @@
     <link href="https://unpkg.com/@vbarbarosh/smcss@1.2.0/dist/reset.css" rel="stylesheet">
     <link href="https://unpkg.com/@vbarbarosh/smcss@1.2.0/dist/sm.css" rel="stylesheet">
     <title>media-player.html</title>
+    <style>
+        :root {
+            color-scheme: light;
+            --color-bg: #fff;
+            --color-text: #000;
+        }
+
+        :root[data-theme="dark"] {
+            color-scheme: dark;
+            --color-bg: #14171d;
+            --color-text: #e4e6ee;
+        }
+
+        body {
+            background: var(--color-bg);
+            color: var(--color-text);
+        }
+    </style>
+    <script src="/js/theme.js"></script>
 </head>
 <body>
 

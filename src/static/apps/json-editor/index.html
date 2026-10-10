@@ -7,9 +7,115 @@
     <link href="https://unpkg.com/jsoneditor@9.5.0/dist/jsoneditor.css" rel="stylesheet" />
     <link href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.54.0/codemirror.css" rel="stylesheet" />
     <link href="https://unpkg.com/@vbarbarosh/smcss@1.2.0/dist/sm.css" rel="stylesheet">
+    <link id="jsoneditor_dark" href="https://unpkg.com/jsoneditor@9.5.0/examples/css/darktheme.css" rel="stylesheet" disabled>
     <style>
+        :root {
+            color-scheme: light;
+            --color-bg: #fff;
+            --color-text: #000;
+            --color-surface: #fff;
+            --color-line-soft: #eee;
+            --color-select: #8f8;
+            --color-code-gutter: #ebebeb;
+            --color-code-active: #fffbd1;
+            --color-code-text: gray;
+            --color-code-string: green;
+            --color-code-number: red;
+            --color-code-selection: lightgray;
+        }
+
+        :root[data-theme="dark"] {
+            color-scheme: dark;
+            --color-bg: #14171d;
+            --color-text: #e4e6ee;
+            --color-surface: #1c2029;
+            --color-line-soft: #333a4a;
+            --color-select: #1f4d2a;
+            --color-code-gutter: #232834;
+            --color-code-active: #262d3d;
+            --color-code-text: #949cb8;
+            --color-code-string: #6fd3a8;
+            --color-code-number: #f08a8a;
+            --color-code-selection: #36405c;
+        }
+
+        body {
+            background: var(--color-bg);
+            color: var(--color-text);
+        }
+
+        /* smcss's white and green, and CodeMirror, are light only */
+        :root[data-theme="dark"] .white {
+            background: var(--color-surface);
+        }
+
+        :root[data-theme="dark"] .green {
+            background: var(--color-select);
+        }
+
+        :root[data-theme="dark"] .CodeMirror {
+            background: var(--color-surface);
+            color: var(--color-text);
+        }
+
+        :root[data-theme="dark"] .CodeMirror-cursor {
+            border-left-color: var(--color-text);
+        }
+
+        /* the code mode's Ace theme (ace-jsoneditor) is light only */
+        :root[data-theme="dark"] .ace-jsoneditor.ace_editor,
+        :root[data-theme="dark"] .ace-jsoneditor .ace_scroller {
+            background-color: var(--color-surface);
+        }
+
+        :root[data-theme="dark"] .ace-jsoneditor .ace_gutter {
+            background: var(--color-code-gutter);
+            color: var(--color-code-text);
+        }
+
+        :root[data-theme="dark"] .ace-jsoneditor .ace_gutter-active-line,
+        :root[data-theme="dark"] .ace-jsoneditor .ace_marker-layer .ace_active-line {
+            background: var(--color-code-active);
+        }
+
+        :root[data-theme="dark"] .ace-jsoneditor .ace_text-layer {
+            color: var(--color-code-text);
+        }
+
+        :root[data-theme="dark"] .ace-jsoneditor .ace_variable {
+            color: var(--color-text);
+        }
+
+        :root[data-theme="dark"] .ace-jsoneditor .ace_string {
+            color: var(--color-code-string);
+        }
+
+        :root[data-theme="dark"] .ace-jsoneditor .ace_constant.ace_numeric {
+            color: var(--color-code-number);
+        }
+
+        :root[data-theme="dark"] .ace-jsoneditor .ace_cursor {
+            border-left-color: var(--color-text);
+        }
+
+        :root[data-theme="dark"] .ace-jsoneditor .ace_marker-layer .ace_selection {
+            background: var(--color-code-selection);
+        }
+
+        :root[data-theme="dark"] .ace-jsoneditor .ace_print-margin {
+            background: var(--color-line-soft);
+        }
+
+        /* in the tab bar's empty right end, clear of the editor's own menu */
+        :root .theme-switch-fixed {
+            top: 4px;
+            right: 8px;
+            width: 32px;
+            height: 32px;
+        }
+
         .CodeMirror {
-            border: 1px solid #eee;
+            border: 1px solid var(--color-line-soft);
             height: auto;
         }
         .CodeMirror-scroll {
@@ -18,6 +124,17 @@
         table { border-collapse: collapse; }
         table, th, td { border: 1px solid; }
     </style>
+    <script src="/js/theme.js"></script>
+    <script>
+        // jsoneditor's own dark stylesheet, on only in the dark theme
+        refresh_jsoneditor_theme();
+        document.addEventListener('theme-change', refresh_jsoneditor_theme);
+
+        function refresh_jsoneditor_theme()
+        {
+            document.getElementById('jsoneditor_dark').disabled = (document.documentElement.dataset.theme !== 'dark');
+        }
+    </script>
 </head>
 <body>
 

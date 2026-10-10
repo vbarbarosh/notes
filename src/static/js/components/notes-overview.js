@@ -52,8 +52,8 @@ css`
         position: fixed;
         top: 0; left: 0; bottom: 0;
         width: 230px;
-        background: #f6f6f9;
-        border-right: 1px solid #e0e0e0;
+        background: var(--color-surface);
+        border-right: 1px solid var(--color-line-soft);
         overflow-y: auto;
         padding: 10px 0;
         z-index: 100;
@@ -76,7 +76,7 @@ css`
     }
 
     .overview-item.active {
-        background: #e5eeff;
+        background: var(--color-select);
         border-left-color: #2486fd;
         font-weight: 600;
         /* Remove border-radius and gradient! */
@@ -84,25 +84,25 @@ css`
 
     .overview-item:hover,
     .overview-item:focus {
-        background: #f0f7ff;
+        background: var(--color-select-soft);
         border-left-color: #81bfff;
     }
 
     .overview-item.active:hover {
-        background: #d3e6ff;
+        background: var(--color-select-strong);
         border-left-color: #1569ce;
     }
 
     .overview-date {
         font-size: 12px;
-        color: #aaa;
+        color: var(--color-text-3);
         margin-bottom: 2px;
         letter-spacing: 0.04em;
     }
 
     .overview-title {
         font-size: 15px;
-        color: #252525;
+        color: var(--color-text);
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
@@ -124,8 +124,8 @@ css`
         max-width: 88px;
         padding: 2px 6px;
         border-radius: 999px;
-        background: #eef2fb;
-        color: #465097;
+        background: var(--color-surface-tint);
+        color: var(--color-accent-text);
         font-size: 11px;
         font-weight: 600;
         line-height: 1.2;
@@ -135,8 +135,8 @@ css`
     }
 
     .overview-item.active .overview-tag {
-        background: #d5e2ff;
-        color: #234c9d;
+        background: var(--color-select-strong);
+        color: var(--color-select-ink);
     }
 
     @media (max-width: 700px) {

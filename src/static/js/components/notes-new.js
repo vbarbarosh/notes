@@ -169,10 +169,10 @@ css`
         display: flex;
         align-items: center;
         gap: 9px;
-        background: #f8f9fd;
+        background: var(--color-surface);
         border-radius: 8px;
-        border: 1.5px solid #c7cde2;
-        box-shadow: 0 2px 10px #bbb3;
+        border: 1.5px solid var(--color-line);
+        box-shadow: 0 2px 10px var(--color-shadow-card);
         padding: 0 14px 0 14px;
         min-height: 48px;
         max-width: 680px;
@@ -183,8 +183,8 @@ css`
     .notes-new-bar:has(textarea:focus) {
         position: sticky;
         top: 30px;
-        box-shadow: 0 4px 18px #abb9ee6e;
-        border-color: #9da9db;
+        box-shadow: 0 4px 18px var(--color-shadow-hover);
+        border-color: var(--color-focus);
     }
 
     .notes-new-bar-input {
@@ -194,7 +194,7 @@ css`
         border: none;
         outline: none;
         font-size: 1.07rem;
-        color: #2b2f3a;
+        color: var(--color-text);
         min-height: 38px;
         max-height: 180px;
         padding: 12px 0;
@@ -204,7 +204,7 @@ css`
     }
 
     .notes-new-bar-input::placeholder {
-        color: #b6b7c9;
+        color: var(--color-placeholder);
         opacity: 1;
     }
 
@@ -212,7 +212,7 @@ css`
         background: none;
         border: none;
         font-size: 1.28em;
-        color: #a3acc8;
+        color: var(--color-icon-muted);
         cursor: pointer;
         margin: 0 2px;
         padding: 3px 4px;
@@ -225,8 +225,8 @@ css`
 
     .notes-new-bar-attach:hover,
     .notes-new-bar-attach:focus {
-        background: #e6ebff;
-        color: #5370e7;
+        background: var(--color-select);
+        color: var(--color-accent-text);
     }
 
     .notes-new-bar-submit {
@@ -242,13 +242,13 @@ css`
         font-size: 1.3em;
         margin-left: 3px;
         cursor: pointer;
-        box-shadow: 0 2px 6px #bfc2db22;
+        box-shadow: 0 2px 6px var(--color-shadow-soft);
         transition: background 0.16s, box-shadow 0.14s;
     }
 
     .notes-new-bar-submit:disabled {
-        background: #dde2f3;
-        color: #a0aacb;
+        background: var(--color-button);
+        color: var(--color-icon-muted);
         cursor: not-allowed;
         box-shadow: none;
     }
@@ -272,12 +272,12 @@ css`
         align-items: center;
         padding: 4px 10px 4px 6px;
         border-radius: 6px;
-        background: #e7f0ff;
-        color: #27336a;
+        background: var(--color-select);
+        color: var(--color-text-ink);
         font-size: 0.98em;
-        box-shadow: 0 1px 5px #bfc2db22;
+        box-shadow: 0 1px 5px var(--color-shadow-soft);
         gap: 7px;
-        border: 1px solid #c7cde2;
+        border: 1px solid var(--color-line);
     }
 
     .notes-new-bar-file .file-icon {
@@ -288,7 +288,7 @@ css`
     .notes-new-bar-file-remove {
         background: none;
         border: none;
-        color: #b21b3a;
+        color: var(--color-danger-ink);
         font-size: 1.1em;
         margin-left: 5px;
         cursor: pointer;

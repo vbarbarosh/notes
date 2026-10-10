@@ -117,7 +117,7 @@ css`
         margin: 14px 0 18px;
         font-size: 15px;
         line-height: 1.62;
-        color: #2f3342;
+        color: var(--color-text);
         overflow-wrap: anywhere;
     }
 
@@ -144,7 +144,7 @@ css`
     .markdown h4,
     .markdown h5,
     .markdown h6 {
-        color: #262b3d;
+        color: var(--color-text);
         font-weight: 700;
         line-height: 1.25;
         margin: 20px 0 8px;
@@ -153,13 +153,13 @@ css`
     .markdown h1 {
         font-size: 1.55em;
         padding-bottom: 7px;
-        border-bottom: 1px solid #d9deed;
+        border-bottom: 1px solid var(--color-line-soft);
     }
 
     .markdown h2 {
         font-size: 1.32em;
         padding-bottom: 5px;
-        border-bottom: 1px solid #e3e7f2;
+        border-bottom: 1px solid var(--color-line-soft);
     }
 
     .markdown h3 {
@@ -173,14 +173,14 @@ css`
     }
 
     .markdown a {
-        color: #245fd4;
-        text-decoration-color: #9bb7f0;
+        color: var(--color-link-ink);
+        text-decoration-color: var(--color-link-underline);
         text-underline-offset: 2px;
     }
 
     .markdown a:hover {
-        color: #173f96;
-        text-decoration-color: #173f96;
+        color: var(--color-link-hover);
+        text-decoration-color: var(--color-link-hover);
     }
 
     .markdown ul,
@@ -200,17 +200,17 @@ css`
 
     .markdown blockquote {
         padding: 8px 12px;
-        color: #50576f;
-        background: #edf1f8;
-        border-left: 4px solid #9da9db;
+        color: var(--color-text-2);
+        background: var(--color-surface-tint);
+        border-left: 4px solid var(--color-focus);
         border-radius: 0 6px 6px 0;
     }
 
     .markdown code {
         margin: 0;
-        background: #e9edf7;
-        color: #202842;
-        border: 1px solid #d7ddeb;
+        background: var(--color-code-bg);
+        color: var(--color-text);
+        border: 1px solid var(--color-line-soft);
         border-radius: 4px;
         padding: 1px 5px;
         font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
@@ -249,28 +249,28 @@ css`
         width: 100%;
         border-collapse: collapse;
         font-size: 0.95em;
-        background: #f8f9fd;
-        border: 1px solid #d8deee;
+        background: var(--color-surface);
+        border: 1px solid var(--color-line-soft);
         border-radius: 6px;
         overflow: hidden;
         display: block;
     }
 
     .markdown thead {
-        background: #e7ebf6;
+        background: var(--color-surface-tint);
     }
 
     .markdown th,
     .markdown td {
         padding: 6px 9px;
-        border: 1px solid #d8deee;
+        border: 1px solid var(--color-line-soft);
         text-align: left;
         vertical-align: top;
     }
 
     .markdown hr {
         border: 0;
-        border-top: 1px solid #d9deed;
+        border-top: 1px solid var(--color-line-soft);
         margin: 18px 0;
     }
 
@@ -278,8 +278,8 @@ css`
         max-width: min(100%, 520px);
         max-height: 520px;
         border-radius: 7px;
-        border: 1px solid #c7cde2;
-        box-shadow: 0 1px 7px #bfc2db60;
+        border: 1px solid var(--color-line);
+        box-shadow: 0 1px 7px var(--color-shadow-submit);
         object-fit: contain;
     }
 `;

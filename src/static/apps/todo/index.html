@@ -5,11 +5,35 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>To-Do — Not implemented</title>
 <style>
+  :root {
+    color-scheme: light;
+    --color-bg: #e3e6ee;
+    --color-text: #232634;
+    --color-text-ink: #3b4273;
+    --color-text-2: #6b7392;
+    --color-surface: #f7f8fb;
+    --color-line: #c7cde2;
+    --color-link: #2486fd;
+    --color-shadow-card: #bbb3;
+  }
+
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --color-bg: #14171d;
+    --color-text: #e4e6ee;
+    --color-text-ink: #c9d0ee;
+    --color-text-2: #949cb8;
+    --color-surface: #1c2029;
+    --color-line: #333a4a;
+    --color-link: #5aa6ff;
+    --color-shadow-card: #0006;
+  }
+
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body {
-    background: #e3e6ee;
+    background: var(--color-bg);
     font-family: system-ui, sans-serif;
-    color: #232634;
+    color: var(--color-text);
     min-height: 100vh;
     display: flex;
     align-items: center;
@@ -17,20 +41,21 @@
     padding: 24px;
   }
   .card {
-    background: #f7f8fb;
-    border: 1px solid #c7cde2;
+    background: var(--color-surface);
+    border: 1px solid var(--color-line);
     border-radius: 12px;
-    box-shadow: 0 2px 14px #bbb3;
+    box-shadow: 0 2px 14px var(--color-shadow-card);
     padding: 40px 44px;
     text-align: center;
     max-width: 420px;
   }
   .emoji { font-size: 46px; line-height: 1; margin-bottom: 14px; }
-  h1 { font-size: 1.4rem; color: #3b4273; margin-bottom: 8px; }
-  p { color: #6b7392; font-size: 0.95rem; line-height: 1.45; margin-bottom: 22px; }
-  a { color: #2486fd; text-decoration: none; font-size: 0.9rem; }
+  h1 { font-size: 1.4rem; color: var(--color-text-ink); margin-bottom: 8px; }
+  p { color: var(--color-text-2); font-size: 0.95rem; line-height: 1.45; margin-bottom: 22px; }
+  a { color: var(--color-link); text-decoration: none; font-size: 0.9rem; }
   a:hover { text-decoration: underline; }
 </style>
+<script src="/js/theme.js"></script>
 </head>
 <body>
   <div class="card">

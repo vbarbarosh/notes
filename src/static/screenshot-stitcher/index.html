@@ -1,26 +1,10 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme-switch="inline">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Screenshot Stitcher</title>
-<script>
-    document.documentElement.dataset.theme = theme_read();
-
-    function theme_read()
-    {
-        try {
-            const out = localStorage.getItem('theme');
-            if (out === 'light' || out === 'dark') {
-                return out;
-            }
-        }
-        catch (error) {
-            console.warn(error);
-        }
-        return matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-    }
-</script>
+<script src="/js/theme.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/vue@2.7.16/dist/vue.min.js"></script>
 <style>
     :root {
@@ -132,24 +116,6 @@
         color: var(--color-muted);
         white-space: nowrap;
         text-overflow: ellipsis;
-    }
-    .theme {
-        display: flex;
-        flex: none;
-        padding: 2px;
-        border: 1px solid var(--color-border);
-        border-radius: 7px;
-    }
-    .theme button {
-        padding: 3px 10px;
-        border: 0;
-        border-radius: 5px;
-        background: transparent;
-        color: var(--color-muted);
-    }
-    .theme button.active {
-        background: var(--color-hover);
-        color: var(--color-text);
     }
     .body {
         display: flex;
@@ -384,10 +350,9 @@
             <div class="bar-fill">{{ status }}</div>
             <button v-on:click="click_copy" v-bind:disabled="!is_ready" type="button" title="Ctrl+C">Copy</button>
             <button v-on:click="click_save_png" v-bind:disabled="!is_ready" class="primary" type="button" title="Ctrl+S">Save PNG</button>
-            <div class="theme">
-                <button v-on:click="click_light" v-bind:class="{active: (theme === 'light')}" type="button">Light</button>
-                <button v-on:click="click_dark" v-bind:class="{active: (theme === 'dark')}" type="button">Dark</button>
-            </div>
+            <button v-on:click="click_theme_switch" v-bind:aria-label="theme_label" v-bind:title="theme_label" class="theme-switch" type="button">
+                <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" focusable="false"><path v-bind:d="theme_path" fill="currentColor" /></svg>
+            </button>
             <input ref="input" v-on:change="change_input" type="file" accept="image/*" multiple hidden>
         </div>
         <div class="body">
@@ -505,6 +470,12 @@
                 toast: '',
             },
             computed: {
+                theme_label: function () {
+                    return theme_switch_label(this.theme);
+                },
+                theme_path: function () {
+                    return (this.theme === 'dark') ? THEME_MOON_PATH : THEME_SUN_PATH;
+                },
                 refresh_key: function () {
                     const parts = this.items.map(v => `${v.uid}:${v.pos_manual}`);
                     return `${parts.join(',')}|${crop_key(this.crop)}|${this.is_sides}|${this.scroll}`;
@@ -548,13 +519,9 @@
                 click_copy: function () {
                     this.export_clipboard();
                 },
-                click_light: function () {
-                    this.theme = 'light';
-                    theme_write('light');
-                },
-                click_dark: function () {
-                    this.theme = 'dark';
-                    theme_write('dark');
+                click_theme_switch: function () {
+                    this.theme = (this.theme === 'dark') ? 'light' : 'dark';
+                    theme_write(this.theme);
                 },
                 render_pos: function (item) {
                     if (item.pos_manual !== null) {
@@ -894,17 +861,6 @@
             app.is_dropping = false;
             app.items_add(Array.from(event.dataTransfer.files));
         });
-    }
-
-    function theme_write(theme)
-    {
-        document.documentElement.dataset.theme = theme;
-        try {
-            localStorage.setItem('theme', theme);
-        }
-        catch (error) {
-            console.warn(error);
-        }
     }
 
     function item_forget(item)

@@ -133,11 +133,11 @@ css`
         justify-content: center;
         width: 40px;
         height: 40px;
-        border: 1px solid #c7cde2;
+        border: 1px solid var(--color-line);
         border-radius: 50%;
-        background: #f7f8fb;
-        box-shadow: 0 2px 10px #bbb3;
-        color: #636b8f;
+        background: var(--color-surface);
+        box-shadow: 0 2px 10px var(--color-shadow-card);
+        color: var(--color-text-2);
         font-size: 20px;
         opacity: 0;
         transform: scale(0.8);
@@ -151,9 +151,9 @@ css`
     }
 
     .note-jump-button:hover {
-        background: #fff;
-        border-color: #9da9db;
-        color: #3b4273;
+        background: var(--color-surface-raised);
+        border-color: var(--color-focus);
+        color: var(--color-text-ink);
     }
 
     .note-card.note-jump-measure .markdown,

@@ -86,19 +86,19 @@ css`
         position: fixed;
         bottom: 20px;
         right: 20px;
-        background: #fff;
-        border: 1px solid #c7cde2;
+        background: var(--color-surface-raised);
+        border: 1px solid var(--color-line);
         border-radius: 10px;
         padding: 12px 16px;
         min-width: 280px;
-        box-shadow: 0 4px 16px rgba(0,0,0,0.15);
+        box-shadow: 0 4px 16px var(--color-shadow-menu);
         z-index: 1000;
     }
-    .upload-progress-title { font-weight: 600; margin-bottom: 8px; font-size: 13px; color: #555; }
+    .upload-progress-title { font-weight: 600; margin-bottom: 8px; font-size: 13px; color: var(--color-text-2); }
     .upload-progress-item { display: flex; align-items: center; gap: 8px; margin-bottom: 5px; }
     .upload-progress-item:last-child { margin-bottom: 0; }
     .upload-progress-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
-    .upload-progress-bar-wrap { width: 90px; height: 5px; background: #e3e6ee; border-radius: 3px; flex-shrink: 0; }
+    .upload-progress-bar-wrap { width: 90px; height: 5px; background: var(--color-track); border-radius: 3px; flex-shrink: 0; }
     .upload-progress-bar { height: 100%; background: #2486fd; border-radius: 3px; transition: width 0.1s linear; }
-    .upload-progress-pct { width: 34px; text-align: right; font-size: 12px; color: #888; flex-shrink: 0; }
+    .upload-progress-pct { width: 34px; text-align: right; font-size: 12px; color: var(--color-text-2); flex-shrink: 0; }
 `;

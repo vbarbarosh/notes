@@ -10,6 +10,8 @@ const MINI_PLAYER_MIN_COVER_HEIGHT = 56;
 const MINI_PLAYER_MAX_COVER_HEIGHT = 360;
 const MINI_PLAYER_SNAP_THRESHOLD = 24;
 const MINI_PLAYER_EDGE_MARGIN = 18;
+// The light/dark switch holds the top right corner (js/theme.js): 10px + 34px + 10px.
+const MINI_PLAYER_SWITCH_CLEARANCE = 54;
 // How long the controls stay over the cover after the pointer stops moving.
 const MINI_PLAYER_OVERLAY_IDLE = 2500;
 const MINI_PLAYER_VIEWS = ['full', 'compact', 'cover'];
@@ -276,7 +278,8 @@ app.component('mini-player', {
                 out.right = 'auto';
             }
             if (this.state.y !== null) {
-                out.top = `${this.state.y}px`;
+                const min_y = (this.state.x === null) ? 0 : mini_player_min_y(this.state.x, this.state.width);
+                out.top = `${Math.max(min_y, this.state.y)}px`;
                 out.bottom = 'auto';
             }
             return out;
@@ -806,7 +809,8 @@ app.component('mini-player', {
             const max_x = Math.max(0, window.innerWidth - rect.width);
             const max_y = Math.max(0, window.innerHeight - rect.height);
             this.state.x = Math.min(max_x, Math.max(0, drag.origin_x + event.clientX - drag.start_x));
-            this.state.y = Math.min(max_y, Math.max(0, drag.origin_y + event.clientY - drag.start_y));
+            const min_y = mini_player_min_y(this.state.x, rect.width);
+            this.state.y = Math.min(max_y, Math.max(min_y, drag.origin_y + event.clientY - drag.start_y));
             this.snap_preview = this.snap_side_for_pointer(event.clientX);
         },
         drag_end: function (event) {
@@ -934,7 +938,8 @@ app.component('mini-player', {
             }
             if (this.state.y !== null) {
                 const max_y = Math.max(0, window.innerHeight - rect.height);
-                this.state.y = Math.min(max_y, Math.max(0, this.state.y));
+                const min_y = mini_player_min_y(rect.left, rect.width);
+                this.state.y = Math.min(max_y, Math.max(min_y, this.state.y));
             }
         },
     },
@@ -968,6 +973,12 @@ app.component('mini-player', {
         this.teardown_gesture_listener();
     },
 });
+
+// A player under the switch's column keeps clear of it, so neither covers the other.
+function mini_player_min_y(x, width)
+{
+    return (x + width > window.innerWidth - MINI_PLAYER_SWITCH_CLEARANCE) ? MINI_PLAYER_SWITCH_CLEARANCE : 0;
+}
 
 function load_mini_player_state()
 {
@@ -1035,10 +1046,10 @@ css`
         display: flex;
         flex-direction: column;
         overflow: hidden;
-        border: 1px solid #c7cde2;
+        border: 1px solid var(--color-line);
         border-radius: 12px;
-        background: #fff;
-        box-shadow: 0 14px 38px rgba(13, 22, 48, 0.22);
+        background: var(--color-surface-raised);
+        box-shadow: 0 14px 38px var(--color-shadow-float);
     }
 
     .mini-player.snapped-left,
@@ -1056,15 +1067,17 @@ css`
         right: auto;
         border-left: 0;
         border-right: 0;
-        box-shadow: 6px 0 26px rgba(13, 22, 48, 0.18);
+        box-shadow: 6px 0 26px var(--color-shadow-float);
     }
 
+    /* Starts below the light/dark switch: MINI_PLAYER_SWITCH_CLEARANCE. */
     .mini-player.snapped-right {
+        top: 54px;
         right: 0;
         left: auto;
         border-right: 0;
         border-left: 0;
-        box-shadow: -6px 0 26px rgba(13, 22, 48, 0.18);
+        box-shadow: -6px 0 26px var(--color-shadow-float);
     }
 
     .mini-player.snapped-left .mini-player-list,
@@ -1240,7 +1253,7 @@ css`
 
     .mini-player-meta {
         padding: 10px 14px 0;
-        color: #6f7485;
+        color: var(--color-text-2);
         font-size: 12px;
     }
 
@@ -1254,7 +1267,7 @@ css`
     .mini-player-time {
         flex-shrink: 0;
         min-width: 36px;
-        color: #6f7485;
+        color: var(--color-text-2);
         font-size: 11px;
         font-variant-numeric: tabular-nums;
         font-weight: 600;
@@ -1283,7 +1296,7 @@ css`
         border-radius: 2px;
         background: linear-gradient(to right,
             #2486fd 0%, #2486fd var(--progress, 0%),
-            #e1e6f0 var(--progress, 0%), #e1e6f0 100%);
+            var(--color-track) var(--progress, 0%), var(--color-track) 100%);
     }
 
     .mini-player-seek::-moz-range-track,
@@ -1292,7 +1305,7 @@ css`
         border-radius: 2px;
         background: linear-gradient(to right,
             #2486fd 0%, #2486fd var(--progress, 0%),
-            #e1e6f0 var(--progress, 0%), #e1e6f0 100%);
+            var(--color-track) var(--progress, 0%), var(--color-track) 100%);
     }
 
     .mini-player-seek::-webkit-slider-thumb,
@@ -1304,7 +1317,7 @@ css`
         margin-top: -5px;
         border: 2px solid #2486fd;
         border-radius: 50%;
-        background: #fff;
+        background: var(--color-surface-raised);
         box-shadow: 0 1px 3px rgba(36, 134, 253, 0.35);
         transition: transform 0.12s ease;
         cursor: pointer;
@@ -1316,7 +1329,7 @@ css`
         height: 14px;
         border: 2px solid #2486fd;
         border-radius: 50%;
-        background: #fff;
+        background: var(--color-surface-raised);
         box-shadow: 0 1px 3px rgba(36, 134, 253, 0.35);
         cursor: pointer;
     }
@@ -1347,13 +1360,13 @@ css`
         border: 0;
         border-radius: 50%;
         background: transparent;
-        color: #53627a;
+        color: var(--color-text-2);
         cursor: pointer;
         transition: background 0.15s, color 0.15s, transform 0.12s;
     }
 
     .mini-player-btn:hover {
-        background: #eef3fb;
+        background: var(--color-select);
         color: #2486fd;
     }
 
@@ -1411,7 +1424,7 @@ css`
 
     .mini-player-count {
         margin-left: 4px;
-        color: #6f7485;
+        color: var(--color-text-2);
         font-size: 11px;
         font-variant-numeric: tabular-nums;
         font-weight: 600;
@@ -1420,7 +1433,7 @@ css`
     .mini-player-list {
         overflow: auto;
         overscroll-behavior: contain;
-        border-top: 1px solid #e4e7f0;
+        border-top: 1px solid var(--color-line-soft);
         flex-shrink: 0;
         min-height: 0;
     }
@@ -1429,8 +1442,8 @@ css`
         width: 100%;
         display: grid;
         grid-template-columns: minmax(0, 1fr) auto 34px;
-        border-bottom: 1px solid #eef0f7;
-        background: #fff;
+        border-bottom: 1px solid var(--color-line-soft);
+        background: var(--color-surface-raised);
         transition: background 0.12s;
     }
 
@@ -1472,7 +1485,7 @@ css`
 
     .mini-player-heart-icon path {
         fill: transparent;
-        stroke: #b6bfd5;
+        stroke: var(--color-line-strong);
         stroke-width: 2.2;
         stroke-linejoin: round;
         transition: fill 0.2s, stroke 0.2s;
@@ -1590,7 +1603,7 @@ css`
     }
 
     .mini-player-list-row:hover {
-        background: #d6e4fb;
+        background: var(--color-select-strong);
     }
 
     .mini-player-list-row.active {
@@ -1598,20 +1611,20 @@ css`
         top: 0;
         bottom: 0;
         z-index: 1;
-        background: #eef5ff;
+        background: var(--color-select);
     }
 
     .mini-player-list-row.active:hover {
-        background: #c4dafa;
+        background: var(--color-select-strong);
     }
 
     .mini-player-list-row.hovered {
-        background: #f4f8e8;
+        background: var(--color-hover-mark);
         box-shadow: inset 3px 0 0 #5ba84a;
     }
 
     .mini-player-list-row.hovered.active {
-        background: #eef5ff;
+        background: var(--color-select);
         box-shadow: inset 3px 0 0 #5ba84a;
     }
 
@@ -1622,14 +1635,14 @@ css`
         border: 0;
         border-radius: 0;
         background: transparent;
-        color: #252837;
+        color: var(--color-text);
         text-align: left;
         cursor: pointer;
     }
 
     .mini-player-list-main:hover {
         background: transparent;
-        color: #252837;
+        color: var(--color-text);
     }
 
     .mini-player-list-note-button {
@@ -1639,15 +1652,15 @@ css`
         justify-content: center;
         border: 0;
         border-radius: 0;
-        border-left: 1px solid #eef0f7;
+        border-left: 1px solid var(--color-line-soft);
         background: transparent;
-        color: #53627a;
+        color: var(--color-text-2);
         cursor: pointer;
         transition: background 0.12s, color 0.12s;
     }
 
     .mini-player-list-note-button:hover {
-        background: #eaf1ff;
+        background: var(--color-select);
         color: #2486fd;
     }
 
@@ -1666,7 +1679,7 @@ css`
 
     .mini-player-list-note {
         margin-top: 2px;
-        color: #6f7485;
+        color: var(--color-text-2);
         font-size: 11px;
     }
 
@@ -1789,25 +1802,25 @@ css`
         justify-content: center;
         gap: 8px;
         padding: 0 14px;
-        border: 1px solid #c7cde2;
+        border: 1px solid var(--color-line);
         border-radius: 999px;
-        background: #fff;
-        color: #252837;
+        background: var(--color-surface-raised);
+        color: var(--color-text);
         font-size: 13px;
         font-weight: 600;
         cursor: pointer;
-        box-shadow: 0 10px 26px rgba(13, 22, 48, 0.2);
+        box-shadow: 0 10px 26px var(--color-shadow-float);
         transition: transform 0.15s, box-shadow 0.15s, border-color 0.15s;
     }
 
     .mini-player-restore:hover {
         transform: translateY(-1px);
-        box-shadow: 0 14px 30px rgba(13, 22, 48, 0.26);
+        box-shadow: 0 14px 30px var(--color-shadow-float);
     }
 
     .mini-player-restore.playing {
         border-color: #2486fd;
-        color: #1569ce;
+        color: var(--color-link-ink);
     }
 
     .mini-player-restore-icon {

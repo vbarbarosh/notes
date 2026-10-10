@@ -8,9 +8,11 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,400;9..144,500;9..144,700;9..144,900&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="/js/theme.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <style>
   :root {
+    color-scheme: light;
     --bg: #f4f1ea;
     --bg-alt: #ebe6db;
     --ink: #1a1814;
@@ -23,6 +25,25 @@
     --line: #1a1814;
     --paper: #fbf9f4;
     --shadow: 0 1px 0 rgba(26, 24, 20, 0.08), 0 8px 24px -12px rgba(26, 24, 20, 0.25);
+    --pin: rgb(90, 70, 160);
+    --veil: rgba(244, 241, 234, 0.92);
+  }
+
+  /* The same paper look at night; the PDF pages themselves stay white. */
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --bg: #17150f;
+    --bg-alt: #221f18;
+    --ink: #ece6d8;
+    --ink-soft: #c4bcab;
+    --ink-muted: #8f877a;
+    --accent: #e0603f;
+    --accent-soft: #5a2a1e;
+    --line: #ece6d8;
+    --paper: #23201a;
+    --shadow: 0 1px 0 rgba(0, 0, 0, 0.3), 0 8px 24px -12px rgba(0, 0, 0, 0.7);
+    --pin: #a898e8;
+    --veil: rgba(23, 21, 15, 0.92);
   }
 
   * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -652,7 +673,7 @@
     font-size: 11px;
     text-transform: uppercase;
     letter-spacing: 0.15em;
-    color: rgb(90, 70, 160);
+    color: var(--pin);
     font-weight: 700;
   }
   .pin-modal-text {
@@ -693,7 +714,7 @@
     cursor: pointer;
   }
   .pin-btn:hover { background: var(--ink); color: var(--paper); }
-  .pin-btn-save { background: rgb(90, 70, 160); color: var(--paper); border-color: var(--ink); }
+  .pin-btn-save { background: var(--pin); color: var(--paper); border-color: var(--ink); }
   .pin-btn-save:hover { background: var(--ink); }
   .pin-btn-delete { border-color: var(--accent); color: var(--accent); }
   .pin-btn-delete:hover { background: var(--accent); color: var(--paper); }
@@ -805,7 +826,7 @@
   .loading-overlay {
     position: absolute;
     inset: 0;
-    background: rgba(244, 241, 234, 0.92);
+    background: var(--veil);
     display: none;
     align-items: center;
     justify-content: center;
