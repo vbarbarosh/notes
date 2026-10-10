@@ -6,7 +6,7 @@
   "scripts": {
     "start": "node .",
     "watch": "nodemon --ignore data .",
-    "test": "mocha src/**/*.test.js",
+    "test": "mocha 'src/**/*.test.js'",
     "lint": "npx vbarbarosh/rules src"
   },
   "dependencies": {
