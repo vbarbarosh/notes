@@ -7,8 +7,8 @@ const {promisify} = require('util');
 
 const exec_file = promisify(child_process.execFile);
 const app_root = path.resolve(__dirname, '../..');
-const first_id = 'jNQXAC9IVRw';
-const second_id = 'aqz-KE-bpKQ';
+const FIRST_ID = 'jNQXAC9IVRw';
+const SECOND_ID = 'aqz-KE-bpKQ';
 
 describe('YouTube download jobs', function () {
     this.timeout(10000);
@@ -24,7 +24,7 @@ describe('YouTube download jobs', function () {
         job = path.join(root, 'job');
         bin = path.join(root, 'bin');
         await Promise.all([fs.mkdir(note), fs.mkdir(job), fs.mkdir(bin)]);
-        await fs.writeFile(path.join(note, 'README.md'), `https://youtu.be/${first_id}\nhttps://www.youtube.com/watch?v=${first_id}`);
+        await fs.writeFile(path.join(note, 'README.md'), `https://youtu.be/${FIRST_ID}\nhttps://www.youtube.com/watch?v=${FIRST_ID}`);
         await fs.writeFile(path.join(job, 'status.json'), JSON.stringify({uid: 'test-job', note_uid: 'test-note'}));
         env = {...process.env, PATH: `${bin}:${process.env.PATH}`, YT_DLP_PROXY: '', YT_DLP_COOKIES_FILE: '',
             YT_DLP_CONFIG_FILE: '', YT_DLP_FORCE_IPV4: '', YT_DLP_TOR: '', FAKE_FAIL_ID: '', FAKE_NO_OUTPUT: '',
@@ -138,19 +138,19 @@ function finish() {
         assert.equal(result.code, 0, result.stderr);
         assert.match(result.stdout, /test-yt-dlp/);
         assert.match(result.stdout, /\[download\] 100%/);
-        assert.equal(await fs.readFile(path.join(note, 'files/youtube', `${first_id}.webm`), 'utf8'), 'media fixture');
-        assert.deepEqual(await json('output.json'), {created: [`files/youtube/${first_id}.webm`, `files/youtube/${first_id}.jpg`], skipped: [], errors: []});
+        assert.equal(await fs.readFile(path.join(note, 'files/youtube', `${FIRST_ID}.webm`), 'utf8'), 'media fixture');
+        assert.deepEqual(await json('output.json'), {created: [`files/youtube/${FIRST_ID}.webm`, `files/youtube/${FIRST_ID}.jpg`], skipped: [], errors: []});
         assert.equal((await json('status.json')).uid, 'test-job');
         const args = JSON.parse((await fs.readFile(path.join(job, 'calls.jsonl'), 'utf8')).trim());
         assert.ok(args.includes('--no-playlist'));
         assert.equal(args[args.indexOf('--js-runtimes') + 1], `node:${process.execPath}`);
         assert.equal(args[args.indexOf('--format') + 1], 'bv*+ba/b');
         assert.equal(args[args.indexOf('--merge-output-format') + 1], 'webm');
-        assert.equal(await fs.readFile(path.join(note, 'files/youtube', `${first_id}.jpg`), 'utf8'), 'thumbnail fixture');
-        const body = `https://youtu.be/${first_id}\nhttps://www.youtube.com/watch?v=${first_id}\n\nTitle of https://www.youtube.com/watch?v=${first_id}\n`;
+        assert.equal(await fs.readFile(path.join(note, 'files/youtube', `${FIRST_ID}.jpg`), 'utf8'), 'thumbnail fixture');
+        const body = `https://youtu.be/${FIRST_ID}\nhttps://www.youtube.com/watch?v=${FIRST_ID}\n\nTitle of https://www.youtube.com/watch?v=${FIRST_ID}\n`;
         assert.equal(await fs.readFile(path.join(note, 'README.md'), 'utf8'), body);
         assert.equal((await run()).code, 0);
-        assert.deepEqual((await json('output.json')).skipped, [`files/youtube/${first_id}.webm`]);
+        assert.deepEqual((await json('output.json')).skipped, [`files/youtube/${FIRST_ID}.webm`]);
         assert.equal((await fs.readFile(path.join(job, 'calls.jsonl'), 'utf8')).trim().split('\n').length, 1);
         assert.equal(await fs.readFile(path.join(note, 'README.md'), 'utf8'), body);
     });
@@ -158,10 +158,10 @@ function finish() {
     it('preserves the MP3 job and its output path', async function () {
         const result = await run('youtube-mp3');
         assert.equal(result.code, 0, result.stderr);
-        assert.deepEqual((await json('output.json')).created, [`files/youtube/${first_id}.mp3`]);
+        assert.deepEqual((await json('output.json')).created, [`files/youtube/${FIRST_ID}.mp3`]);
         const args = JSON.parse((await fs.readFile(path.join(job, 'calls.jsonl'), 'utf8')).trim());
         assert.ok(!args.includes('--write-thumbnail'));
-        assert.equal(await fs.readFile(path.join(note, 'README.md'), 'utf8'), `https://youtu.be/${first_id}\nhttps://www.youtube.com/watch?v=${first_id}`);
+        assert.equal(await fs.readFile(path.join(note, 'README.md'), 'utf8'), `https://youtu.be/${FIRST_ID}\nhttps://www.youtube.com/watch?v=${FIRST_ID}`);
         assert.ok(args.includes('--extract-audio'));
         assert.ok(!args.includes('--merge-output-format'));
     });
@@ -186,16 +186,16 @@ function finish() {
     });
 
     it('reports partial failure, retains successes, redacts credentials, and cleans cookies on failure', async function () {
-        await fs.appendFile(path.join(note, 'README.md'), `\nhttps://youtu.be/${second_id}`);
-        env.FAKE_FAIL_ID = second_id;
+        await fs.appendFile(path.join(note, 'README.md'), `\nhttps://youtu.be/${SECOND_ID}`);
+        env.FAKE_FAIL_ID = SECOND_ID;
         env.YT_DLP_PROXY = 'http://user:very-secret@proxy.example:8080';
         env.YT_DLP_COOKIES_FILE = path.join(root, 'cookies.txt');
         await fs.writeFile(env.YT_DLP_COOKIES_FILE, 'test cookies');
         const result = await run();
         assert.equal(result.code, 1);
         const output = await json('output.json');
-        assert.deepEqual(output.created, [`files/youtube/${first_id}.webm`, `files/youtube/${first_id}.jpg`]);
-        assert.equal(output.errors[0].id, second_id);
+        assert.deepEqual(output.created, [`files/youtube/${FIRST_ID}.webm`, `files/youtube/${FIRST_ID}.jpg`]);
+        assert.equal(output.errors[0].id, SECOND_ID);
         assert.match(output.errors[0].message, /YT_DLP_PROXY/);
         assert.equal((await json('status.json')).status, 'failed');
         const logs = [result.stdout, result.stderr, JSON.stringify(output), JSON.stringify(await json('status.json')),
@@ -209,7 +209,7 @@ function finish() {
         const result = await run();
         assert.equal(result.code, 0, result.stderr);
         assert.match(result.stdout, /resuming with fresh URLs \(attempt 2\/3\)/);
-        assert.deepEqual(await json('output.json'), {created: [`files/youtube/${first_id}.webm`, `files/youtube/${first_id}.jpg`], skipped: [], errors: []});
+        assert.deepEqual(await json('output.json'), {created: [`files/youtube/${FIRST_ID}.webm`, `files/youtube/${FIRST_ID}.jpg`], skipped: [], errors: []});
         assert.equal((await fs.readFile(path.join(job, 'calls.jsonl'), 'utf8')).trim().split('\n').length, 2);
     });
 
@@ -236,7 +236,7 @@ function finish() {
         assert.equal((await run()).code, 1);
         assert.equal((await json('status.json')).status, 'failed');
         assert.deepEqual((await json('output.json')).created, []);
-        await assert.rejects(fs.stat(path.join(note, 'files/youtube', `${first_id}.webm`)), {code: 'ENOENT'});
+        await assert.rejects(fs.stat(path.join(note, 'files/youtube', `${FIRST_ID}.webm`)), {code: 'ENOENT'});
     });
 
     it('reports live download progress into status.json instead of a frozen line', async function () {
@@ -273,21 +273,21 @@ function finish() {
 
     it('keeps an existing download whatever container it was saved under', async function () {
         await fs.mkdir(path.join(note, 'files/youtube'), {recursive: true});
-        await fs.writeFile(path.join(note, 'files/youtube', `${first_id}.mp4`), 'older download');
+        await fs.writeFile(path.join(note, 'files/youtube', `${FIRST_ID}.mp4`), 'older download');
         assert.equal((await run()).code, 0);
-        assert.deepEqual(await json('output.json'), {created: [], skipped: [`files/youtube/${first_id}.mp4`], errors: []});
+        assert.deepEqual(await json('output.json'), {created: [], skipped: [`files/youtube/${FIRST_ID}.mp4`], errors: []});
         await assert.rejects(fs.stat(path.join(job, 'calls.jsonl')), {code: 'ENOENT'});
     });
 
     it('does not take a thumbnail or an mp3 from the sibling jobs for an existing video', async function () {
         await fs.mkdir(path.join(note, 'files/youtube'), {recursive: true});
-        await fs.writeFile(path.join(note, 'files/youtube', `${first_id}.jpg`), 'thumbnail');
-        await fs.writeFile(path.join(note, 'files/youtube', `${first_id}.mp3`), 'audio');
+        await fs.writeFile(path.join(note, 'files/youtube', `${FIRST_ID}.jpg`), 'thumbnail');
+        await fs.writeFile(path.join(note, 'files/youtube', `${FIRST_ID}.mp3`), 'audio');
         const result = await run();
         assert.equal(result.code, 0, result.stderr);
-        assert.deepEqual(await json('output.json'), {created: [`files/youtube/${first_id}.webm`], skipped: [], errors: []});
+        assert.deepEqual(await json('output.json'), {created: [`files/youtube/${FIRST_ID}.webm`], skipped: [], errors: []});
         assert.deepEqual((await run('youtube-mp3')).code, 0);
-        assert.deepEqual((await json('output.json')).skipped, [`files/youtube/${first_id}.mp3`]);
+        assert.deepEqual((await json('output.json')).skipped, [`files/youtube/${FIRST_ID}.mp3`]);
     });
 
     it('starts Tor for the job, routes yt-dlp through it, then stops it and drops its data directory', async function () {
@@ -295,7 +295,7 @@ function finish() {
         const result = await run();
         assert.equal(result.code, 0, result.stderr);
         assert.match(result.stdout, /\[tor\] .*Bootstrapped 100%/);
-        assert.deepEqual((await json('output.json')).created, [`files/youtube/${first_id}.webm`, `files/youtube/${first_id}.jpg`]);
+        assert.deepEqual((await json('output.json')).created, [`files/youtube/${FIRST_ID}.webm`, `files/youtube/${FIRST_ID}.jpg`]);
 
         const args = JSON.parse((await fs.readFile(path.join(job, 'calls.jsonl'), 'utf8')).trim());
         assert.equal(args[args.indexOf('--proxy') + 1], 'socks5h://127.0.0.1:19050');
@@ -313,7 +313,7 @@ function finish() {
 
     it('tells the operator to rerun for new circuits when a Tor exit is challenged', async function () {
         env.YT_DLP_TOR = 'true';
-        env.FAKE_FAIL_ID = first_id;
+        env.FAKE_FAIL_ID = FIRST_ID;
         assert.equal((await run()).code, 1);
         const output = await json('output.json');
         assert.match(output.errors[0].message, /YouTube challenged this Tor exit/);
