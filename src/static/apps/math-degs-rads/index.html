@@ -29,16 +29,18 @@
 </section>
 </main>
 
-<script src="https://unpkg.com/jquery@3.7.1/dist/jquery.js"></script>
+<script src="https://unpkg.com/jquery@4.0.0/dist/jquery.js"></script>
 <script src="https://unpkg.com/bluebird@3.7.2/js/browser/bluebird.js"></script>
-<script src="https://unpkg.com/vue@2.7.16/dist/vue.js"></script>
-<script src="https://unpkg.com/he@1.2.0/he.js"></script>
+<script src="https://unpkg.com/vue@3.5.45/dist/vue.global.prod.js"></script>
 <script>
-new Vue({
-    el: '#app',
-    data: {
-        degs: '',
-        rads: '',
+Vue.createApp({
+    // keep the spaces between tags, as Vue 2 did
+    compilerOptions: {whitespace: 'preserve'},
+    data: function () {
+        return {
+            degs: '',
+            rads: '',
+        };
     },
     methods: {
         input_rads: function (event) {
@@ -58,7 +60,7 @@ new Vue({
     created: function () {
         this.input_degs({currentTarget: {value: '45\n90\n180\n270'}});
     }
-});
+}).mount('#app');
 function degs_from_rads(rads)
 {
     return rads*180/Math.PI;

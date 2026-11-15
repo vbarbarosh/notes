@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Screenshot Stitcher</title>
 <script src="/js/theme.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/vue@2.7.16/dist/vue.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/vue@3.5.45/dist/vue.global.prod.js"></script>
 <style>
     :root {
         --color-bg: #F4F5F7;
@@ -44,7 +44,7 @@
     * {
         box-sizing: border-box;
     }
-    html, body {
+    html, body, #app {
         height: 100%;
         margin: 0;
     }
@@ -451,23 +451,27 @@
         // A drag started inside the page freezes Chrome on Wayland; file drops from outside are unaffected.
         document.addEventListener('dragstart', v => v.preventDefault());
 
-        const app = new Vue({
+        const app = Vue.createApp({
+            // keep the spaces between tags, as Vue 2 did
+            compilerOptions: {whitespace: 'preserve'},
             template: '#app-template',
-            data: {
-                items: [],
-                crop: {top: 0, bottom: 0, left: 0, right: 0},
-                result: {width: 0, height: 0, seams: [], axis: 'y'},
-                status: '',
-                is_ready: false,
-                is_fit: true,
-                is_seams: false,
-                is_sides: true,
-                sides_label: '',
-                scroll: 'auto',
-                axis: 'y',
-                is_dropping: false,
-                theme: document.documentElement.dataset.theme,
-                toast: '',
+            data: function () {
+                return {
+                    items: [],
+                    crop: {top: 0, bottom: 0, left: 0, right: 0},
+                    result: {width: 0, height: 0, seams: [], axis: 'y'},
+                    status: '',
+                    is_ready: false,
+                    is_fit: true,
+                    is_seams: false,
+                    is_sides: true,
+                    sides_label: '',
+                    scroll: 'auto',
+                    axis: 'y',
+                    is_dropping: false,
+                    theme: document.documentElement.dataset.theme,
+                    toast: '',
+                };
             },
             computed: {
                 theme_label: function () {
@@ -820,8 +824,7 @@
                     toast_timer = setTimeout(() => this.toast = '', 2500);
                 },
             },
-        });
-        app.$mount('#app');
+        }).mount('#app');
 
         document.addEventListener('paste', function (event) {
             const files = Array.from(event.clipboardData.files);

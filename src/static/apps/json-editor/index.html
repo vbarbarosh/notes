@@ -183,26 +183,22 @@
     </div>
 </main>
 
-<script src="https://unpkg.com/vue@2.6.14/dist/vue.js"></script>
+<script src="https://unpkg.com/vue@3.5.45/dist/vue.global.prod.js"></script>
 <script src="https://unpkg.com/jsoneditor@9.5.0/dist/jsoneditor.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.54.0/codemirror.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.54.0/mode/javascript/javascript.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.54.0/mode/clike/clike.min.js"></script>
 <script>
-Vue.component('jsoneditor', {
-    props: ['value'],
+// The editor stays out of Vue's reactivity: set on `this` in mounted, not declared in data.
+const jsoneditor_component = {
+    props: ['modelValue'],
+    emits: ['update:modelValue'],
     template: '<div v-once />',
-    data: function () {
-        return {
-            _jsoneditor: null,
-            _jsoneditor_value: null,
-        };
-    },
     watch: {
-        value: function () {
-            if (this._jsoneditor && this._jsoneditor_value !== this.value) {
-                this._jsoneditor_value = value;
-                this._jsoneditor.set(value);
+        modelValue: function () {
+            if (this._jsoneditor && this._jsoneditor_value !== this.modelValue) {
+                this._jsoneditor_value = this.modelValue;
+                this._jsoneditor.set(this.modelValue);
             }
         },
     },
@@ -221,7 +217,7 @@ Vue.component('jsoneditor', {
                 try {
                     const tmp = _this._jsoneditor.get();
                     _this._jsoneditor_value = tmp;
-                    _this.$emit('input', tmp);
+                    _this.$emit('update:modelValue', tmp);
                 }
                 catch (error) {
                 }
@@ -229,25 +225,21 @@ Vue.component('jsoneditor', {
             onBlur: function () {
             },
         });
-        this._jsoneditor_value = this.value;
-        this._jsoneditor.set(this.value);
+        this._jsoneditor_value = this.modelValue;
+        this._jsoneditor.set(this.modelValue);
     },
-});
+};
 
-    Vue.component('codemirror', {
-        props: ['value'],
+    // The editor stays out of Vue's reactivity: set on `this` in mounted, not declared in data.
+    const codemirror_component = {
+        props: ['modelValue'],
+        emits: ['update:modelValue'],
         template: '<div v-once />',
-        data: function () {
-            return {
-                _codemirror: null,
-                _codemirror_value: null,
-            };
-        },
         watch: {
-            value: function () {
-                if (this._codemirror && this._codemirror_value !== this.value) {
-                    this._codemirror_value = this.value;
-                    this._codemirror.setValue(this.value);
+            modelValue: function () {
+                if (this._codemirror && this._codemirror_value !== this.modelValue) {
+                    this._codemirror_value = this.modelValue;
+                    this._codemirror.setValue(this.modelValue);
                 }
             },
         },
@@ -280,21 +272,27 @@ Vue.component('jsoneditor', {
                 },
             });
             this._codemirror.on('blur', function () {
-                _this.$emit('input', _this._codemirror.getValue());
+                _this.$emit('update:modelValue', _this._codemirror.getValue());
             });
-            this._codemirror_value = this.value;
-            this._codemirror.setValue(this.value);
+            this._codemirror_value = this.modelValue;
+            this._codemirror.setValue(this.modelValue);
         },
-    });
+    };
 
-    new Vue({
-        el: '#app',
-        data: {
-            tabs: [
-                {name: 'json', title: 'json', is_active: true},
-                {name: 'table', title: 'table', is_active: false},
-            ],
-            items: json_parse_nothrow(localStorage_read('render_as_table_items', `[
+    Vue.createApp({
+        // keep the spaces between tags, as Vue 2 did
+        compilerOptions: {whitespace: 'preserve'},
+        components: {
+            jsoneditor: jsoneditor_component,
+            codemirror: codemirror_component,
+        },
+        data: function () {
+            return {
+                tabs: [
+                    {name: 'json', title: 'json', is_active: true},
+                    {name: 'table', title: 'table', is_active: false},
+                ],
+                items: json_parse_nothrow(localStorage_read('render_as_table_items', `[
     {"id": 1, "title": "Ti paj damdasu ih"},
     {"id": 2, "title": "Edutip nogud zumdo deza"},
     {"id": 3, "title": "Fatob"},
@@ -310,14 +308,15 @@ Vue.component('jsoneditor', {
     {"id": 13, "title": "Vogvevu igogejnef"}
 ]
 `)),
-            columns_str: localStorage_read('render_as_table_columns', `[
+                columns_str: localStorage_read('render_as_table_columns', `[
     {title: 'id', str: v => v.id},
     {title: 'title', str: v => v.title},
 ]
 `),
-            selection: [],
-            mouseover_add: false,
-            mouseover_remove: false,
+                selection: [],
+                mouseover_add: false,
+                mouseover_remove: false,
+            };
         },
         computed: {
             tabs_map: function () {
@@ -416,7 +415,7 @@ Vue.component('jsoneditor', {
                 }
             },
         },
-    });
+    }).mount('#app');
 
     function json_parse_nothrow(s, default_value = null)
     {

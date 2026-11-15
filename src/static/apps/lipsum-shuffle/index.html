@@ -26,20 +26,23 @@
 
 </main>
 
-<script src="https://unpkg.com/jquery@3.7.1/dist/jquery.js"></script>
+<script src="https://unpkg.com/jquery@4.0.0/dist/jquery.js"></script>
 <script src="https://unpkg.com/bluebird@3.7.2/js/browser/bluebird.js"></script>
-<script src="https://unpkg.com/vue@2.7.16/dist/vue.js"></script>
+<script src="https://unpkg.com/vue@3.5.45/dist/vue.global.prod.js"></script>
 <script>
-new Vue({
-    el: '#app',
-    data: {
-        input: `
+Vue.createApp({
+    // keep the spaces between tags, as Vue 2 did
+    compilerOptions: {whitespace: 'preserve'},
+    data: function () {
+        return {
+            input: `
 Lorem ipsum — классический текст-«рыба» (условный, зачастую бессмысленный текст-заполнитель, вставляемый в макет страницы, используемый для образца шрифта и текста, поля размещения на странице). Очень условное значение. На самом деле, часть фразы: «...dolorem ipsum dolor sit amet», что переводится «...сама боль, потому что это боль». Смысловая нагрузка значения: пустой тщеты и напрасных, тяжелых усилий. При заполнении страницы, выражает сарказм, боль обесценивания труда исполнителя.
 
 Иногда используется «dolorem ipsum», как аналог «жизнь боль», для добавления лоска беседе и налёта интеллектуальности.
 
 При более глубоком понимании, может быть гиперссылкой к оригинальному тексту, выглядит так: «Neque porro quisquam est qui dolorem ipsum quia dolor sit amet, consectetur, adipisci velit ...», и переводится как «Нет никого, кто любил бы свою боль, кто искал бы ее и хотел бы чтобы она была у него». Исходник: трактат Цицерона «О пределах добра и зла», написанного в 45 году, до нашей эры на латинском языке.
-        `.trim(),
+            `.trim(),
+        };
     },
     computed: {
         output: function () {
@@ -53,7 +56,7 @@ Lorem ipsum — классический текст-«рыба» (условны
             this.input = tmp;
         }
     },
-});
+}).mount('#app');
 
 /**
  * Shuffle characters in words, preserving everything spaces and puncutation.

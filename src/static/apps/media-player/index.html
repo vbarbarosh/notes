@@ -46,21 +46,24 @@ https://codepen.io/agalliat/pen/PoZLBxP
 
 </div>
 
-<script src="https://unpkg.com/jquery@3.7.1/dist/jquery.js"></script>
+<script src="https://unpkg.com/jquery@4.0.0/dist/jquery.js"></script>
 <script src="https://unpkg.com/bluebird@3.7.2/js/browser/bluebird.js"></script>
-<script src="https://unpkg.com/vue@2.7.16/dist/vue.js"></script>
+<script src="https://unpkg.com/vue@3.5.45/dist/vue.global.prod.js"></script>
 <script>
-new Vue({
-    el: '#app',
-    data: {
-        prop1: 'hello',
-        rows: [
-            {no: 1, first: 'Mark', last: 'Otto', handle: '@mdo'},
-            {no: 2, first: 'Jacob', last: 'Thornton', handle: '@fat'},
-            {no: 3, first: 'Larry', last: 'the Bird', handle: '@twitter'}
-        ]
+Vue.createApp({
+    // keep the spaces between tags, as Vue 2 did
+    compilerOptions: {whitespace: 'preserve'},
+    data: function () {
+        return {
+            prop1: 'hello',
+            rows: [
+                {no: 1, first: 'Mark', last: 'Otto', handle: '@mdo'},
+                {no: 2, first: 'Jacob', last: 'Thornton', handle: '@fat'},
+                {no: 3, first: 'Larry', last: 'the Bird', handle: '@twitter'}
+            ]
+        };
     },
-});
+}).mount('#app');
 </script>
 
 </body>

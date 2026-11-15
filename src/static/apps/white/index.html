@@ -33,16 +33,19 @@
     <p>&nbsp;</p>
 </main>
 
-<script src="https://unpkg.com/jquery@3.7.1/dist/jquery.js"></script>
+<script src="https://unpkg.com/jquery@4.0.0/dist/jquery.js"></script>
 <script src="https://unpkg.com/bluebird@3.7.2/js/browser/bluebird.js"></script>
-<script src="https://unpkg.com/vue@2.7.16/dist/vue.js"></script>
+<script src="https://unpkg.com/vue@3.5.45/dist/vue.global.prod.js"></script>
 <script src="https://unpkg.com/tinycolor2@1.6.0/cjs/tinycolor.js"></script>
 <script>
-new Vue({
-    el: '#app',
-    data: {
-        color: '#ffffff',
-        brightness: 100,
+Vue.createApp({
+    // keep the spaces between tags, as Vue 2 did
+    compilerOptions: {whitespace: 'preserve'},
+    data: function () {
+        return {
+            color: '#ffffff',
+            brightness: 100,
+        };
     },
     computed: {
         final_color: function () {
@@ -59,7 +62,7 @@ new Vue({
             }
         },
     },
-});
+}).mount('#app');
 </script>
 
 </body>

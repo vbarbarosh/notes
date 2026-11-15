@@ -32,16 +32,19 @@
 
 </main>
 
-<script src="https://unpkg.com/jquery@3.7.1/dist/jquery.js"></script>
+<script src="https://unpkg.com/jquery@4.0.0/dist/jquery.js"></script>
 <script src="https://unpkg.com/bluebird@3.7.2/js/browser/bluebird.js"></script>
-<script src="https://unpkg.com/vue@2.7.16/dist/vue.js"></script>
+<script src="https://unpkg.com/vue@3.5.45/dist/vue.global.prod.js"></script>
 <script>
-new Vue({
-    el: '#app',
-    data: {
-        url: 'https://example.com/',
-        width: 400,
-        height: 400,
+Vue.createApp({
+    // keep the spaces between tags, as Vue 2 did
+    compilerOptions: {whitespace: 'preserve'},
+    data: function () {
+        return {
+            url: 'https://example.com/',
+            width: 400,
+            height: 400,
+        };
     },
     methods: {
         px: function (value) {
@@ -72,7 +75,7 @@ new Vue({
         });
         observer.observe(this.$refs.iframe);
     },
-});
+}).mount('#app');
 </script>
 
 </body>
