@@ -9,7 +9,6 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,400;9..144,500;9..144,700;9..144,900&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <script src="/js/theme.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <style>
   :root {
     color-scheme: light;
@@ -470,9 +469,14 @@
     line-height: 1;
     -webkit-font-smoothing: antialiased;
     /* user-select / pointer-events are controlled by .canvas-area mode classes */
-    /* PDF.js v3 uses this CSS variable to scale text spans.
-       Default 1 keeps the property defined; we override per-page in JS. */
-    --scale-factor: 1;
+    /* PDF.js sizes the layer and its spans from these variables (pdf_viewer.css);
+       --total-scale-factor is overridden per page in JS. */
+    --total-scale-factor: 1;
+    --scale-round-x: 1px;
+    --scale-round-y: 1px;
+    --min-font-size: 1;
+    --text-scale-factor: calc(var(--total-scale-factor) * var(--min-font-size));
+    --min-font-size-inv: calc(1 / var(--min-font-size));
   }
   .textLayer span, .textLayer br {
     color: transparent;
@@ -481,6 +485,15 @@
     cursor: text;
     transform-origin: 0% 0%;
   }
+  .textLayer > :not(.markedContent),
+  .textLayer .markedContent span:not(.markedContent) {
+    --font-height: 0;
+    --scale-x: 1;
+    --rotate: 0deg;
+    font-size: calc(var(--text-scale-factor) * var(--font-height));
+    transform: rotate(var(--rotate)) scaleX(var(--scale-x)) scale(var(--min-font-size-inv));
+  }
+  .textLayer .markedContent { display: contents; }
   .textLayer ::selection { background: var(--highlight); color: transparent; }
 
   /* PDF link hotspots — invisible <a> elements positioned over the
@@ -1160,8 +1173,10 @@
   </div>
 </div>
 
-<script>
-  pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+<script type="module">
+  import * as pdfjsLib from 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/6.5.438/pdf.min.mjs';
+
+  pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/6.5.438/pdf.worker.min.mjs';
 
   const $ = (id) => document.getElementById(id);
   const dropzone = $('dropzone');
@@ -1370,7 +1385,7 @@
     try {
       let pdf = pdfCacheGet(file.url);
       if (!pdf) {
-        const loadingTask = pdfjsLib.getDocument(file.url);
+        const loadingTask = pdfjsLib.getDocument({ url: file.url });
         pdf = await loadingTask.promise;
         if (myToken !== renderToken) return; // user switched files
         pdfCachePut(file.url, pdf);
@@ -1506,21 +1521,20 @@
       textLayer.className = 'textLayer';
       textLayer.style.width = ref.viewport.width + 'px';
       textLayer.style.height = ref.viewport.height + 'px';
-      // PDF.js text layer uses --scale-factor to size and position spans.
+      // PDF.js text layer uses --total-scale-factor to size and position spans.
       // Without this, text spans render at scale 1 even when canvas is zoomed,
       // and text selection becomes misaligned.
-      textLayer.style.setProperty('--scale-factor', ref.viewport.scale);
+      textLayer.style.setProperty('--total-scale-factor', ref.viewport.scale);
       ref.wrap.appendChild(textLayer);
       ref.textLayer = textLayer;
 
       const textContent = await ref.page.getTextContent();
       if (myToken !== renderToken) return;
-      await pdfjsLib.renderTextLayer({
-        textContent,
+      await new pdfjsLib.TextLayer({
+        textContentSource: textContent,
         container: textLayer,
-        viewport: ref.viewport,
-        textDivs: []
-      }).promise.catch(() => {});
+        viewport: ref.viewport
+      }).render().catch(() => {});
 
       // Annotation layer — build clickable link hotspots from PDF link
       // annotations. We bypass pdfjsLib.AnnotationLayer.render (its API
@@ -1541,9 +1555,12 @@
 
           for (const ann of linkAnnotations) {
             // ann.rect is [x1, y1, x2, y2] in PDF user space (origin bottom-left).
-            // convertToViewportRectangle gives us [x1, y1, x2, y2] in viewport
-            // pixel coords (origin top-left), but the axes may be unsorted.
-            const r = ref.viewport.convertToViewportRectangle(ann.rect);
+            // convertToViewportPoint on both corners gives us [x1, y1, x2, y2] in
+            // viewport pixel coords (origin top-left), but the axes may be unsorted.
+            const r = [
+              ...ref.viewport.convertToViewportPoint(ann.rect[0], ann.rect[1]),
+              ...ref.viewport.convertToViewportPoint(ann.rect[2], ann.rect[3]),
+            ];
             const left = Math.min(r[0], r[2]);
             const top = Math.min(r[1], r[3]);
             const width = Math.abs(r[2] - r[0]);
