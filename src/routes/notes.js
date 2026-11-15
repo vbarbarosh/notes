@@ -40,16 +40,16 @@ const upload = multer({
 const routes = [
     {req: 'GET /api/v1/notes', fn: notes_list},
     {req: 'GET /api/v1/notes/:note_uid/files', fn: notes_files_list},
-    {req: 'HEAD /api/v1/notes/:note_uid/files/*', fn: notes_file_fetch},
-    {req: 'GET /api/v1/notes/:note_uid/files/*', fn: notes_file_fetch},
+    {req: 'HEAD /api/v1/notes/:note_uid/files/{*path}', fn: notes_file_fetch},
+    {req: 'GET /api/v1/notes/:note_uid/files/{*path}', fn: notes_file_fetch},
     {req: 'GET /api/v1/notes/:note_uid', fn: notes_fetch},
     {req: 'POST /api/v1/notes', fn: notes_create},
     {req: 'POST /api/v1/notes/:note_uid/files', fn: [upload.array('file'), notes_upload_file]},
     {req: 'PATCH /api/v1/notes/:note_uid', fn: notes_update},
-    {req: 'PUT /api/v1/notes/:note_uid/files/*', fn: [upload.single('file'), notes_file_put]},
-    {req: 'PATCH /api/v1/notes/:note_uid/files/*', fn: notes_file_move},
+    {req: 'PUT /api/v1/notes/:note_uid/files/{*path}', fn: [upload.single('file'), notes_file_put]},
+    {req: 'PATCH /api/v1/notes/:note_uid/files/{*path}', fn: notes_file_move},
     {req: 'DELETE /api/v1/notes/:note_uid', fn: notes_remove},
-    {req: 'DELETE /api/v1/notes/:note_uid/files/*', fn: notes_remove_file},
+    {req: 'DELETE /api/v1/notes/:note_uid/files/{*path}', fn: notes_remove_file},
 ];
 
 // GET /api/v1/notes?q=xxx&uid=xxx&created_after=xxx&created_before=xxx&limit=xxx&offset=xxx
@@ -196,7 +196,7 @@ async function notes_upload_file(req, res)
     res.send(await note_file_item({user_dir: req.user_dir, note_uid, path, lstat}));
 }
 
-// PUT /api/v1/notes/:note_uid/files/* | file=@/path/to/file
+// PUT /api/v1/notes/:note_uid/files/{*path} | file=@/path/to/file
 async function notes_file_put(req, res)
 {
     const file = req.file;
@@ -241,7 +241,7 @@ async function notes_file_put(req, res)
     res.location(item.url).status(exists ? 200 : 201).send(item);
 }
 
-// PATCH /api/v1/notes/:note_uid/files/* body={path}
+// PATCH /api/v1/notes/:note_uid/files/{*path} body={path}
 async function notes_file_move(req, res)
 {
     const source = await resolve_note_file_target(req);
@@ -310,7 +310,7 @@ async function notes_remove(req, res)
     res.send();
 }
 
-// DELETE /api/v1/notes/:note_uid/files/*
+// DELETE /api/v1/notes/:note_uid/files/{*path}
 async function notes_remove_file(req, res)
 {
     const source = await resolve_note_file_target(req);
@@ -333,7 +333,7 @@ async function notes_remove_file(req, res)
 async function resolve_note_file_target(req)
 {
     const note_uid = await resolve_note_root_name(req, req.params.note_uid);
-    const path = make_file_path(req.params[0]);
+    const path = make_file_path(req.params.path?.join('/'));
     const files_root = fs_path_resolve(req.user_dir, 'notes', note_uid, 'files');
     return {
         note_uid,

@@ -87,14 +87,14 @@ async function main()
 
     express_routes(app, [
         {req: 'GET /', fn: echo},
-        {req: 'GET /r/*.meta', fn: data_meta},
+        {req: 'GET /r/{*path}.meta', fn: data_meta},
         {req: 'GET /r/:note_uid', fn: note_page},
-        {req: 'GET /r/*', fn: data_fetch},
-        {req: 'GET /t/:size/*', fn: thumbnail},
+        {req: 'GET /r/{*path}', fn: data_fetch},
+        {req: 'GET /t/:size/{*path}', fn: thumbnail},
         ...require('./routes/notes'),
         ...jobs_routes,
         ...require('./routes/files'),
-        {req: 'ALL *', fn: page404},
+        {req: 'ALL /{*path}', fn: page404},
     ]);
 
     app.use(error_handler);
@@ -181,7 +181,7 @@ function x_perf(req, res, next)
     next();
 }
 
-// ALL *
+// ALL /{*path}
 async function page404(req, res)
 {
     res.status(404).send(`Page not found: ${req.path}`);
@@ -217,10 +217,10 @@ function static_cache_headers(res)
     }
 }
 
-// GET /r/*
+// GET /r/{*path}
 async function data_fetch(req, res)
 {
-    const rel = req.params['0'] ?? '';
+    const rel = req.params.path?.join('/') ?? '';
 
     const base = `${req.user_dir}/notes`;
 
@@ -260,10 +260,10 @@ async function data_fetch(req, res)
     }
 }
 
-// GET /r/*.meta
+// GET /r/{*path}.meta
 async function data_meta(req, res)
 {
-    const rel = req.params['0'] ?? '';
+    const rel = req.params.path?.join('/') ?? '';
 
     if (!rel) {
         res.status(404).send('Not Found');
@@ -287,11 +287,11 @@ async function data_meta(req, res)
     }
 }
 
-// GET /t/:size/*
+// GET /t/:size/{*path}
 async function thumbnail(req, res)
 {
     const size = make(req.params.size, {type: 'int', min: 32, max: 2048, default: 1024});
-    const rel = make(req.params['0'], {type: 'str', default: ''});
+    const rel = make(req.params.path?.join('/'), {type: 'str', default: ''});
 
     const meta = await file_meta_cache({
         notes_root: `${req.user_dir}/notes`,
