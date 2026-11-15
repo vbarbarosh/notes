@@ -1,9 +1,9 @@
-FROM node:24.14.0
+FROM node:26.13.1
 
 # https://github.com/Yelp/dumb-init
 ADD --chmod=755 https://github.com/Yelp/dumb-init/releases/download/v1.2.5/dumb-init_1.2.5_x86_64 /usr/bin/dumb-init
 
-ARG YT_DLP_VERSION=2026.08.19
+ARG YT_DLP_VERSION=2026.10.26
 
 # Install upstream yt-dlp and its matching YouTube challenge solver together.
 # Debian's yt-dlp can lag behind YouTube changes. Node is enabled by the job.

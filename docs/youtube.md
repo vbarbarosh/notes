@@ -81,7 +81,7 @@ without changing the pin does not upgrade yt-dlp. Update yt-dlp and its default
 dependencies together, as described in the [upstream EJS setup guide](https://github.com/yt-dlp/yt-dlp/wiki/EJS).
 
 For a non-Docker installation, install ffmpeg, Python with venv support, and a
-supported Node runtime (the app image uses Node 24), then:
+supported Node runtime (the app image uses Node 26), then:
 
 ```sh
 python3 -m venv "$HOME/.local/share/notes-yt-dlp"
