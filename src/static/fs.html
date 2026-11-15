@@ -9,8 +9,6 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css">
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/theme/material-darker.min.css">
 <script>
   /* The workbench kept its theme under its own key; it moves to the app's shared one once. */
   try{ if(!localStorage.getItem('theme')){ var t=localStorage.getItem('codesandbox_theme'); if(t==='light'||t==='dark') localStorage.setItem('theme', t); } }catch(e){}
@@ -42,15 +40,9 @@
   ::-webkit-scrollbar-thumb:hover{background:var(--muted);background-clip:padding-box}
   ::-webkit-scrollbar-corner{background:transparent}
 
-  .CodeMirror{height:100% !important;font-family:'JetBrains Mono',ui-monospace,monospace;font-size:13px;line-height:1.65;font-variant-ligatures:none;font-feature-settings:"liga" 0,"calt" 0,"dlig" 0}
-  .CodeMirror-gutters{border-right:1px solid var(--border)}
-  .cm-s-default.CodeMirror{background:var(--panel);color:var(--fg)}
-  .cm-s-default .CodeMirror-gutters{background:var(--panel);border-color:var(--border)}
-  .cm-s-default .CodeMirror-linenumber{color:var(--muted)}
-  .cm-s-default .CodeMirror-cursor{border-color:var(--fg)}
-  .cm-s-material-darker.CodeMirror{background:#0e1116}
-  .cm-s-material-darker .CodeMirror-gutters{background:#0e1116;border-color:var(--border)}
-  .CodeMirror-scrollbar-filler,.CodeMirror-gutter-filler{background:transparent !important}
+  #cm-host .cm-editor{height:100%}
+  #cm-host .cm-editor.cm-focused{outline:none}
+  #cm-host .cm-scroller{font-family:'JetBrains Mono',ui-monospace,monospace;font-size:13px;line-height:1.65;font-variant-ligatures:none;font-feature-settings:"liga" 0,"calt" 0,"dlig" 0}
 
   #app{position:fixed;inset:0;display:flex;flex-direction:column}
   .topbar{height:46px;flex:none;display:flex;align-items:center;gap:11px;padding:0 14px;background:var(--panel);border-bottom:1px solid var(--border)}
@@ -293,17 +285,46 @@
   </div>
 </div>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/xml/xml.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/javascript/javascript.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/css/css.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/htmlmixed/htmlmixed.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/markdown/markdown.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/18.2.0/lib/marked.umd.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/edit/closebrackets.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/edit/closetag.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/edit/matchbrackets.min.js"></script>
-<script>
+<!-- CodeMirror 6 for the editor. Its packages must share one copy of the core, or their
+     extensions do not mix: each keeps the core as a bare import (?external=), mapped here once. -->
+<script type="importmap">
+{"imports": {
+  "@codemirror/state": "https://esm.sh/@codemirror/state@6.7.6?external=@codemirror/state,@codemirror/view,@codemirror/language,@lezer/common,@lezer/highlight,@lezer/lr",
+  "@codemirror/view": "https://esm.sh/@codemirror/view@6.43.15?external=@codemirror/state,@codemirror/view,@codemirror/language,@lezer/common,@lezer/highlight,@lezer/lr",
+  "@codemirror/language": "https://esm.sh/@codemirror/language@6.13.1?external=@codemirror/state,@codemirror/view,@codemirror/language,@lezer/common,@lezer/highlight,@lezer/lr",
+  "@codemirror/commands": "https://esm.sh/@codemirror/commands@6.11.1?external=@codemirror/state,@codemirror/view,@codemirror/language,@lezer/common,@lezer/highlight,@lezer/lr",
+  "@codemirror/autocomplete": "https://esm.sh/@codemirror/autocomplete@6.20.4?external=@codemirror/state,@codemirror/view,@codemirror/language,@lezer/common,@lezer/highlight,@lezer/lr",
+  "@codemirror/lang-html": "https://esm.sh/@codemirror/lang-html@6.4.12?external=@codemirror/state,@codemirror/view,@codemirror/language,@lezer/common,@lezer/highlight,@lezer/lr",
+  "@codemirror/lang-css": "https://esm.sh/@codemirror/lang-css@6.3.1?external=@codemirror/state,@codemirror/view,@codemirror/language,@lezer/common,@lezer/highlight,@lezer/lr",
+  "@codemirror/lang-javascript": "https://esm.sh/@codemirror/lang-javascript@6.2.5?external=@codemirror/state,@codemirror/view,@codemirror/language,@lezer/common,@lezer/highlight,@lezer/lr",
+  "@codemirror/lang-markdown": "https://esm.sh/@codemirror/lang-markdown@6.5.2?external=@codemirror/state,@codemirror/view,@codemirror/language,@lezer/common,@lezer/highlight,@lezer/lr",
+  "@codemirror/lang-xml": "https://esm.sh/@codemirror/lang-xml@6.1.0?external=@codemirror/state,@codemirror/view,@codemirror/language,@lezer/common,@lezer/highlight,@lezer/lr",
+  "@codemirror/lang-json": "https://esm.sh/@codemirror/lang-json@6.0.2?external=@codemirror/state,@codemirror/view,@codemirror/language,@lezer/common,@lezer/highlight,@lezer/lr",
+  "@codemirror/theme-one-dark": "https://esm.sh/@codemirror/theme-one-dark@6.1.3?external=@codemirror/state,@codemirror/view,@codemirror/language,@lezer/common,@lezer/highlight,@lezer/lr",
+  "@lezer/common": "https://esm.sh/@lezer/common@1.5.5?external=@codemirror/state,@codemirror/view,@codemirror/language,@lezer/common,@lezer/highlight,@lezer/lr",
+  "@lezer/highlight": "https://esm.sh/@lezer/highlight@1.2.5?external=@codemirror/state,@codemirror/view,@codemirror/language,@lezer/common,@lezer/highlight,@lezer/lr",
+  "@lezer/lr": "https://esm.sh/@lezer/lr@1.4.12?external=@codemirror/state,@codemirror/view,@codemirror/language,@lezer/common,@lezer/highlight,@lezer/lr"
+}}
+</script>
+<script type="module">
+/* The page's script below runs after this one and builds the editor from window.CM6; without it, a plain textarea. */
+import * as autocomplete from '@codemirror/autocomplete';
+import * as commands from '@codemirror/commands';
+import * as lang_css from '@codemirror/lang-css';
+import * as lang_html from '@codemirror/lang-html';
+import * as lang_javascript from '@codemirror/lang-javascript';
+import * as lang_json from '@codemirror/lang-json';
+import * as lang_markdown from '@codemirror/lang-markdown';
+import * as lang_xml from '@codemirror/lang-xml';
+import * as language from '@codemirror/language';
+import * as state from '@codemirror/state';
+import * as theme_one_dark from '@codemirror/theme-one-dark';
+import * as view from '@codemirror/view';
+
+window.CM6 = Object.assign({}, autocomplete, commands, lang_css, lang_html, lang_javascript, lang_json, lang_markdown, lang_xml, language, state, theme_one_dark, view);
+</script>
+<script type="module">
 "use strict";
 (function(){
   var LS = 'codesandbox_spa_v1';
@@ -790,15 +811,10 @@
 
   /* ---------- editor ---------- */
   function initEditor(){
-    cm = CodeMirror(document.getElementById('cm-host'), {
+    cm = cm6Editor(document.getElementById('cm-host'), {
       value:'', mode:'htmlmixed',
-      theme: S.theme==='dark' ? 'material-darker' : 'default',
-      lineNumbers:true, lineWrapping:false,
-      autoCloseBrackets:true, autoCloseTags:true, matchBrackets:true,
-      dragDrop:false,
-      indentUnit:4, tabSize:4, indentWithTabs:false, smartIndent:true
+      theme: S.theme==='dark' ? 'material-darker' : 'default'
     });
-    cm.setSize('100%','100%');
     cm.on('change', onEditorChange);
     cm.on('paste', onDocPaste);
     /* persist editor scroll/cursor as it happens (not only on file switch) */
@@ -808,6 +824,65 @@
     loadActiveIntoEditor();
     updatePreview();
     setTimeout(function(){ cm && cm.refresh(); }, 80);
+  }
+  /* CodeMirror 6 behind the CodeMirror 5 calls this page makes: the same names,
+     cursor {line, ch} and scroll {left, top}, so view states saved before still restore. */
+  function cm6Editor(host, opts){
+    var C=window.CM6;
+    var lang=new C.Compartment(), ro=new C.Compartment(), look=new C.Compartment();
+    var cur={mode:opts.mode, readOnly:false, theme:opts.theme};
+    var handlers={change:[], paste:[], scroll:[], cursorActivity:[]};
+    var api, view;
+    function fire(name, e){ handlers[name].forEach(function(fn){ fn(api, e); }); }
+    function languageFor(mode){
+      var m=(typeof mode==='string')?{name:mode}:mode;
+      if(m.name==='markdown') return C.markdown();
+      if(m.name==='css') return C.css();
+      if(m.name==='xml') return C.xml();
+      if(m.name==='javascript') return m.json ? C.json() : C.javascript({typescript:!!m.typescript});
+      return C.html();
+    }
+    function themeFor(name){
+      var dark=(name==='material-darker'), bg=dark?'#0e1116':'var(--panel)';
+      return [
+        C.EditorView.theme({'&':{backgroundColor:bg, color:'var(--fg)'}, '.cm-gutters':{backgroundColor:bg, color:'var(--muted)', borderRight:'1px solid var(--border)'}, '.cm-cursor':{borderLeftColor:'var(--fg)'}}, {dark:dark}),
+        C.syntaxHighlighting(dark ? C.oneDarkHighlightStyle : C.defaultHighlightStyle)
+      ];
+    }
+    function extensions(){
+      return [
+        C.lineNumbers(), C.history(), C.drawSelection(), C.indentOnInput(), C.bracketMatching(), C.closeBrackets(),
+        C.EditorState.tabSize.of(4), C.indentUnit.of('    '),
+        C.keymap.of([{key:'Tab', run:C.insertTab, shift:C.indentLess}].concat(C.closeBracketsKeymap, C.defaultKeymap, C.historyKeymap)),
+        lang.of(languageFor(cur.mode)), ro.of(C.EditorState.readOnly.of(cur.readOnly)), look.of(themeFor(cur.theme)),
+        C.EditorView.updateListener.of(function(u){ if(u.docChanged) fire('change'); if(u.selectionSet) fire('cursorActivity'); }),
+        /* files dropped on the editor go to the page's drop handler, as with CodeMirror 5's dragDrop:false */
+        C.EditorView.domEventHandlers({paste:function(e){ fire('paste', e); return e.defaultPrevented; }, drop:function(){ return true; }})
+      ];
+    }
+    view=new C.EditorView({state:C.EditorState.create({doc:opts.value||'', extensions:extensions()}), parent:host});
+    view.scrollDOM.addEventListener('scroll', function(){ fire('scroll'); });
+    api={
+      getValue:function(){ return view.state.doc.toString(); },
+      setValue:function(v){ view.dispatch({changes:{from:0, to:view.state.doc.length, insert:v}}); },
+      clearHistory:function(){ view.setState(C.EditorState.create({doc:view.state.doc, extensions:extensions()})); },
+      getOption:function(k){ return cur[k]; },
+      setOption:function(k, v){
+        cur[k]=v;
+        if(k==='mode') view.dispatch({effects:lang.reconfigure(languageFor(v))});
+        if(k==='readOnly') view.dispatch({effects:ro.reconfigure(C.EditorState.readOnly.of(!!v))});
+        if(k==='theme') view.dispatch({effects:look.reconfigure(themeFor(v))});
+      },
+      getCursor:function(){ var p=view.state.selection.main.head, l=view.state.doc.lineAt(p); return {line:l.number-1, ch:p-l.from}; },
+      setCursor:function(c){ var d=view.state.doc, l=d.line(Math.min(Math.max((c.line|0)+1, 1), d.lines)); view.dispatch({selection:{anchor:Math.min(l.from+(c.ch|0), l.to)}}); },
+      getScrollInfo:function(){ return {left:view.scrollDOM.scrollLeft, top:view.scrollDOM.scrollTop}; },
+      scrollTo:function(left, top){ view.scrollDOM.scrollLeft=left; view.scrollDOM.scrollTop=top; },
+      replaceSelection:function(t){ view.dispatch(view.state.replaceSelection(t)); },
+      refresh:function(){ view.requestMeasure(); },
+      focus:function(){ view.focus(); },
+      on:function(name, fn){ handlers[name].push(fn); }
+    };
+    return api;
   }
   function loadActiveIntoEditor(){
     if(!cm) return;
@@ -2018,7 +2093,7 @@
   function boot(){
   applyTheme();
   renderAll();
-  if(window.CodeMirror){ initEditor(); }
+  if(window.CM6){ initEditor(); }
   else {
     // fallback textarea
     var host=document.getElementById('cm-host');

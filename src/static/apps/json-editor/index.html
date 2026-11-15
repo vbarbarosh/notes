@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>json-editor</title>
     <link href="https://unpkg.com/jsoneditor@10.4.3/dist/jsoneditor.css" rel="stylesheet" />
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.54.0/codemirror.css" rel="stylesheet" />
     <link href="https://unpkg.com/@vbarbarosh/smcss@2.0.0/dist/sm.css" rel="stylesheet">
     <link id="jsoneditor_dark" href="https://unpkg.com/jsoneditor@10.4.3/examples/css/darktheme.css" rel="stylesheet" disabled>
     <style>
@@ -53,12 +52,12 @@
             background: var(--color-select);
         }
 
-        :root[data-theme="dark"] .CodeMirror {
+        :root[data-theme="dark"] .cm-editor {
             background: var(--color-surface);
             color: var(--color-text);
         }
 
-        :root[data-theme="dark"] .CodeMirror-cursor {
+        :root[data-theme="dark"] .cm-cursor {
             border-left-color: var(--color-text);
         }
 
@@ -114,11 +113,10 @@
             height: 32px;
         }
 
-        .CodeMirror {
+        .cm-editor {
             border: 1px solid var(--color-line-soft);
-            height: auto;
         }
-        .CodeMirror-scroll {
+        .cm-scroller {
             min-height: 100px;
         }
         table { border-collapse: collapse; }
@@ -185,10 +183,30 @@
 
 <script src="https://unpkg.com/vue@3.5.45/dist/vue.global.prod.js"></script>
 <script src="https://unpkg.com/jsoneditor@10.4.3/dist/jsoneditor.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.54.0/codemirror.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.54.0/mode/javascript/javascript.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.54.0/mode/clike/clike.min.js"></script>
-<script>
+<!-- CodeMirror 6. Its packages must share one copy of the core, or their extensions
+     do not mix: each keeps the core as a bare import (?external=), mapped here once. -->
+<script type="importmap">
+{"imports": {
+    "@codemirror/state": "https://esm.sh/@codemirror/state@6.7.6?external=@codemirror/state,@codemirror/view,@codemirror/language,@lezer/common,@lezer/highlight,@lezer/lr",
+    "@codemirror/view": "https://esm.sh/@codemirror/view@6.43.15?external=@codemirror/state,@codemirror/view,@codemirror/language,@lezer/common,@lezer/highlight,@lezer/lr",
+    "@codemirror/language": "https://esm.sh/@codemirror/language@6.13.1?external=@codemirror/state,@codemirror/view,@codemirror/language,@lezer/common,@lezer/highlight,@lezer/lr",
+    "@codemirror/commands": "https://esm.sh/@codemirror/commands@6.11.1?external=@codemirror/state,@codemirror/view,@codemirror/language,@lezer/common,@lezer/highlight,@lezer/lr",
+    "@codemirror/lang-javascript": "https://esm.sh/@codemirror/lang-javascript@6.2.5?external=@codemirror/state,@codemirror/view,@codemirror/language,@lezer/common,@lezer/highlight,@lezer/lr",
+    "@lezer/common": "https://esm.sh/@lezer/common@1.5.5?external=@codemirror/state,@codemirror/view,@codemirror/language,@lezer/common,@lezer/highlight,@lezer/lr",
+    "@lezer/highlight": "https://esm.sh/@lezer/highlight@1.2.5?external=@codemirror/state,@codemirror/view,@codemirror/language,@lezer/common,@lezer/highlight,@lezer/lr",
+    "@lezer/lr": "https://esm.sh/@lezer/lr@1.4.12?external=@codemirror/state,@codemirror/view,@codemirror/language,@lezer/common,@lezer/highlight,@lezer/lr"
+}}
+</script>
+<script type="module">
+import * as commands from '@codemirror/commands';
+import * as lang_javascript from '@codemirror/lang-javascript';
+import * as language from '@codemirror/language';
+import * as state from '@codemirror/state';
+import * as view from '@codemirror/view';
+
+window.CM6 = Object.assign({}, commands, lang_javascript, language, state, view);
+</script>
+<script type="module">
 // The editor stays out of Vue's reactivity: set on `this` in mounted, not declared in data.
 const jsoneditor_component = {
     props: ['modelValue'],
@@ -239,7 +257,7 @@ const jsoneditor_component = {
             modelValue: function () {
                 if (this._codemirror && this._codemirror_value !== this.modelValue) {
                     this._codemirror_value = this.modelValue;
-                    this._codemirror.setValue(this.modelValue);
+                    this._codemirror.dispatch({changes: {from: 0, to: this._codemirror.state.doc.length, insert: this.modelValue}});
                 }
             },
         },
@@ -249,33 +267,40 @@ const jsoneditor_component = {
                 this._codemirror.focus();
             },
             codemirror_refresh: function () {
-                this._codemirror.refresh();
+                this._codemirror.requestMeasure();
             },
         },
         mounted: function () {
             const _this = this;
-            this._codemirror = CodeMirror(this.$el, {
-                mode: 'text/javascript',
-                indentUnit: 4,
-                tabSize: 4,
-                indentWithTabs: false,
-                lineNumbers: true,
-                // autofocus: true,
-                viewportMargin: Infinity,
-                readOnly: false,
-                extraKeys: {
-                    'Tab': 'indentMore',
-                    'Shift-Tab': 'indentLess',
-                    'Ctrl-Enter': function () {
-                        // document.querySelector('form').submit();
-                    },
-                },
-            });
-            this._codemirror.on('blur', function () {
-                _this.$emit('update:modelValue', _this._codemirror.getValue());
+            const C = window.CM6;
+            this._codemirror = new C.EditorView({
+                parent: this.$el,
+                doc: this.modelValue,
+                extensions: [
+                    C.lineNumbers(),
+                    C.history(),
+                    C.drawSelection(),
+                    C.syntaxHighlighting(C.defaultHighlightStyle),
+                    C.javascript(),
+                    C.EditorState.tabSize.of(4),
+                    C.indentUnit.of('    '),
+                    C.keymap.of([
+                        {key: 'Tab', run: C.indentMore, shift: C.indentLess},
+                        {key: 'Ctrl-Enter', run: function () {
+                            // document.querySelector('form').submit();
+                            return true;
+                        }},
+                        ...C.defaultKeymap,
+                        ...C.historyKeymap,
+                    ]),
+                    C.EditorView.domEventHandlers({
+                        blur: function () {
+                            _this.$emit('update:modelValue', _this._codemirror.state.doc.toString());
+                        },
+                    }),
+                ],
             });
             this._codemirror_value = this.modelValue;
-            this._codemirror.setValue(this.modelValue);
         },
     };
 
