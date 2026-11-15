@@ -689,10 +689,10 @@
     if(err!=null){ return '<!doctype html><meta charset="utf-8"><body style="margin:0;font-family:ui-monospace,SFMono-Regular,monospace;background:'+(dark?'#0d1014':'#fff')+'"><div style="padding:18px 20px;font-weight:600;color:#ef4444">Invalid JSON</div><pre style="padding:0 20px 20px;white-space:pre-wrap;color:'+(dark?'#e7eaf0':'#1f2328')+'">'+esc(err)+'</pre></body>'; }
     var b64=b64utf8(JSON.stringify(data)), darkCss=dark?('<style>'+JSON_DARK+'</style>'):'';
     return '<!doctype html><html><head><meta charset="utf-8">'
-      +'<link rel="stylesheet" href="https://unpkg.com/jsoneditor@9/dist/jsoneditor.min.css">'
+      +'<link rel="stylesheet" href="https://unpkg.com/jsoneditor@10/dist/jsoneditor.min.css">'
       +'<style>html,body{margin:0;height:100%}body{background:'+(dark?'#0d1014':'#fff')+'}#je{width:100%;height:100vh}</style>'
       +darkCss
-      +'<scr'+'ipt src="https://unpkg.com/jsoneditor@9/dist/jsoneditor.min.js"></scr'+'ipt>'
+      +'<scr'+'ipt src="https://unpkg.com/jsoneditor@10/dist/jsoneditor.min.js"></scr'+'ipt>'
       +'</head><body><div id="je"></div>'
       +'<scr'+'ipt>(function(){var RO='+(ro?'true':'false')+';var el=document.getElementById("je");var data=JSON.parse(decodeURIComponent(escape(atob("'+b64+'"))));var opts=RO?{mode:"view",modes:["view","preview"]}:{mode:"tree",modes:["tree","code","preview"],onChangeText:function(t){try{parent.postMessage({__sbedit:1,kind:"json",text:t},"*");}catch(e){}}};try{var ed=new JSONEditor(el,opts);ed.set(data);}catch(e){el.textContent=String(e);}})();</scr'+'ipt>'
       +'</body></html>';
@@ -974,7 +974,7 @@
   }
 
   /* persistent JSON editor frame (vanilla-jsoneditor, native light/dark themes) */
-  var JSON_FRAME_JS = 'import { createJSONEditor } from "https://cdn.jsdelivr.net/npm/vanilla-jsoneditor@2/standalone.js";'
+  var JSON_FRAME_JS = 'import { createJSONEditor } from "https://cdn.jsdelivr.net/npm/vanilla-jsoneditor@3/standalone.js";'
     +'var editor=null,preferredMode="tree";'
     +'function emit(c){var t=(c&&c.text!==undefined)?c.text:JSON.stringify(c.json,null,4);try{parent.postMessage({__sbedit:1,kind:"json",text:t},"*");}catch(e){}}'
     +'function build(content,ro){editor=createJSONEditor({target:document.getElementById("je"),props:{content:content,mode:preferredMode,readOnly:!!ro,indentation:4,onChange:function(u){emit(u);},onChangeMode:function(m){preferredMode=m;try{parent.postMessage({__sbmode:1,mode:m},"*");}catch(e){}}}});}'
@@ -984,7 +984,7 @@
     +'parent.postMessage({__jfready:1},"*");';
   function jsonFrameDoc(){
     return '<!doctype html><html><head><meta charset="utf-8">'
-      +'<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/vanilla-jsoneditor@2/themes/jse-theme-dark.css">'
+      +'<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/vanilla-jsoneditor@3/themes/jse-theme-dark.css">'
       +'<style>html,body{margin:0;height:100%}body{background:#fff}body.jse-theme-dark{background:#1e1e1e}#je{height:100vh}</style>'
       +'</head><body><div id="je"></div>'
       +'<scr'+'ipt type="module">'+JSON_FRAME_JS+'</scr'+'ipt>'
